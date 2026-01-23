@@ -100,6 +100,8 @@
 
 # source ~/.bashrc  # source the .bashrc file to apply changes to current terminal session
 
+#code ~/.bashrc # Open this file into editor
+
 # Using Aliases for Command Shortcuts (alias)
 # An alias is a shortcut that allows you to create a custom command that represents a longer command or series of commands.
 # Aliases are typically defined in the .bashrc file so that they are available in every terminal session.

@@ -1,0 +1,6 @@
+Absolute Path of this file: C:\Users\T14\Desktop\Backend-with-Node.js\Section-3\05_File_System\test.txt
+
+Relative Path of this file: 
+test.txt
+
+

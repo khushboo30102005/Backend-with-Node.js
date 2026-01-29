@@ -1,0 +1,4 @@
+ls
+node -v
+git -v
+npm -v

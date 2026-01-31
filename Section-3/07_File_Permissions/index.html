@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Comprehensive Guide to Linux Permissions and Git Handling</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 20px;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        .container {
+            max-width: 900px;
+            margin: auto;
+            background: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h1, h2, h3, h4 {
+            color: #0056b3;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .section {
+            margin-bottom: 25px;
+            padding: 15px;
+            border-left: 4px solid #007bff;
+            background-color: #e9f5ff;
+            border-radius: 4px;
+        }
+        .section h2 {
+            margin-top: 0;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #007bff;
+        }
+        .section h3 {
+            color: #004085;
+            margin-top: 15px;
+            margin-bottom: 10px;
+        }
+        ul {
+            list-style-type: disc;
+            margin-left: 20px;
+            padding-left: 0;
+        }
+        ol {
+            list-style-type: decimal;
+            margin-left: 20px;
+            padding-left: 0;
+        }
+        li {
+            margin-bottom: 8px;
+        }
+        code {
+            background-color: #e0e0e0;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-family: 'Courier New', Courier, monospace;
+            color: #d63384;
+        }
+        pre {
+            background-color: #333;
+            color: #eee;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-family: 'Courier New', Courier, monospace;
+            margin-top: 10px;
+            margin-bottom: 10px;
+        }
+        pre code {
+            background-color: transparent;
+            color: inherit;
+            padding: 0;
+            border-radius: 0;
+        }
+        strong {
+            color: #d63384;
+        }
+        .note {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 10px;
+            margin-top: 15px;
+            border-radius: 4px;
+        }
+        .important {
+            font-weight: bold;
+            color: #dc3545;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Comprehensive Guide to Linux Permissions and Git Handling</h1>
+
+        <div class="section">
+            <h2>What Are Permissions in an Operating System?</h2>
+            <p>Permissions in an operating system are fundamental security mechanisms that control access to various system resources, including files, directories, and even hardware devices. They dictate what actions a user or process is allowed to perform on these resources.</p>
+            <p>This mechanism is crucial for:</p>
+            <ul>
+                <li>Controlling who can access specific data.</li>
+                <li>Preventing unauthorized modification or deletion of critical data.</li>
+                <li>Ensuring system integrity and stability in multi-user environments.</li>
+            </ul>
+            <p>Operating systems like Linux, Unix, Windows, and macOS heavily rely on robust permission systems.</p>
+        </div>
+
+        <div class="section">
+            <h2>File and Folder Permissions</h2>
+            <h3>File Permissions</h3>
+            <p>File permissions determine the actions that can be performed on individual files:</p>
+            <ul>
+                <li><strong>Read (<code>r</code>):</strong> Allows viewing the contents of the file.</li>
+                <li><strong>Write (<code>w</code>):</strong> Allows modifying the content of the file, including adding, changing, or deleting data.</li>
+                <li><strong>Execute (<code>x</code>):</strong> Allows running the file as a program or script.</li>
+            </ul>
+
+            <h3>Folder (Directory) Permissions</h3>
+            <p>Directory permissions govern actions that can be performed within a directory:</p>
+            <ul>
+                <li><strong>Read (<code>r</code>):</strong> Allows listing the contents of the directory (i.e., seeing what files and subdirectories are inside using commands like <code>ls</code>).</li>
+                <li><strong>Write (<code>w</code>):</strong> Allows creating new files or subdirectories within the directory, deleting existing files or subdirectories, and renaming items within the directory.</li>
+                <li><strong>Execute (<code>x</code>):</strong> Allows navigating into the directory (using <code>cd</code>) and accessing files and subdirectories within it, even if you can't list their names (without read permission).</li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>Types of Permissions</h2>
+            <h3>1. Standard Permissions</h3>
+            <ul>
+                <li><strong>Read (<code>r</code>):</strong> Permission value 4</li>
+                <li><strong>Write (<code>w</code>):</strong> Permission value 2</li>
+                <li><strong>Execute (<code>x</code>):</strong> Permission value 1</li>
+            </ul>
+
+            <h3>2. Special Permissions</h3>
+            <p>Beyond the basic read, write, and execute, Linux offers special permissions:</p>
+            <ul>
+                <li>
+                    <strong>Set User ID (SUID):</strong>
+                    <ul>
+                        <li>When applied to an executable file, it allows the file to be executed with the permissions of the <strong>file's owner</strong>, not the user running it.</li>
+                        <li>Useful for programs requiring elevated privileges (e.g., <code>passwd</code> command).</li>
+                    </ul>
+                </li>
+                <li>
+                    <strong>Set Group ID (SGID):</strong>
+                    <ul>
+                        <li>For executable files: Runs the file with the permissions of the <strong>file's group</strong>.</li>
+                        <li>For directories: New files created within that directory will inherit the group ownership of the directory, rather than the primary group of the user who created the file. Very useful for collaborative work.</li>
+                    </ul>
+                </li>
+                <li>
+                    <strong>Sticky Bit:</strong>
+                    <ul>
+                        <li>Primarily used on directories.</li>
+                        <li>Ensures that <strong class="important">only the owner of a file</strong> (or the directory owner or root) can delete or rename files within that directory, even if other users have write permission to the directory.</li>
+                        <li>The <code>/tmp</code> directory often has the sticky bit set.</li>
+                    </ul>
+                </li>
+            </ul>
+
+            <h3>3. Permission Categories</h3>
+            <p>Linux permissions are organized into three categories of users:</p>
+            <ul>
+                <li><strong>Owner (<code>u</code>):</strong> The user who owns the file or directory.</li>
+                <li><strong>Group (<code>g</code>):</strong> A specific group of users. All members of this group have the permissions assigned to the "group" category.</li>
+                <li><strong>Others (<code>o</code>):</strong> All other users on the system who are not the owner and are not part of the file's owning group.</li>
+                <li><strong>All (<code>a</code>):</strong> Represents all categories combined (owner, group, and others).</li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>How Permissions Work in Linux</h2>
+            <p>Each of the three categories (owner, group, others) can have a combination of read (<code>r</code>), write (<code>w</code>), and execute (<code>x</code>) permissions.</p>
+
+            <h3>Permission Structure Representation</h3>
+            <p>When you list files using <code>ls -l</code>, you'll see a permission string like <code>-rwxr-xr--</code>. Let's break this down:</p>
+            <pre><code>-rwxrwxrwx
+|||||||||
+|||||||||__ Others execute
+||||||||___ Others write
+|||||||____ Others read
+||||||_____ Group execute
+|||||______ Group write
+||||_______ Group read
+|||________ User execute
+||_________ User write
+|__________ User read
+</code></pre>
+            <p>The permission string consists of 10 characters:</p>
+            <ol>
+                <li>
+                    <strong>First character (File Type):</strong> Indicates the type of file:
+                    <ul>
+                        <li><code>-</code>: Regular file</li>
+                        <li><code>d</code>: Directory</li>
+                        <li><code>l</code>: Symbolic link</li>
+                        <li><code>b</code>: Block device</li>
+                        <li><code>c</code>: Character device</li>
+                        <li><code>p</code>: Named pipe</li>
+                        <li><code>s</code>: Socket</li>
+                    </ul>
+                </li>
+                <li>
+                    <strong>Next nine characters (Permissions):</strong> Divided into three sets of three:
+                    <ul>
+                        <li><strong>1st triplet (Owner):</strong> Permissions for the file's owner (e.g., <code>rwx</code> for read, write, execute).</li>
+                        <li><strong>2nd triplet (Group):</strong> Permissions for the file's owning group (e.g., <code>r-x</code> for read and execute).</li>
+                        <li><strong>3rd triplet (Others):</strong> Permissions for all other users (e.g., <code>r--</code> for read only).</li>
+                    </ul>
+                </li>
+            </ol>
+        </div>
+
+        <div class="section">
+            <h2>Changing Permissions in Linux</h2>
+            <p>The primary command to change permissions is <code>chmod</code>. It supports two modes: symbolic and numeric (octal).</p>
+
+            <h3>1. Symbolic Method (<code>chmod</code>)</h3>
+            <p>Uses letters (<code>u</code>, <code>g</code>, <code>o</code>, <code>a</code>) and symbols (<code>+</code>, <code>-</code>, <code>=</code>) to modify permissions.</p>
+            <ul>
+                <li><code>u</code>: owner, <code>g</code>: group, <code>o</code>: others, <code>a</code>: all</li>
+                <li><code>+</code>: add permission</li>
+                <li><code>-</code>: remove permission</li>
+                <li><code>=</code>: set exact permissions (overwrites existing)</li>
+            </ul>
+            <h4>Examples:</h4>
+            <pre><code># Add execute permission for the owner
+chmod u+x script.sh
+
+# Remove write permission for the group
+chmod g-w file.txt
+
+# Set read, write, and execute permissions for others (overwriting previous)
+chmod o=rwx mydir
+
+# Add read permission for everyone
+chmod a+r file.txt
+
+# Set owner to read/write, group and others to read
+chmod u=rw,go=r myfile
+</code></pre>
+
+            <h3>2. Numeric (Octal) Method (<code>chmod</code>)</h3>
+            <p>Assigns numerical values to each permission, then sums them for each category.</p>
+            <ul>
+                <li>Read (<code>r</code>) = 4</li>
+                <li>Write (<code>w</code>) = 2</li>
+                <li>Execute (<code>x</code>) = 1</li>
+                <li>No permission (<code>-</code>) = 0</li>
+            </ul>
+            <p>You form a three-digit octal number by summing these values for owner, group, and others respectively.</p>
+            <h4>Common Permission Combinations:</h4>
+            <ul>
+                <li><code>0 (000)</code> = <code>---</code> = No permissions</li>
+                <li><code>1 (001)</code> = <code>--x</code> = Execute only</li>
+                <li><code>2 (010)</code> = <code>-w-</code> = Write only</li>
+                <li><code>3 (011)</code> = <code>-wx</code> = Write and execute</li>
+                <li><code>4 (100)</code> = <code>r--</code> = Read only</li>
+                <li><code>5 (101)</code> = <code>r-x</code> = Read and execute</li>
+                <li><code>6 (110)</code> = <code>rw-</code> = Read and write</li>
+                <li><code>7 (111)</code> = <code>rwx</code> = Read, write, and execute</li>
+            </ul>
+            <h4>Examples:</h4>
+            <pre><code># Owner rwx (7), Group r-x (5), Others r-x (5)
+chmod 755 filename
+
+# Owner rw- (6), Group r-- (4), Others r-- (4)
+chmod 644 filename
+
+# Owner rw- (6), Group --- (0), Others --- (0)
+chmod 600 filename
+</code></pre>
+            <h4>Applying Special Permissions with Numeric Mode:</h4>
+            <p>Special permissions add a fourth digit to the beginning of the octal number:</p>
+            <ul>
+                <li>SUID: Add <code>4</code> as the first digit (e.g., <code>chmod 4755</code>).</li>
+                <li>SGID: Add <code>2</code> as the first digit (e.g., <code>chmod 2775</code>).</li>
+                <li>Sticky Bit: Add <code>1</code> as the first digit (e.g., <code>chmod 1777</code>).</li>
+            </ul>
+
+            <h3>Changing Ownership (<code>chown</code> and <code>chgrp</code>)</h3>
+            <ul>
+                <li><code>chown &lt;new_owner&gt; file.txt</code>: Changes the owner of <code>file.txt</code>. (Requires <code>sudo</code>)</li>
+                <li><code>chown &lt;new_owner&gt;:&lt;new_group&gt; file.txt</code>: Changes both the owner and group. (Requires <code>sudo</code>)</li>
+                <li><code>chgrp &lt;new_group&gt; file.txt</code>: Changes only the group ownership.</li>
+            </ul>
+
+            <h3>Recursive Changes</h3>
+            <p>To apply permissions or ownership to a directory and all its contents recursively, use the <code>-R</code> option:</p>
+            <pre><code>chmod -R 755 mydirectory/
+chown -R newuser:newgroup mydirectory/
+chgrp -R newgroup mydirectory/
+</code></pre>
+        </div>
+
+        <div class="section">
+            <h2>Checking Permission Statistics in Linux</h2>
+            <p>The most common command to view permissions is <code>ls -l</code>. For more detailed statistics, use <code>stat</code>.</p>
+
+            <h3>Basic Permission Checking (<code>ls -l</code>)</h3>
+            <p>Example Output:</p>
+            <pre><code>-rw-r--r-- 1 user group 1024 Jul 14 08:00 my_file.txt
+drwxr-xr-x 2 user group 4096 Jul 14 08:05 my_directory/
+</code></pre>
+            <h4>Explaining the <code>ls -l</code> Output:</h4>
+            <ol>
+                <li>
+                    <strong><code>-rw-r--r--</code> (Permissions String):</strong>
+                    <ul>
+                        <li>First character (<code>-</code> or <code>d</code>): File type.</li>
+                        <li>Next nine characters (e.g., <code>rw-r--r--</code>):
+                            <ul>
+                                <li><code>rw-</code>: Owner permissions (read, write).</li>
+                                <li><code>r--</code>: Group permissions (read only).</li>
+                                <li><code>r--</code>: Others permissions (read only).</li>
+                            </ul>
+                        </li>
+                    </ul>
+                </li>
+                <li><strong><code>1</code> or <code>2</code> (Number of Hard Links):</strong>
+                    <ul>
+                        <li>For files: Number of hard links to the file.</li>
+                        <li>For directories: Number of entries within the directory (including <code>.</code> and <code>..</code>).</li>
+                    </ul>
+                </li>
+                <li><strong><code>user</code> (Owner's Username):</strong> The user account that owns the file/directory.</li>
+                <li><strong><code>group</code> (Owner's Group Name):</strong> The primary group that owns the file/directory.</li>
+                <li><strong><code>1024</code> or <code>4096</code> (Size):</strong>
+                    <ul>
+                        <li>For files: Size in bytes.</li>
+                        <li>For directories: Typical block size allocated (not sum of contents).</li>
+                    </ul>
+                </li>
+                <li><strong><code>Jul 14 08:00</code> (Last Modification Date and Time).</strong></li>
+                <li><strong><code>my_file.txt</code> or <code>my_directory/</code> (File/Directory Name).</strong></li>
+            </ol>
+
+            <h3>Detailed Permission Statistics (<code>stat</code>)</h3>
+            <pre><code>stat myfile.txt
+</code></pre>
+            <h4>Sample Output and Explanation:</h4>
+            <pre><code>  File: myfile.txt
+  Size: 1024      	Blocks: 8          IO Block: 4096   regular file
+Device: 801h/2049d	Inode: 123456      Links: 1
+Access: (0644/-rw-r--r--)  Uid: (1000/username)   Gid: (1000/username)
+Access: 2024-01-15 10:30:00.000000000 +0000
+Modify: 2024-01-15 10:25:00.000000000 +0000
+Change: 2024-01-15 10:25:00.000000000 +0000
+</code></pre>
+            <ul>
+                <li><strong>File:</strong> Filename.</li>
+                <li><strong>Size:</strong> File size in bytes.</li>
+                <li><strong>Blocks:</strong> Number of blocks allocated on disk.</li>
+                <li><strong>IO Block:</strong> Optimal block size for I/O.</li>
+                <li><strong>Device:</strong> Device ID.</li>
+                <li><strong>Inode:</strong> Unique inode number (identifier for the file system object).</li>
+                <li><strong>Links:</strong> Number of hard links.</li>
+                <li><strong>Access: (0644/-rw-r--r--):</strong> Displays permissions in both numeric (octal) and symbolic (text) formats.</li>
+                <li><strong>Uid:</strong> User ID and username of the owner.</li>
+                <li><strong>Gid:</strong> Group ID and group name of the owner.</li>
+                <li><strong>Access time:</strong> Last time the file was accessed (read).</li>
+                <li><strong>Modify time:</strong> Last time the file's content was modified.</li>
+                <li><strong>Change time:</strong> Last time the file's metadata (permissions, ownership, etc.) was changed.</li>
+            </ul>
+
+            <h3>Advanced Permission Checking with <code>umask</code> and ACLs</h3>
+            <h4>Using <code>umask</code>:</h4>
+            <p><code>umask</code> determines the default permissions for newly created files and directories. It's a "mask" that subtracts permissions from the default (666 for files, 777 for directories).</p>
+            <pre><code># Check current umask
+umask
+
+# Set umask (e.g., 022 for typical permissions)
+umask 022
+# This means:
+# Files: 666 - 022 = 644 (-rw-r--r--)
+# Directories: 777 - 022 = 755 (drwxr-xr-x)
+</code></pre>
+            <h4>Access Control Lists (ACLs):</h4>
+            <p>ACLs provide a more granular way to manage permissions beyond the traditional owner/group/others model. They allow you to define permissions for specific users or groups, regardless of their primary group membership.</p>
+            <pre><code># Check if ACLs are supported and view them
+getfacl filename
+
+# Set an ACL: grant 'username' read, write, execute permissions
+setfacl -m u:username:rwx filename
+
+# Remove an ACL for a specific user
+setfacl -x u:username filename
+</code></pre>
+        </div>
+
+        <div class="section">
+            <h2>How Git Works with Permissions</h2>
+            <p>Git, as a version control system, primarily tracks the <strong>executable bit (<code>x</code> permission)</strong> for files. It generally does not track the full range of Linux file permissions (read/write for owner, group, and others) in the same granular way the file system does. This is due to:</p>
+            <ul>
+                <li><strong>Cross-platform compatibility:</strong> Permission models vary significantly across operating systems.</li>
+                <li><strong>Focus on content:</strong> Git's core purpose is tracking changes to file content, with the executable status being the most critical permission for version control purposes.</li>
+            </ul>
+
+            <h3>Git Permission Representation</h3>
+            <p>When you use <code>git ls-files --stage</code>, Git shows a "mode" number indicating the file type and its executable status:</p>
+            <pre><code># View file permissions in Git
+git ls-files -s
+
+# Sample output:
+100644 sha1hash 0    regular_file.txt
+100755 sha1hash 0    executable_script.sh
+120000 sha1hash 0    symlink_to_file
+160000 sha1hash 0    submodule_directory
+</code></pre>
+            <h4>Git Mode Numbers Explained:</h4>
+            <ul>
+                <li><strong><code>100644</code>:</strong> Regular file (non-executable).
+                    <ul>
+                        <li><code>100</code>: Refers to a regular file.</li>
+                        <li><code>644</code>: Represents the permission bits (owner <code>rw-</code>, group <code>r--</code>, others <code>r--</code>).</li>
+                    </ul>
+                </li>
+                <li><strong><code>100755</code>:</strong> Executable file.
+                    <ul>
+                        <li><code>100</code>: Refers to a regular file.</li>
+                        <li><code>755</code>: Represents the permission bits (owner <code>rwx</code>, group <code>r-x</code>, others <code>r-x</code>).</li>
+                    </ul>
+                </li>
+                <li><strong><code>120000</code>:</strong> Symbolic link.</li>
+                <li><strong><code>160000</code>:</strong> Submodule.</li>
+            </ul>
+            <p>The Git mode number structure:</p>
+            <pre><code>100755
+||||||
+||||||__ Permission bits (755)
+|||____ File type indicator
+|||_____ Always 0 in Git
+||______ Object type (10 = regular file)
+|_______ Always 1 in Git (for file modes)
+</code></pre>
+
+            <h3>Git Permission Commands</h3>
+            <p>You can directly tell Git to track or untrack the executable bit:</p>
+            <pre><code># Make file executable in Git
+git update-index --chmod=+x filename
+
+# Remove executable permission in Git
+git update-index --chmod=-x filename
+
+# Check current Git permissions for a specific file
+git ls-files --stage filename
+</code></pre>
+
+            <h3>Git Permission Workflow</h3>
+            <pre><code># Scenario: Make a script executable and commit the change
+chmod +x script.sh       # Change permission on the filesystem
+git add script.sh        # Stage the file (Git detects permission change)
+git commit -m "Make script executable"
+
+# Alternative: Use Git directly to update the index's executable bit
+git update-index --chmod=+x script.sh
+git commit -m "Make script executable"
+</code></pre>
+
+            <h3>Git Permission Issues and Solutions</h3>
+            <p>Common problems often arise from cross-platform development or SSH key permissions:</p>
+            <ul>
+                <li>
+                    <strong>Executable Scripts not working after clone:</strong>
+                    <pre><code># Problem: Script not executable after clone
+git clone repository
+./script.sh  # Permission denied
+
+# Solution:
+chmod +x script.sh                     # Make it executable on your filesystem
+git update-index --chmod=+x script.sh  # Tell Git to track this executable bit
+git commit -m "Fix script permissions" # Commit the change
+</code></pre>
+                </li>
+                <li>
+                    <strong>SSH key permissions:</strong> Your private SSH key files (e.g., <code>~/.ssh/id_rsa</code>) require strict permissions (e.g., <code>0600</code> or <code>0400</code>) for security. Git itself doesn't enforce this, but SSH clients do.
+                </li>
+                <li>
+                    <strong>Remote repository access:</strong> The user you connect as on the remote server needs appropriate file system permissions to write to the Git repository.
+                </li>
+                <li>
+                    <strong>Cross-platform development:</strong> Windows often doesn't have the explicit executable bit concept, leading to `git status` showing permission changes when files are moved between Windows and Linux/macOS systems.
+                </li>
+            </ul>
+
+            <h3>Checking Permission Changes in Git</h3>
+            <pre><code># See permission changes in Git
+git diff --summary
+
+# View file modes in the commit log
+git log --stat --summary
+</code></pre>
+        </div>
+
+        <div class="section">
+            <h2>Practical Examples & Troubleshooting</h2>
+
+            <h3>Secure File Setup</h3>
+            <pre><code># Create secure directory structure
+mkdir -p ~/secure/{private,shared,public}
+chmod 700 ~/secure/private    # Only owner has access
+chmod 750 ~/secure/shared     # Owner full, group read/execute
+chmod 755 ~/secure/public     # Everyone read/execute
+
+# Create files with appropriate permissions
+touch ~/secure/private/secret.txt
+chmod 600 ~/secure/private/secret.txt  # Only owner read/write
+</code></pre>
+
+            <h3>Web Server Permissions (Typical Setup)</h3>
+            <pre><code>sudo chown -R www-data:www-data /var/www/html # Set owner/group for web server
+sudo chmod -R 755 /var/www/html            # Directories rwx, files inherited 
+sudo find /var/www/html -type f -exec chmod 644 {} \; # Set files to rw-r--r--
+</code></pre>
+
+            <h3>Script Deployment</h3>
+            <pre><code># Deploy script with proper permissions
+cp script.sh /usr/local/bin/
+chmod 755 /usr/local/bin/script.sh
+chown root:root /usr/local/bin/script.sh
+</code></pre>
+
+            <h3>Common Permission Problems & Debugging</h3>
+            <ul>
+                <li><strong>"Permission denied" errors:</strong> Often indicates missing execute permissions on a directory you're trying to access, or read/write permissions on the file itself.</li>
+                <li><strong>Cannot create files:</strong> Check for write permissions on the parent directory.</li>
+                <li><strong>Cannot access files:</strong> Check read permissions on the file and execute permissions on all parent directories in the path.</li>
+            </ul>
+            <h4>Debugging Commands:</h4>
+            <pre><code># Check effective permissions (shows path breakdown)
+namei -l /path/to/file
+
+# Test file access permissions
+test -r filename && echo "Readable"
+test -w filename && echo "Writable"
+test -x filename && echo "Executable"
+
+# Check process permissions (what user/group a process is running as)
+ps aux | grep process_name
+</code></pre>
+        </div>
+
+        <div class="note">
+            <h3>Key Takeaways:</h3>
+            <ul>
+                <li>Operating System Permissions are security mechanisms controlling access to files and directories through read, write, and execute permissions for users, groups, and others.</li>
+                <li>Linux Permission System uses a three-tier model (user/group/others) with both symbolic (<code>rwx</code>) and numeric (<code>755</code>) representations. The numeric system uses octal values where read=4, write=2, and execute=1.</li>
+                <li>Permission Statistics can be checked using <code>ls -l</code> for basic info or <code>stat</code> for detailed statistics including inode numbers, timestamps, and both octal and symbolic permission representations.</li>
+                <li>Git Permission Handling is simplified - Git only tracks execute permissions (not read/write or ownership) and represents them as mode numbers like <code>100644</code> (regular file) or <code>100755</code> (executable file).</li>
+                <li><strong class="important">The most important commands you'll use daily are:</strong>
+                    <ul>
+                        <li><code>chmod</code> for changing permissions</li>
+                        <li><code>ls -l</code> and <code>stat</code> for checking permissions</li>
+                        <li><code>git update-index --chmod=+x</code> for making files executable in Git</li>
+                        <li><code>git ls-files -s</code> for viewing Git file permissions</li>
+                    </ul>
+                </li>
+                <li>Understanding both the symbolic and numeric permission systems is essential for effective Linux system administration and version control workflows.</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,1 @@
+echo Running command.sh

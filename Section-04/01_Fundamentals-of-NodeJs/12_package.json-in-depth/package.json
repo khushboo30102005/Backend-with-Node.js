@@ -1,0 +1,23 @@
+{
+  "name": "my-package",
+  "version": "1.0.0",
+  "description": "explore package.json",
+  "main": "app.js",
+  "scripts": {
+    "hi": "ls",
+    "start": "node app.js",
+    "test": "whoami",
+    "restart": "node",
+    "stop": "node -v",
+    "build": "npm run hi && npm run test",
+    "dev": "node --watch app.js"
+  },
+  "author": "khushboo",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.13.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.11"
+  }
+}

@@ -1,0 +1,21 @@
+10:59:56 PM
+message: ENOENT: no such file or directory, open 'C:\Users\T14\Desktop\Backend-with-Node.js\Section-04\01_Fundamentals-of-NodeJs\19_Writing-in-File\cpu-imgg.jpg' 
+Stack: Error: ENOENT: no such file or directory, open 'C:\Users\T14\Desktop\Backend-with-Node.js\Section-04\01_Fundamentals-of-NodeJs\19_Writing-in-File\cpu-imgg.jpg'
+    at async open (node:internal/fs/promises:641:25)
+    at async Object.readFile (node:internal/fs/promises:1245:14)
+    at async file:///C:/Users/T14/Desktop/Backend-with-Node.js/Section-04/01_Fundamentals-of-NodeJs/19_Writing-in-File/app.js:24:20
+
+10:59:58 PM
+message: ENOENT: no such file or directory, open 'C:\Users\T14\Desktop\Backend-with-Node.js\Section-04\01_Fundamentals-of-NodeJs\19_Writing-in-File\cpu-imgg.jpg' 
+Stack: Error: ENOENT: no such file or directory, open 'C:\Users\T14\Desktop\Backend-with-Node.js\Section-04\01_Fundamentals-of-NodeJs\19_Writing-in-File\cpu-imgg.jpg'
+    at async open (node:internal/fs/promises:641:25)
+    at async Object.readFile (node:internal/fs/promises:1245:14)
+    at async file:///C:/Users/T14/Desktop/Backend-with-Node.js/Section-04/01_Fundamentals-of-NodeJs/19_Writing-in-File/app.js:24:20
+
+11:01:11 PM
+message: ENOENT: no such file or directory, open 'C:\Users\T14\Desktop\Backend-with-Node.js\Section-04\01_Fundamentals-of-NodeJs\19_Writing-in-File\cpu-imgg.jpg' 
+Stack: Error: ENOENT: no such file or directory, open 'C:\Users\T14\Desktop\Backend-with-Node.js\Section-04\01_Fundamentals-of-NodeJs\19_Writing-in-File\cpu-imgg.jpg'
+    at async open (node:internal/fs/promises:641:25)
+    at async Object.readFile (node:internal/fs/promises:1245:14)
+    at async file:///C:/Users/T14/Desktop/Backend-with-Node.js/Section-04/01_Fundamentals-of-NodeJs/19_Writing-in-File/app.js:24:20
+

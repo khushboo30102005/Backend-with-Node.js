@@ -1,0 +1,8 @@
+{
+  "name": "copy",
+  "type": "module",
+  "bin": "app.js",
+  "scripts": {
+    "copy": "node app.js"
+  }
+}

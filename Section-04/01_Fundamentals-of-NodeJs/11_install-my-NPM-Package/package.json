@@ -1,6 +1,7 @@
 {
   "type": "module",
   "dependencies": {
-    "first-maths": "^1.0.1"
+    "first-maths": "^1.0.1",
+    "wcounterx": "^1.0.0"
   }
 }

@@ -1,0 +1,12 @@
+{
+  "name": "wcounterx",
+  "version": "1.0.1",
+  "description": "A CLI tool to count occurrences of a word in a file",
+  "main": "bin/index.js",
+  "bin": {
+    "wcounterx": "./bin/index.js"
+  },
+  "type": "module",
+  "keywords": ["cli", "word", "counter", "file", "nodejs"],
+  "author": "Khushboo"
+}

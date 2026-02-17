@@ -1,5 +1,5 @@
 # File Permissions : (Linux/Unix) 
-  File Permissions are **Security Rules** that controls which user can **read, write and executes** the files and directories. They are divided into three types -- **1. Read, 2. Write, 3. Execute**. Assign to three Category **1. User, 2. Owner, 3. Others.** Permission are modified using ***chmod*** command.
+  File Permissions are **Security Rules** that controls which user can **read, write and executes** the files and directories. They are divided into three types -- **1. Read, 2. Write, 3. Execute**. Assign to three Category **1. User, 2. Owner, 3. Others.** Permission are modified using `chmod` command.
 
 ## Key Component of File Permission:
   - #### Permission types:
@@ -25,20 +25,20 @@
     - Example: chmod u+x file (Adds execute permission for the user). 
 
   - Common Examples:
-    - ***777 (rwxrwxrwx)***: Full access for everyone (dangerous, avoid).
-    - ***755 (rwxr-xr-x):*** Owner can do anything; others can only read and execute (common for scripts/directories).
-    - ***644 (rw-r--r--)***: Owner can read/write; others can only read (standard file). 
-        - Ex: ***stat -c "%A %a %n" app.js***
+    - `777 (rwxrwxrwx)`: Full access for everyone (dangerous, avoid).
+    - `755 (rwxr-xr-x):` Owner can do anything; others can only read and execute (common for scripts/directories).
+    - `644 (rw-r--r--)`: Owner can read/write; others can only read (standard file). 
+        - Ex: `stat -c "%A %a %n" app.js`
 
-        - OutPut: ***-rw-r--r-- 644 app.js***
-        - Ex: ***chmod 755 cmd.sh ***
+        - OutPut: `-rw-r--r-- 644 app.js`
+        - Ex: `chmod 755 cmd.sh`
 
-        - OutPut: ***-rwxr-xr-x 755 cmd.sh***
+        - OutPut: `-rwxr-xr-x 755 cmd.sh`
 
   - Other Commands: 
     - chown: Changes the owner of a file.
     - chgrp: Changes the group ownership of a file.
-    - ls -l: Lists files with their permissions (e.g., ***-rwxr-xr-x***). 
+    - ls -l: Lists files with their permissions (e.g., `-rwxr-xr-x`). 
 
 ## 📌 Git File Modes:
 

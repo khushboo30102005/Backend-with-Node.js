@@ -1,0 +1,1 @@
+const bin = 0b100

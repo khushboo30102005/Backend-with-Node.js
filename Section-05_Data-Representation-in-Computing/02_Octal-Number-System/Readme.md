@@ -85,7 +85,7 @@ Now write remainders in reverse order:
 
 ---
 
-## 🔹 6. Octal to Binary Conversion (Very Important for Exams ⭐)
+## 🔹 6. Octal to Binary Conversion 
 
 Each octal digit = **3 binary bits**
 

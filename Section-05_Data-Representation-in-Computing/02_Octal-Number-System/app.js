@@ -9,18 +9,18 @@ const num = parseInt(4521, 8);
 
 // Convert a decimal number into Octal Number :
 
-const num2 = 10.5;
+const num2 = 173;
 const num2InOctal = num2.toString(8);
 console.log(num2InOctal);
 
-// Function that take a digits arr and return a number according to given radix:
+// Function that take a digits arr and return a number according to given radix = 8:
 function makeNumber(arr) {
   return arr.reduce((acc, curr, idx) => acc + curr * Math.pow(8, idx), 0);
 }
 const arr = [2, 4, 6, 5];
 // console.log(makeNumber(arr));  // 2978
 
-// function that take a Decimal number (integers) and convert it into octal number (behave like toString() methods)
+// function that take a Decimal number (integers) and convert it into octal number (behave like toString(8) methods)
 
 function decimalToOctal(num) {
   if (num === 0) return '0';
@@ -36,4 +36,4 @@ function decimalToOctal(num) {
   }
   return isNegative ? '-' + res : res;
 }
-// console.log(decimalToOctal(173)); // 255
+console.log(decimalToOctal(173)); // 255

@@ -1,0 +1,125 @@
+# UTF-8 vs UTF-16 
+
+## 1. What is UTF?
+
+UTF = **Unicode Transformation Format**
+
+Unicode assigns a unique code point to every character:
+Example:
+- `A` → U+0041  
+- `क` → U+0915  
+- `😊` → U+1F60A  
+
+UTF-8 and UTF-16 are **ways to encode Unicode code points into bytes**.
+
+---
+
+# UTF-8
+
+## Basic Idea
+- Variable-length encoding
+- Uses **1 to 4 bytes**
+- Backward compatible with ASCII
+
+## Byte Structure Rules
+
+| Code Point Range | Bytes | Format |
+|------------------|--------|--------|
+| U+0000 – U+007F | 1 byte | 0xxxxxxx |
+| U+0080 – U+07FF | 2 bytes | 110xxxxx 10xxxxxx |
+| U+0800 – U+FFFF | 3 bytes | 1110xxxx 10xxxxxx 10xxxxxx |
+| U+10000 – U+10FFFF | 4 bytes | 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx |
+
+## Characteristics
+
+- ASCII characters use **1 byte**
+- English text is very space efficient
+- No byte order problem
+- Most common encoding on the web
+- Compatible with C-style strings (no null bytes inside ASCII range)
+
+## Example
+
+Character: `!`  
+Code point: U+0021  
+UTF-8: `00100001` (1 byte)
+
+Character: `क`  
+Code point: U+0915  
+UTF-8: `11100000 10100100 10010101` (3 bytes)
+
+---
+
+# UTF-16
+
+## Basic Idea
+- Uses **2 or 4 bytes**
+- Based on 16-bit units
+
+## Encoding Rules
+
+| Code Point Range | Encoding |
+|------------------|----------|
+| U+0000 – U+FFFF | 2 bytes (1 code unit) |
+| U+10000 – U+10FFFF | 4 bytes (surrogate pair) |
+
+## Surrogate Pair (for 4-byte characters)
+
+For code points above U+FFFF:
+- Split into two 16-bit values:
+  - High surrogate (D800–DBFF)
+  - Low surrogate (DC00–DFFF)
+
+## Characteristics
+
+- Most common characters use **2 bytes**
+- Efficient for Asian scripts (often 2 bytes instead of 3 in UTF-8)
+- Has **byte order issue**
+  - UTF-16LE (Little Endian)
+  - UTF-16BE (Big Endian)
+- May require BOM (Byte Order Mark)
+
+---
+
+# Key Differences
+
+| Feature | UTF-8 | UTF-16 |
+|----------|--------|---------|
+| Encoding Size | 1–4 bytes | 2 or 4 bytes |
+| ASCII Compatible | Yes | No |
+| English Text Size | Smaller | Larger |
+| Asian Text Size | Larger (3 bytes often) | Smaller (2 bytes often) |
+| Endianness Issue | No | Yes |
+| Web Usage | Standard | Less common |
+
+---
+
+# Memory Comparison Example
+
+Character | UTF-8 | UTF-16
+-----------|--------|---------
+`A` | 1 byte | 2 bytes
+`क` | 3 bytes | 2 bytes
+`😊` | 4 bytes | 4 bytes
+
+---
+
+# When to Use
+
+## Use UTF-8 when:
+- Web development
+- English-heavy text
+- Cross-platform systems
+- Storage efficiency matters
+
+## Use UTF-16 when:
+- Internal processing in some systems (e.g., Windows, Java)
+- Heavy use of Asian characters
+
+---
+
+# Summary
+
+- UTF-8 is space-efficient for English and dominant on the internet.
+- UTF-16 is fixed 2 bytes for most common characters but needs surrogate pairs for large code points.
+- Both represent the same Unicode characters — only encoding format differs.

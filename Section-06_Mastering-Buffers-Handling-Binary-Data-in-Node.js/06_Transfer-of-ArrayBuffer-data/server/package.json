@@ -1,0 +1,10 @@
+{
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch server.js",
+    "start": "node server.js"
+  },
+  "devDependencies": {
+    "@types/node": "^22.5.5"
+  }
+}

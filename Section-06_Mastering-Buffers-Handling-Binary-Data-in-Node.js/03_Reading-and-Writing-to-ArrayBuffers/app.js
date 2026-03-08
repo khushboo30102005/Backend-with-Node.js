@@ -21,5 +21,5 @@ view.setInt8(2, 127)
 // console.log(view.getUint8(2))    // 127
 
 view.setInt8(3, 128)
-console.log(view.getInt8(3)) //  -128  (bin code : 1000 0000 , start with 0 so sign is '-' --flip-> 0111 1111 +1 -> 10000000 -> -128 )
+console.log(view.getInt8(3)) //  -128  (bin code : 1000 0000 , start with 1 so sign is '-' --flip-> 0111 1111 +1 -> 10000000 -> -128 )
 console.log(view.getUint8(3)) // 128

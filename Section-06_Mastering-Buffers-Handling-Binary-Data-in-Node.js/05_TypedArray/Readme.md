@@ -162,10 +162,10 @@ resizable: false (false byDefault , We can't resize this ArrayBuffer)
 
   ```js
   const a = new ArrayBuffer(4);
-  console.log(a.byteLength);
-  console.log(a.maxByteLength);
-  console.log(a.resizable);
-  // a.resize(8)  // error:  TypeError: Method ArrayBuffer.prototype.resize called on incompatible receiver #<ArrayBuffer>
+  console.log(a.byteLength); // 4
+  console.log(a.maxByteLength); // 4
+  console.log(a.resizable); // false
+  a.resize(8); // error:  TypeError: Method ArrayBuffer.prototype.resize called on incompatible receiver #<ArrayBuffer>
   ```
 
   - after:
@@ -173,9 +173,9 @@ resizable: false (false byDefault , We can't resize this ArrayBuffer)
   ```js
   const b = new ArrayBuffer(4, { maxByteLength: 16 });
   console.log(b); // ArrayBuffer { [Uint8Contents]: <00 00 00 00>, byteLength: 4 }
-  console.log(b.byteLength);
-  console.log(b.maxByteLength);
-  console.log(b.resizable);
+  console.log(b.byteLength); // 4
+  console.log(b.maxByteLength); // 16
+  console.log(b.resizable); // true
   b.resize(8); // resized successfully
   console.log(b); // ArrayBuffer {[Uint8Contents]: <00 00 00 00 00 00 00 00>,  byteLength: 8}
   ```
@@ -191,7 +191,7 @@ console.log(a.detached); // false
 
 - resizable: false
 - How it become true:
-  Detach it from a to attach to b (new variable name) using transfer method.
+  Detach it from a then attach to b (new variable name) using transfer method.
 
   ```js
   const b = a.transfer(4);

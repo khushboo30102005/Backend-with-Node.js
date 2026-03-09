@@ -1,14 +1,15 @@
-/* const a = new ArrayBuffer(4)
-console.log(a)
+// const a = new ArrayBuffer(4)
+// console.log(a)
 
-const uint8Array = new Uint8Array(a)
-const uint16Array = new Uint16Array(a)
-const uint32Array = new Uint32Array(a)
+// const uint8Array = new Uint8Array(a)
+// const uint16Array = new Uint16Array(a)
+// const uint32Array = new Uint32Array(a)
 // const uint64Array = new BigUint64Array(a)
 
 // Write in typedArray
 // uint8Array[0] = 0x3a
-// uint32Array[0] = 0x23ae23af
+// console.log("first")
+/* uint32Array[0] = 0x23ae23af
 uint16Array[0] = 0x23ae
 
 console.log(uint8Array[0])
@@ -16,8 +17,9 @@ console.log(uint8Array)
 
 console.log(uint16Array[0])
 console.log(uint16Array)
-// console.log(uint32Array)
-// console.log(uint64Array) */
+console.log(uint32Array)
+// console.log(uint64Array)
+ */
 
 //play with typedArrays using Uint8array:
 
@@ -54,7 +56,9 @@ console.log(b.maxByteLength)
 console.log(b.resizable)
 b.resize(8)  // resized successfully
 console.log(b) */
-const a = new ArrayBuffer(8, {maxByteLength:12});
+
+
+/* const a = new ArrayBuffer(8, {maxByteLength:12});
 const uint8Array = new Uint8Array(a);
 uint8Array[0] = 0x3a;
 uint8Array[2] = 0xa4;
@@ -63,4 +67,6 @@ uint8Array[6] = 0xdd;
 console.log(a)
 const b = a.transfer(4);
 console.log(a)
-console.log(b)
+console.log(b) */
+
+

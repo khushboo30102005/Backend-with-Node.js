@@ -11,7 +11,7 @@
 
 ```js
 const buff = await fs.readFile(
-  'C:\\Users\\T14\\Videos\\Captures\\virtulizations-2.mp4',
+  filepath,
 );
 await fs.writeFile('virtulizations-2.mp4', buff);
 ```
@@ -40,7 +40,7 @@ CPU usages: 11%
 import fs from 'fs';
 console.time();
 const readStream = fs.createReadStream(
-  'C:\\Users\\T14\\Videos\\Captures\\virtulizations-2.mp4',
+  filepath,
   { highWaterMark: 1 * 1024 * 1024 },
 );
 

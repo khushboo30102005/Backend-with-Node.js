@@ -1,0 +1,9 @@
+{
+    "type": "module",
+    "scripts": {
+        "dev": "node --watch app.js"
+    },
+    "devDependencies": {
+        "@types/node": "^22.7.9"
+    }
+}

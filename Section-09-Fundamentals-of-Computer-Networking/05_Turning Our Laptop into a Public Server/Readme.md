@@ -1,0 +1,3 @@
+- Start live server
+- Use ipv6 address of your machine with 5500 port
+- Open this link in public network

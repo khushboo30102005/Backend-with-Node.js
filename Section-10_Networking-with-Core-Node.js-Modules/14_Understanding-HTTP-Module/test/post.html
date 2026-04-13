@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>File Upload</title>
+</head>
+<body>
+  <h1>Upload a File</h1>
+<!--   <form action="http://192.168.31.13:4000" method="post" enctype="multipart/form-data">
+    <input type="file" name="file" required />
+    <button type="submit">Upload</button>
+  </form> -->
+  <script type="module">
+    const response = await fetch('http://192.168.31.13:4000/test/testing',
+      {
+        method: 'POST',
+        body: 'Hii, How are you!!!'
+      }
+    )
+    const data = await response.text()
+    console.log(data)
+  </script>
+</body>
+</html>

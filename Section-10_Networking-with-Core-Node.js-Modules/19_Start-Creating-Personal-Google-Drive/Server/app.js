@@ -1,4 +1,4 @@
-import { open, readdir, readFile, rm } from 'node:fs/promises';
+import { open, readdir, readFile, rename, rm } from 'node:fs/promises';
 import http from 'node:http';
 import mime from 'mime-types';
 import { createWriteStream } from 'node:fs';
@@ -13,7 +13,7 @@ async function serveDirectory(req, res) {
 
 const server = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE');
   res.setHeader('Access-Control-Allow-Headers', '*');
 
   console.log(req.method);
@@ -83,9 +83,20 @@ const server = http.createServer(async (req, res) => {
         res.end(error.message);
       }
     });
+  } else if (req.method === 'PATCH') {
+    req.on('data', async (chunk) => {
+      try {
+        const { oldFilename, newFilename } = JSON.parse(chunk.toString());
+        console.log({ oldFilename, newFilename });
+        await rename(`./storage/${oldFilename}`, `./storage/${newFilename}`);
+        res.end('File renamed successfully');
+      } catch (error) {
+        res.end(error.message);
+      }
+    });
   }
 });
 
-server.listen(80, '0.0.0.0', () => {
+server.listen(80,  () => {
   console.log('Server started....');
 });

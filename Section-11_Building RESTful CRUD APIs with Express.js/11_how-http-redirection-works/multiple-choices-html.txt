@@ -1,0 +1,17 @@
+HTTP/1.1 300 Multiple Choices
+Content-Type: text/html
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>300 Multiple Choices</title>
+  </head>
+  <body>
+    <h1>Multiple Choices</h1>
+    <ul>
+      <li><a href="/resource.json">JSON Format</a></li>
+      <li><a href="/resource.xml">XML Format</a></li>
+      <li><a href="/resource.html">HTML Format</a></li>
+    </ul>
+  </body>
+</html>

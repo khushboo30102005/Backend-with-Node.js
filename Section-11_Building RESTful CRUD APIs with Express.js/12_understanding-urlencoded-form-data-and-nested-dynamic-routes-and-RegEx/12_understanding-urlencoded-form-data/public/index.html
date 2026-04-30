@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <!-- <script src="script.js" type="module"></script> -->
+</head>
+<body>
+    <h1>User Form</h1>
+    <form action="/user" method="post" enctype="application/x-www-form-urlencoded">
+        <input type="name" name="user[firstName]" value="Khushboo"><br>
+        <input type="name" name="user[lastName]" value="saini"><br>
+        <input type="email" name="email" value="khushboo@gmail.com"><br>
+        <input type="text" name="Hobbies[]" value="Coding">
+        <input type="text" name="Hobbies[]" value="Walking">
+        <!-- <input type="file" name="profilePic"><br> -->
+        <button>Submit</button>
+    </form>
+</body>
+</html>

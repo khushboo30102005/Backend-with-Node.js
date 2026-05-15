@@ -1,0 +1,16 @@
+ ❯ mongosh
+
+ ❯ mongosh --nodb
+
+ now open REPL like node Js, Means MongoSh is built on node.
+ REPL (Read-Eval-Print Loop) : An interactive shell environment that takes user input, evaluate it, print the result, and loops back to wait for the next command 
+
+ It is works like nodeJs 
+
+ For Ex:
+
+ > 5+9
+14
+> console.log("Hello MongoSh")
+Hello MongoSh
+

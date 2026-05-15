@@ -1,0 +1,19 @@
+- How ot read a file in MongoDB shell:
+
+  JSON.parse( fs.readFileSync('./users.json', 'utf-8'))
+
+
+- Perform insert in bulk:
+
+  db.users.insertMany(JSON.parse( fs.readFileSync('./users.json', 'utf-8')))
+
+
+- find query in bulk using $in operator:
+
+  db.users.find({name:{$in:["Charlie Brown", "Ian Clarke", "Alice Johnson"]}})
+  db.users.findOne({name:{$in:["Charlie Brown", "Ian Clarke", "Alice Johnson"]}})
+
+
+- update query in bulk using $in operator:
+
+  db.user.updateMany({name: {$in: ["Alice Johnson", "Charlie Brown", "Ian Clarke"]}}, {$set:{interest: 0.5}})

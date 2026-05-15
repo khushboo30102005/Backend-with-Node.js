@@ -1,0 +1,68 @@
+create:
+Insert one document:
+ db.expenses.insertOne({})
+Insert multiple documents:
+ db.expenses.insertMany([{},{}...])
+
+
+ Read: 
+ Read All document: its returns a cursor
+ db.expenses.find() 
+
+ db.expenses.find({currency: 'USD', paymentMethod: 'Credit Card'}).constructor
+[class Cursor extends AggregateOrFindCursor]
+
+read documents with conditions:
+  conditions:
+    db.expenses.findOne({currency: 'USD', paymentMethod: 'Credit Card'})
+
+  EqualTo operator: 
+    db.expenses.find({amount : 164.91})
+
+  GreaterThen operator:
+   db.expenses.find({amount: {$gt: 200}})
+
+  GreaterThenEqualTo operator:
+   db.expenses.find({amount: {$gte: 200}})
+
+  LessThen operator:
+   db.expenses.find({amount: {$lt: 200}})
+
+  LessThenEqualTo operator:
+   db.expenses.find({amount: {$lte: 200}})
+
+
+Update:
+
+  update any one field of document:
+    db.expenses.updateOne({ title: 'Electricity bill'}, {$set: {amount: 400}})
+    db.expenses.updateOne({_id: ObjectId('69f5da8550fe1909cf3682ea')},{$set: { amount:500}})
+
+  update many field of document:
+    db.expenses.updateMany({ title: 'Electricity bill'}, {$set: {amount: 400}})
+
+  replace a document:
+    db.expenses.replaceOne({ title: 'Electricity bill'}, {name: "Khushboo"})
+
+  Add a property in  document:
+    db.expenses.updateOne({ name: 'Khushboo'}, {$set: {age: 23}})
+
+
+
+Delete:
+
+  delete a property of document:
+    db.expenses.updateOne({ name: 'Khushboo'}, {$unset: {age: ''}})
+
+  delete a document:
+    db.expenses.deleteOne({ _id: ObjectId('69f5d30750fe1909cf3682dd')})
+
+  delete many document:
+    db.expenses.deleteMany({ title: 'Electricity bill'})
+
+  drop a collection:
+    db.world.drop()
+
+  delete a Database:
+     db.dropDatabase()
+

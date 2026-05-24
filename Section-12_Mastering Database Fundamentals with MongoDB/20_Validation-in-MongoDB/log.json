@@ -1,0 +1,28 @@
+{
+  "t": { "$date": "2026-05-18T23:15:08.221+05:30" },
+  "s": "W",
+  "c": "STORAGE",
+  "id": 20294,
+  "ctx": "conn621",
+  "msg": "Document would fail validation",
+  "attr": {
+    "namespace": "test.users",
+    "document": {
+      "_id": { "$oid": "6a0b5024158b1bb3c33682d8" },
+      "name": "Khanha"
+    },
+    "errInfo": {
+      "failingDocumentId": { "$oid": "6a0b5024158b1bb3c33682d8" },
+      "details": {
+        "operatorName": "$jsonSchema",
+        "schemaRulesNotSatisfied": [
+          {
+            "operatorName": "required",
+            "specifiedAs": { "required": ["name", "age"] },
+            "missingProperties": ["age"]
+          }
+        ]
+      }
+    }
+  }
+}

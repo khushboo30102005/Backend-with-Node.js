@@ -1,0 +1,23 @@
+instructions for replicaSet:
+
+Write this in config file:
+
+replication:
+
+  replSetName: myReplicaSet
+
+
+now we need to initialize this replicaSet with 2 steps:
+
+  1. Update connection string: add replicaSet in connection string:
+    ex: 
+      mongodb://127.0.0.1:27017/?replicaSet=myReplicaSet
+
+  2. rs.initiate()
+
+than run cls command for refresh server so now we can see:
+
+  myReplicaSet [direct: primary] test>
+
+
+After that server connects properly via compass, shell, and nodeJs also.

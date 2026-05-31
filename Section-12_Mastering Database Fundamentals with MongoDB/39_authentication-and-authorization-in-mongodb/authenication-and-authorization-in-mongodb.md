@@ -110,8 +110,8 @@ db.runCommand({ connectionStatus: 1 }).authInfo;
 use storageApp
 
 db.createUser({
-  user: "anurag",
-  pwd: "anurag",
+  user: "khushboo",
+  pwd: "khushboo",
   roles: [{ role: "readWrite", db: "storageApp" }]
 })
 ```

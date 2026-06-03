@@ -1,4 +1,4 @@
-import mongoose, { Schema } from 'mongoose';
+import { model, Schema } from 'mongoose';
 const userSchema = new Schema(
   {
     name: {
@@ -35,18 +35,9 @@ const userSchema = new Schema(
   },
   { strict: 'throw',
     timestamps: true,
-    // versionKey: '__version',
-    // collection: 'test'
     
    },
 );
-const User = mongoose.model('User', userSchema);
+const User = model('User', userSchema);
 
-const data = await User.insertOne({
-  name: 'Alice',
-  age: 14,
-  email: 'alice@example.com',
-  parentId: '6a1ff2d764fd94973ca0b733'
-  
-});
-console.log(data);
+export default User;

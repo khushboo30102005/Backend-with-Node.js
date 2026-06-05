@@ -3,4 +3,5 @@
 import mongoose from 'mongoose';
 import './db.js';
 import './userModel.js';
-import './curd.js';
+// import './curd.js';
+import './query.js';

@@ -11,6 +11,15 @@ const userSchema = new Schema(
       type: Number,
       required: [true, 'Age is required, please enter the age'],
       min: 12,
+      // Custom Validator: Validating Even Numbers
+      validate: {
+        validator() {
+          console.log('Running Custom Validator');
+          console.log(this);
+          return this.age % 2 === 0;
+        },
+        message: 'age must be a even number',
+      },
     },
     email: {
       type: String,
@@ -27,16 +36,13 @@ const userSchema = new Schema(
     },
     parentId: {
       type: Schema.Types.ObjectId,
-      required: function(){
+      required: function () {
         return this.age < 16;
       },
       default: null,
-    }
+    },
   },
-  { strict: 'throw',
-    timestamps: true,
-    
-   },
+  { strict: 'throw', timestamps: true },
 );
 const User = model('User', userSchema);
 

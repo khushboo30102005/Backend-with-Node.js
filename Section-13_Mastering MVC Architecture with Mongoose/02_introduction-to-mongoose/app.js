@@ -5,4 +5,5 @@ import './db.js';
 import './userModel.js';
 // import './curd.js';
 // import './query.js';
-import './document.js';
+// import './document.js';
+import './customValidation.js';

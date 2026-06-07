@@ -40,6 +40,7 @@ const userSchema = new Schema(
         return this.age < 16;
       },
       default: null,
+      ref: 'User'
     },
   },
   { strict: 'throw', timestamps: true },

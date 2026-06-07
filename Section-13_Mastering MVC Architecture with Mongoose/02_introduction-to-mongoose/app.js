@@ -6,4 +6,5 @@ import './userModel.js';
 // import './curd.js';
 // import './query.js';
 // import './document.js';
-import './customValidation.js';
+// import './customValidation.js';
+import './userController.js';

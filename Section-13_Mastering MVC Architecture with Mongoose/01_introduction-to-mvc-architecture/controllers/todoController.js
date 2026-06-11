@@ -1,20 +1,21 @@
 import { ObjectId } from 'mongodb';
+import mongoose from 'mongoose';
+import Todo from '../models/todoModel.js';
+
 export const addTodo = async (req, res) => {
   const todo = req.body;
   try {
-    const result = await req.db
-      .collection('todos')
-      .insertOne({ ...todo, Completed: todo.Completed || false });
+    const newTodo = await Todo.insertOne(todo);
     res.redirect('/todos');
   } catch (error) {
-    console.log(error);
+    console.log(error); 
     res.status(500).json({ error: 'Failed to create todo' });
   }
 };
 
 export const getAllTodos = async (req, res) => {
   try {
-    const todos = await req.db.collection('todos').find().toArray();
+    const todos = await Todo.find();
     res.render('index', { todos });
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch todos' });
@@ -23,9 +24,8 @@ export const getAllTodos = async (req, res) => {
 
 export const getTodoById = async (req, res) => {
   try {
-    const todos = await req.db
-      .collection('todos')
-      .findOne({ _id: new ObjectId(req.params.id) });
+    const todos = await Todo.findOne({ _id: new ObjectId(req.params.id) });
+    console.log(todos)
     res.status(200).json(todos);
   } catch (error) {
     console.log(error);
@@ -36,13 +36,9 @@ export const getTodoById = async (req, res) => {
 export const updateTodo = async (req, res) => {
   const { id } = req.params;
   const updatedTodo = req.body;
+  console.log(updatedTodo)
   try {
-    const result = await req.db
-      .collection('todos')
-      .updateOne({ _id: new ObjectId(id) }, { $set: updatedTodo });
-    if (result.modifiedCount === 0) {
-      return res.status(404).json({ error: 'Not updated' });
-    }
+    const result = await Todo.findOneAndUpdate(id, updatedTodo);
     res.status(200).json({ message: 'Todo updated successfully' });
   } catch (error) {
     res.status(500).json({ error: 'Failed to update todo' });
@@ -52,12 +48,7 @@ export const updateTodo = async (req, res) => {
 export const deleteTodo = async (req, res) => {
   const { id } = req.params;
   try {
-    const result = await req.db
-      .collection('todos')
-      .deleteOne({ _id: new ObjectId(id) });
-    if (result.deletedCount === 0) {
-      return res.status(404).json({ error: 'Todo not found' });
-    }
+    const result = await Todo.findByIdAndDelete(id);
     res.status(200).json({ message: 'Todo deleted successfully' });
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete todo' });

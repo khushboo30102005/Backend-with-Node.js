@@ -7,4 +7,11 @@ import './userModel.js';
 // import './query.js';
 // import './document.js';
 // import './customValidation.js';
-import './userController.js';
+// import './userController.js';
+// import './virtuals.js'
+// import './methods.js'
+// import './staticMethods.js'
+// import './documentMiddleware.js'
+// import './queryMiddleware.js'
+// import './modelMiddleware.js'
+import './uniqueTrueProperty.js'

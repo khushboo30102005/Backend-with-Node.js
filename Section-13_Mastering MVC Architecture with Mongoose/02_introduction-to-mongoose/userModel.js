@@ -6,7 +6,7 @@ const userSchema = new Schema(
       required: [true, 'Name is required, please enter the name'],
       minlength: [3, 'Name must be at least 3 characters long'],
       trim: true,
-      index: true
+      index: true,
       // alias: 'nam'  //  creating a virtual
     },
     age: {
@@ -34,6 +34,7 @@ const userSchema = new Schema(
       trim: true,
       lowercase: true,
     },
+    balance: Number,
     hobbies: {
       type: [String],
     },
@@ -52,6 +53,8 @@ const userSchema = new Schema(
   {
     strict: 'throw',
     timestamps: true,
+    optimisticConcurrency: true,  // enable versioning for normal properties, otherwise versioning enables only for arrays.
+    // versionKey: false
     /*   virtuals: {
       isAdult: {
         get() {

@@ -14,4 +14,5 @@ import './userModel.js';
 // import './documentMiddleware.js'
 // import './queryMiddleware.js'
 // import './modelMiddleware.js'
-import './uniqueTrueProperty.js'
+// import './uniqueTrueProperty.js'
+import './documentVersioning.js'

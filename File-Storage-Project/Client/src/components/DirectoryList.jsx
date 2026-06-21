@@ -1,4 +1,4 @@
-import DirectoryItem from "./DirectoryItem";
+import DirectoryItem from './DirectoryItem';
 
 function DirectoryList({
   items,
@@ -19,7 +19,6 @@ function DirectoryList({
     <div className="directory-list">
       {items.map((item) => {
         const uploadProgress = progressMap[item.id] || 0;
-
         return (
           <DirectoryItem
             key={item.id}

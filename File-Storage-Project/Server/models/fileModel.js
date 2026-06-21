@@ -19,7 +19,7 @@ const fileSchema = new Schema(
       ref: 'Directory',
     },
   },
-  { versionKey: false, strict: 'throw' },
+  { strict: 'throw' },
 );
 
 const File = model('File', fileSchema);

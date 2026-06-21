@@ -10,6 +10,7 @@ const userSchema = new Schema(
     email: {
       type: String,
       required: true,
+      unique: true,
       match: [
         /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+.[A-Za-z]{2,}$/,
         'Email must be a valid email address',
@@ -25,7 +26,7 @@ const userSchema = new Schema(
       required: true
     },
   },
-  { versionKey: false, strict: 'throw' },
+  {  strict: 'throw' },
 );
 
 const User = model('User', userSchema);

@@ -16,7 +16,7 @@ const directorySchema = new Schema(
       ref: 'Directory',
     },
   },
-  { versionKey: false, strict: 'throw' },
+  { strict: 'throw' },
 );
 
 const Directory = model('Directory', directorySchema);

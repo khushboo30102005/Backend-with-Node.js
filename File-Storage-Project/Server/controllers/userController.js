@@ -3,6 +3,7 @@ import { ObjectId } from 'mongodb';
 import User from '../models/userMonde.js';
 import Directory from '../models/directoryModel.js';
 import File from '../models/fileModel.js';
+import crypto from 'crypto';
 export const register = async (req, res, next) => {
   const { name, email, password } = req.body;
   const foundUser = await User.findOne({ email }).lean();
@@ -58,13 +59,14 @@ export const login = async (req, res, next) => {
   if (!user) {
     return res.status(404).json({ error: 'Invalid Credentials' });
   }
-  const cookiePayload = {
+
+  const cookiePayload = JSON.stringify({
     id: user._id.toString(),
     expiry: Math.round(Date.now() / 1000 + 40),
-  };
-  res.cookie('uid', Buffer.from(JSON.stringify(cookiePayload)).toString('base64url'), {
+  });
+  res.cookie('token', Buffer.from(cookiePayload).toString('base64url'), {
     httpOnly: true,
-    // maxAge: 10 * 1000,
+    signed: true,
     maxAge: 60 * 1000 * 60 * 24 * 7,
   });
   res.json({ message: 'logged in' });
@@ -78,6 +80,6 @@ export const getCurrentUser = async (req, res) => {
 };
 
 export const logout = (req, res) => {
-  res.clearCookie('uid');
+  res.clearCookie('token');
   res.status(204).end();
 };

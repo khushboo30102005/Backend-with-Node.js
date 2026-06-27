@@ -7,9 +7,11 @@ import fileRoutes from './routes/fileRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import checkAuth from './middlewares/authMiddleware.js';
 
+export const secretKey = 'proCodrr-StorageApp';
+
 await connectDB();
 const app = express();
-app.use(cookieParser());
+app.use(cookieParser(secretKey));  // this middleware parses the cookie send by the client, because it has secretKey, it can also verify signedCookie.
 app.use(express.json());
 app.use(
   cors({

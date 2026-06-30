@@ -1,8 +1,6 @@
 import User from '../models/userMonde.js';
 
 export default async function checkAuth(req, res, next) {
-  console.log(req.signedCookies)
-  console.log(req.cookies)
   const { token } = req.signedCookies;
   if (!token) {
      res.clearCookie('token')

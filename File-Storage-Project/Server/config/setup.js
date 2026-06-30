@@ -1,6 +1,9 @@
-import { connectDB, client } from './db.js';
+import mongoose from 'mongoose';
+import { connectDB } from './db.js';
 
-const db = await connectDB();
+await connectDB();
+const db = mongoose.connection.db;
+const client = mongoose.connection.getClient();
 
 console.log('Database Connected');
 const command = 'collMod';
@@ -14,6 +17,9 @@ try {
         properties: {
           _id: {
             bsonType: 'objectId',
+          },
+          __v: {
+            bsonType: "int",
           },
           name: {
             bsonType: 'string',
@@ -48,6 +54,9 @@ try {
           _id: {
             bsonType: 'objectId',
           },
+          __v: {
+            bsonType: "int",
+          },
           name: {
             bsonType: 'string',
             minLength: 3,
@@ -73,6 +82,9 @@ try {
         properties: {
           _id: {
             bsonType: 'objectId',
+          },
+          __v: {
+            bsonType: "int",
           },
           extension: {
             bsonType: 'string',

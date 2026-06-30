@@ -1,11 +1,12 @@
 import mongoose, { Schema, Types } from 'mongoose';
 import { ObjectId } from 'mongodb';
+import bcrypt from 'bcrypt';
 import User from '../models/userMonde.js';
 import Directory from '../models/directoryModel.js';
 import File from '../models/fileModel.js';
-import crypto from 'crypto';
 export const register = async (req, res, next) => {
   const { name, email, password } = req.body;
+  const hashedPassword = await bcrypt.hash(password, 12);
   const foundUser = await User.findOne({ email }).lean();
   const session = await mongoose.startSession();
   try {
@@ -17,7 +18,7 @@ export const register = async (req, res, next) => {
         _id: userId,
         name,
         email,
-        password,
+        password: hashedPassword,
         rootDirId,
       },
       { session },
@@ -55,14 +56,19 @@ export const register = async (req, res, next) => {
 
 export const login = async (req, res, next) => {
   const { email, password } = req.body;
-  const user = await User.findOne({ email, password }).lean();
+  const user = await User.findOne({ email }).lean();
   if (!user) {
+    return res.status(404).json({ error: 'Invalid Credentials' });
+  }
+  const isMatch = await bcrypt.compare(password, user.password)
+  console.log(isMatch)
+  if (!isMatch) {
     return res.status(404).json({ error: 'Invalid Credentials' });
   }
 
   const cookiePayload = JSON.stringify({
     id: user._id.toString(),
-    expiry: Math.round(Date.now() / 1000 + 40),
+    expiry: Math.round(Date.now() / 1000 + 4000),
   });
   res.cookie('token', Buffer.from(cookiePayload).toString('base64url'), {
     httpOnly: true,

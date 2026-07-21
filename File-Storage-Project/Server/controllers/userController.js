@@ -1,12 +1,12 @@
 import mongoose, { Schema, Types } from 'mongoose';
 import { ObjectId } from 'mongodb';
 import bcrypt from 'bcrypt';
-import User from '../models/userMonde.js';
+import User from '../models/userModel.js';
 import Directory from '../models/directoryModel.js';
 import File from '../models/fileModel.js';
+import Session from '../models/sessionModel.js';
 export const register = async (req, res, next) => {
   const { name, email, password } = req.body;
-  const hashedPassword = await bcrypt.hash(password, 12);
   const foundUser = await User.findOne({ email }).lean();
   const session = await mongoose.startSession();
   try {
@@ -18,7 +18,7 @@ export const register = async (req, res, next) => {
         _id: userId,
         name,
         email,
-        password: hashedPassword,
+        password,
         rootDirId,
       },
       { session },
@@ -56,26 +56,32 @@ export const register = async (req, res, next) => {
 
 export const login = async (req, res, next) => {
   const { email, password } = req.body;
-  const user = await User.findOne({ email }).lean();
-  if (!user) {
-    return res.status(404).json({ error: 'Invalid Credentials' });
-  }
-  const isMatch = await bcrypt.compare(password, user.password)
-  console.log(isMatch)
-  if (!isMatch) {
-    return res.status(404).json({ error: 'Invalid Credentials' });
-  }
+  try {
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ error: 'Invalid Credentials1' });
+    }
 
-  const cookiePayload = JSON.stringify({
-    id: user._id.toString(),
-    expiry: Math.round(Date.now() / 1000 + 4000),
-  });
-  res.cookie('token', Buffer.from(cookiePayload).toString('base64url'), {
-    httpOnly: true,
-    signed: true,
-    maxAge: 60 * 1000 * 60 * 24 * 7,
-  });
-  res.json({ message: 'logged in' });
+    const isPasswordValid = await user.comparePassword(password);
+    if (!isPasswordValid) {
+      return res.status(404).json({ error: 'Invalid Credentials2' });
+    }
+    const allSessions = await Session.find({ userId: user._id });
+    if (allSessions.length >= 3) {
+      await allSessions[0].deleteOne();
+    }
+    const session = await Session.create({ userId: user._id });
+    res.cookie('sid', session.id, {
+      httpOnly: true,
+      signed: true,
+      maxAge: 60 * 1000 * 60 * 24 * 7,
+    });
+
+    res.json({ message: 'logged in' });
+  } catch (error) {
+    console.log(error);
+    res.json({ message: error.message });
+  }
 };
 
 export const getCurrentUser = async (req, res) => {
@@ -85,7 +91,25 @@ export const getCurrentUser = async (req, res) => {
   });
 };
 
-export const logout = (req, res) => {
-  res.clearCookie('token');
-  res.status(204).end();
+export const logout = async (req, res) => {
+  try {
+    const sid = req.signedCookies.sid;
+    await Session.findByIdAndDelete(sid);
+    res.clearCookie('sid');
+    res.status(204).end();
+  } catch (error) {
+    res.status(204).json({ message: 'Not logged out' });
+  }
+};
+
+export const logoutAll = async (req, res) => {
+  try {
+    const sid = req.signedCookies.sid;
+    const session = await Session.findById(sid);
+    await Session.deleteMany({ userId: session.userId });
+    res.clearCookie('sid');
+    res.status(204).end();
+  } catch (error) {
+    res.status(204).json({ message: 'Not logged out' });
+  }
 };

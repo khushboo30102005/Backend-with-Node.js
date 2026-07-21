@@ -1,4 +1,5 @@
-import { model, Schema } from 'mongoose';
+import mongoose, { model, Schema } from 'mongoose';
+import bcrypt from 'bcrypt';
 
 const userSchema = new Schema(
   {
@@ -23,12 +24,21 @@ const userSchema = new Schema(
     },
     rootDirId: {
       type: Schema.Types.ObjectId,
-      required: true
+      required: true,
     },
   },
-  {  strict: 'throw' },
+  { strict: 'throw' },
 );
 
+userSchema.pre('save', async function () {
+  if (!this.isModified('password')) return;
+  this.password = await bcrypt.hash(this.password, 12);
+  console.log(this.password)
+});
+
+userSchema.methods.comparePassword = async function (candidatePassword) {
+  return bcrypt.compare(candidatePassword, this.password);
+};
 const User = model('User', userSchema);
 
 export default User;

@@ -1,13 +1,13 @@
 import mongoose from 'mongoose';
+import dotenv from 'dotenv';
+const a = dotenv.config();
 
 export async function connectDB() {
   try {
-    await mongoose.connect(
-      'mongodb://khushboo:khushboo123@127.0.0.1:27017/storageApp',
-    );
+    await mongoose.connect(process.env.MONGODB_URI);
     console.log('Database Connected!!!');
   } catch (error) {
-    console.log(error)
+    console.log(error);
     console.log(error.message);
     process.exit(1);
   }

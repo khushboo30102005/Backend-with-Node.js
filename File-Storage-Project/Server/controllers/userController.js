@@ -5,8 +5,15 @@ import User from '../models/userModel.js';
 import Directory from '../models/directoryModel.js';
 import File from '../models/fileModel.js';
 import Session from '../models/sessionModel.js';
+import OTP from '../models/otpModel.js';
+import { sendOtpService } from '../services/sendOtpService.js';
 export const register = async (req, res, next) => {
-  const { name, email, password } = req.body;
+  const { name, email, password, otp } = req.body;
+  const otpRecord = await OTP.findOne({ email, otp });
+  if (!otpRecord) {
+    return res.status(400).json({ error: 'Invalid or expired OTP.' });
+  }
+  await otpRecord.deleteOne();
   const foundUser = await User.findOne({ email }).lean();
   const session = await mongoose.startSession();
   try {
@@ -70,14 +77,9 @@ export const login = async (req, res, next) => {
     if (allSessions.length >= 3) {
       await allSessions[0].deleteOne();
     }
+    const result = await sendOtpService(email);
     const session = await Session.create({ userId: user._id });
-    res.cookie('sid', session.id, {
-      httpOnly: true,
-      signed: true,
-      maxAge: 60 * 1000 * 60 * 24 * 7,
-    });
-
-    res.json({ message: 'logged in' });
+    res.json({ message: result });
   } catch (error) {
     console.log(error);
     res.json({ message: error.message });

@@ -3,6 +3,7 @@ import User from '../models/userModel.js';
 
 export default async function checkAuth(req, res, next) {
   const { sid } = req.signedCookies;
+  console.log(sid)
   if (!sid) {
     res.clearCookie('sid');
     return res.status(401).json({ error: 'Not logged in!' });

@@ -97,7 +97,7 @@ function DirectoryView() {
    * Decide file icon
    */
   function getFileIcon(filename) {
-    const ext = filename?.split(".").pop().toLowerCase();
+    const ext = filename.split(".").pop().toLowerCase();
     switch (ext) {
       case "pdf":
         return "pdf";

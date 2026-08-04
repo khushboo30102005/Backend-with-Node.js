@@ -1,8 +1,8 @@
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import passport from 'passport';
-const client_id = 'YourClientID';
-const client_secret = 'Your ClientSecret';
-const redirectUri = 'http://localhost:4000/auth/google/callback';
+const client_id = 'your_client_id.apps.googleusercontent.com';
+const client_secret = 'your_client_secret';
+const redirectUri = 'your_redirect_uri';
 
 passport.use(
   new GoogleStrategy(

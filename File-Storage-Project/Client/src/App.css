@@ -1,3 +1,10 @@
 body {
   font-family: Arial, sans-serif;
 }
+
+.user-picture{
+  width: 28px;
+  border-radius: 100%;
+  border: 1px solid rgb(103, 102, 102);
+  padding: 0.5px;
+}

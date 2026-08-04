@@ -126,3 +126,29 @@
   background-color: #92a6bc;
   cursor: not-allowed;
 }
+
+.or {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 20px 0;
+  color: gray;
+}
+
+.or::before,
+.or::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background-color: #ccc;
+}
+
+.or span {
+  padding: 0 12px;
+}
+
+
+.google-login{
+  display: flex;
+  justify-content: center;
+}

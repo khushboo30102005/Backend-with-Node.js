@@ -8,26 +8,45 @@ const userSchema = new Schema(
       required: true,
       minlength: [3, 'Username must be at least 3 characters long'],
     },
+
     email: {
       type: String,
       required: true,
       unique: true,
+      lowercase: true,
       match: [
-        /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+.[A-Za-z]{2,}$/,
+        /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[A-Za-z]{2,}$/,
         'Email must be a valid email address',
       ],
     },
+
     password: {
       type: String,
-      required: true,
       minlength: [3, 'Password must be at least 3 characters long'],
     },
+    picture: {
+      type: String,
+      default: 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png',
+    },
+ /*    authProvider: {
+      type: String,
+      enum: ['local', 'google'],
+      default: 'local',
+    },
+
+    googleId: {
+      type: String,
+      unique: true,
+      sparse: true,
+      default: null,
+    }, */
+
     rootDirId: {
       type: Schema.Types.ObjectId,
       required: true,
     },
   },
-  { strict: 'throw' },
+  { strict: 'throw' }
 );
 
 userSchema.pre('save', async function () {

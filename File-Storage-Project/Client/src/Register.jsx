@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import './Auth.css';
+import { GoogleLogin } from '@react-oauth/google';
+import { loginWithGoogle } from './apis/loginWithGoogle';
 
 const Register = () => {
   const BASE_URL = 'http://localhost:4000';
@@ -122,7 +124,7 @@ const Register = () => {
     try {
       const response = await fetch(`${BASE_URL}/user/register`, {
         method: 'POST',
-        body: JSON.stringify({...formData, otp}),
+        body: JSON.stringify({ ...formData, otp }),
         headers: { 'Content-Type': 'application/json' },
       });
       const data = await response.json();
@@ -253,10 +255,25 @@ const Register = () => {
           {isSuccess ? 'Registration Successful' : 'Register'}
         </button>
       </form>
-
       <p className="link-text">
         Already have an account? <Link to="/login">Login</Link>
       </p>
+      <div className="or">
+        <span>or</span>
+      </div>
+      <div className="google-login">
+        <GoogleLogin
+          onSuccess={async (credentialResponse) => {
+            await loginWithGoogle(credentialResponse.credential);
+          }}
+          theme="filled_blue"
+          text="continue_with"
+          onError={() => {
+            console.log('Login Failed');
+          }}
+          useOneTap
+        />
+      </div>
     </div>
   );
 };

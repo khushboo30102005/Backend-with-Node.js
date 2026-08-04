@@ -3,11 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <script src="script.js" defer></script>
-    <title>Google's OpenId Connect</title>
+    <script src="script.js" type="module"></script>
+    <title>Profile Page</title>
   </head>
   <body>
-    <h1>Hello World</h1>
-    <button>Login With Google</button>
+    <h1>YOUR PROFILE</h1>
+
+    <p><b>name: </b><span id="name"></span></p>
+    <p><b>email: </b><span id="email"></span></p>
+    <img src="" alt="Profile" id="image" />
+    <div><button id="logout">Logout</button></div>
   </body>
 </html>

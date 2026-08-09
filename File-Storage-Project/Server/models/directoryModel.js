@@ -5,6 +5,8 @@ const directorySchema = new Schema(
     name: {
       type: String,
       required: true,
+      trim: true,
+      minlength: [1, 'Name cannot be empty'],
     },
     userId: {
       type: Schema.Types.ObjectId,

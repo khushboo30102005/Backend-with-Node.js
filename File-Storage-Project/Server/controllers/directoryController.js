@@ -3,11 +3,14 @@ import { rm } from 'fs/promises';
 import Directory from '../models/directoryModel.js';
 import File from '../models/fileModel.js';
 
-export const getDirectoryById = async (req, res) => {
-  const user = req.user;
-  const _id = req.params.id || user.rootDirId.toString();
+export const getDirectoryById = async (req, res, next) => {
+  const targetUser = req.targetUser;
+  const _id = req.params.id || targetUser.rootDirId.toString();
   try {
-    const directoryData = await Directory.findOne({ _id }).lean();
+    const directoryData = await Directory.findOne({
+      _id,
+      userId: targetUser._id,
+    }).lean();
     if (!directoryData) {
       return res.status(404).json({
         error: 'Directory not found or you do not have access to it!',
@@ -31,12 +34,17 @@ export const renameDirectory = async (req, res, next) => {
   const { newDirName } = req.body;
   try {
     await Directory.findOneAndUpdate(
-      { _id: id, userId: user._id },
+      { _id: id, userId: req.targetUser._id },
       { name: newDirName },
       { runValidators: true },
     );
     res.status(200).json({ message: 'Directory Renamed!' });
   } catch (err) {
+    if (err.code === 121) {
+      return res.status(400).json({
+        error: 'Directory name must be at least 3 characters long.',
+      });
+    }
     next(err);
   }
 };
@@ -47,7 +55,7 @@ export const deleteDirectory = async (req, res, next) => {
   try {
     const directoryData = await Directory.findOne({
       _id: id,
-      userId: user._id,
+      userId: req.targetUser._id,
     }).select('_id');
     if (!directoryData) {
       return res
@@ -74,13 +82,14 @@ export const deleteDirectory = async (req, res, next) => {
       _id: { $in: files.map(({ _id }) => _id) },
     });
     await Directory.deleteMany({
-      _id: { $in: [...dirs.map(({ _id }) => _id), directoryData._id.toString()] },
+      _id: {
+        $in: [...dirs.map(({ _id }) => _id), directoryData._id.toString()],
+      },
     });
     return res.json({
       message: 'Files or directories deleted successfully!!!',
     });
   } catch (error) {
-    console.log(error);
     next(error);
   }
 };
@@ -101,12 +110,17 @@ export const createDirectory = async (req, res, next) => {
       {
         name: dirname,
         parentDirId,
-        userId: user._id,
+        userId: req.targetUser._id,
       },
       { runValidators: true },
     );
     return res.status(200).json({ message: 'Directory Created!' });
   } catch (err) {
+    if (err.code === 121) {
+      return res.status(400).json({
+        error: 'Directory name must be at least 3 characters long.',
+      });
+    }
     next(err);
   }
 };

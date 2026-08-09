@@ -5,12 +5,12 @@ import Directory from '../models/directoryModel.js';
 import File from '../models/fileModel.js';
 
 export const uploadFile = async (req, res, next) => {
-  const user = req.user;
+  const user = req.targetUser;
   const parentDirId = req.params.parentDirId || user.rootDirId.toString();
   try {
     const parentDirData = await Directory.findOne({
       _id: parentDirId,
-      userId: user._id,
+      userId: req.targetUser._id,
     }).lean();
     if (!parentDirData) {
       return res.status(404).json({ error: 'Parent directory not found!' });
@@ -22,7 +22,7 @@ export const uploadFile = async (req, res, next) => {
       extension,
       name: filename,
       parentDirId: parentDirData._id,
-      userId: req.user._id,
+      userId: req.targetUser._id,
     });
 
     const fileId = insertedFile.id.toString();
@@ -48,10 +48,10 @@ export const getFile = async (req, res) => {
   const { id } = req.params;
   const fileData = await File.findOne({
     _id: id,
-    userId: req.user._id,
+    userId: req.targetUser._id,
   }).lean();
   if (!fileData) {
-    return res.status(404).json({ error: 'File not found!' });
+    return res.status(404).json({ error: 'File not found1!' });
   }
   const filePath = `${process.cwd()}/storage/${id}${fileData.extension}`;
   if (req.query.action === 'download') {
@@ -68,7 +68,7 @@ export const updateFile = async (req, res, next) => {
   const { id } = req.params;
   const file = await File.findOne({
     _id: id,
-    userId: req.user._id,
+    userId: req.targetUser._id,
   });
   if (!file) {
     return res.status(404).json({ error: 'File not found!' });
@@ -78,7 +78,6 @@ export const updateFile = async (req, res, next) => {
     await file.save();
     return res.status(200).json({ message: 'Renamed' });
   } catch (err) {
-    console.log(err);
     err.status = 500;
     next(err);
   }
@@ -88,7 +87,7 @@ export const deleteFile = async (req, res, next) => {
   const { id } = req.params;
   const file = await File.findOne({
     _id: id,
-    userId: req.user._id,
+    userId: req.targetUser._id,
   }).select('extension');
   if (!file) {
     return res.status(404).json({ error: 'File not found!' });
@@ -98,7 +97,6 @@ export const deleteFile = async (req, res, next) => {
     await file.deleteOne();
     return res.status(200).json({ message: 'File Deleted Successfully' });
   } catch (err) {
-    console.log(err)
     next(err);
   }
 };

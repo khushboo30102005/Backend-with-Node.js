@@ -7,18 +7,20 @@ import {
   uploadFile,
 } from '../controllers/fileController.js';
 
+import { resolveOwnUser } from '../middlewares/resolveTargetUser.js';
+
 const router = express.Router();
 
-router.param('parentDirId', validateIdMiddleware);
+router.param('parentDirId',resolveOwnUser, validateIdMiddleware);
 
-router.param('id', validateIdMiddleware);
+router.param('id',resolveOwnUser, validateIdMiddleware);
 
-router.post('/{:parentDirId}', uploadFile);
+router.post('/{:parentDirId}',resolveOwnUser, uploadFile);
 
-router.get('/:id', getFile);
+router.get('/:id',resolveOwnUser, getFile);
 
-router.patch('/:id', updateFile);
+router.patch('/:id', resolveOwnUser, updateFile);
 
-router.delete('/:id', deleteFile);
+router.delete('/:id',resolveOwnUser, deleteFile);
 
 export default router;

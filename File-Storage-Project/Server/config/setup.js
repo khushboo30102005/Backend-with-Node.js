@@ -38,6 +38,13 @@ try {
           picture: {
             bsonType: 'string',
           },
+          role: {
+            bsonType: 'string',
+            enum: ['Admin', 'Manager', 'User', 'Owner'],
+          },
+          isDeleted: {
+            bsonType: 'bool',
+          },
           rootDirId: {
             bsonType: 'objectId',
           },

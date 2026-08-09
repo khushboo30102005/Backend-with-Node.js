@@ -24,23 +24,20 @@ const userSchema = new Schema(
       type: String,
       minlength: [3, 'Password must be at least 3 characters long'],
     },
+
     picture: {
       type: String,
       default: 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png',
     },
- /*    authProvider: {
+    role: {
       type: String,
-      enum: ['local', 'google'],
-      default: 'local',
+      enum: ['Admin', 'Manager', 'User', 'Owner'],
+      default: 'User',
     },
-
-    googleId: {
-      type: String,
-      unique: true,
-      sparse: true,
-      default: null,
-    }, */
-
+    isDeleted: {
+      type: Boolean,
+      default: false,
+    },
     rootDirId: {
       type: Schema.Types.ObjectId,
       required: true,

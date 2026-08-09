@@ -3,6 +3,7 @@ import DirectoryView from "./DirectoryView";
 import Register from "./Register";
 import "./App.css";
 import Login from "./Login";
+import UsersPage from "./UsersPage";
 
 const router = createBrowserRouter([
   {
@@ -18,8 +19,20 @@ const router = createBrowserRouter([
     element: <Login />,
   },
   {
+    path: "/users",
+    element: <UsersPage />,
+  },
+  {
     path: "/directory/:dirId",
     element: <DirectoryView />,
+  },
+  {
+    path: "/admin/users/:userId/directory",
+    element: <DirectoryView adminMode />,
+  },
+  {
+    path: "/admin/users/:userId/directory/:dirId",
+    element: <DirectoryView adminMode />,
   },
 ]);
 

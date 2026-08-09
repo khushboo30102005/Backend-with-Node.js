@@ -3,6 +3,7 @@ import { GoogleLogin } from '@react-oauth/google';
 import { Link, useNavigate } from 'react-router-dom';
 import './Auth.css';
 import { loginWithGoogle } from './apis/loginWithGoogle';
+import { FaGithub } from 'react-icons/fa';
 
 const Login = () => {
   const BASE_URL = 'http://localhost:4000';
@@ -126,6 +127,16 @@ const Login = () => {
     }
   };
 
+  const loginWithGitHub = () => {
+    const params = new URLSearchParams({
+      client_id: import.meta.env.VITE_GITHUB_CLIENT_ID,
+      redirect_uri: 'http://localhost:4000/auth/github/callback',
+      scope: 'read:user user:email',
+    });
+
+    window.location.href = `https://github.com/login/oauth/authorize?${params}`;
+  };
+
   return (
     <div className="container">
       <h2 className="heading">Login</h2>
@@ -241,11 +252,18 @@ const Login = () => {
           }}
           theme="filled_blue"
           text="continue_with"
+          shape="pill"
           onError={() => {
             console.log('Login Failed');
           }}
           useOneTap
         />
+      </div>
+      <div>
+        <button className="github-login" onClick={loginWithGitHub}>
+          <FaGithub size={18} />
+          Continue with GitHub
+        </button>
       </div>
     </div>
   );

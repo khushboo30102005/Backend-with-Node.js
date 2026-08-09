@@ -42,10 +42,10 @@ const Register = () => {
 
   // Countdown timer for resend
   useEffect(() => {
-    if (countdown <= 0) return;
+    if (countdown <= 0 || otpVerified) return;
     const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
     return () => clearTimeout(timer);
-  }, [countdown]);
+  }, [countdown, otpVerified]);
 
   // Send OTP handler
   const handleSendOtp = async () => {
@@ -129,14 +129,14 @@ const Register = () => {
       });
       const data = await response.json();
 
-      if (data.error) {
-        setServerError(data.error);
-      } else {
-        setIsSuccess(true);
-        setTimeout(() => navigate('/'), 2000);
+      if (!response.ok || data.error) {
+        setServerError(data.error || 'Registration failed. Please try again.');
+        return;
       }
+
+      setIsSuccess(true);
+      setTimeout(() => navigate('/'), 2000);
     } catch (error) {
-      console.error(error);
       setServerError('Something went wrong. Please try again.');
     }
   };
@@ -182,13 +182,15 @@ const Register = () => {
               type="button"
               className="otp-button"
               onClick={handleSendOtp}
-              disabled={isSending || countdown > 0}
+              disabled={isSending || countdown > 0 || otpVerified}
             >
-              {isSending
-                ? 'Sending...'
-                : countdown > 0
-                  ? `${countdown}s`
-                  : 'Send OTP'}
+              {otpVerified
+                ? 'Verified'
+                : isSending
+                  ? 'Sending...'
+                  : countdown > 0
+                    ? `${countdown}s`
+                    : 'Send OTP'}
             </button>
           </div>
           {serverError && <span className="error-msg">{serverError}</span>}
@@ -210,6 +212,7 @@ const Register = () => {
                 onChange={(e) => setOtp(e.target.value)}
                 placeholder="4-digit OTP"
                 maxLength={4}
+                disabled={otpVerified || (countdown === 0 && !otpVerified)}
                 required
               />
 
@@ -218,13 +221,15 @@ const Register = () => {
                 type="button"
                 className="otp-button"
                 onClick={handleVerifyOtp}
-                disabled={isVerifying || otpVerified}
+                disabled={isVerifying || otpVerified || countdown === 0}
               >
                 {isVerifying
                   ? 'Verifying...'
                   : otpVerified
                     ? 'Verified'
-                    : 'Verify OTP'}
+                    : countdown === 0
+                      ? 'Expired'
+                      : 'Verify OTP'}
               </button>
             </div>
           </div>
@@ -243,6 +248,7 @@ const Register = () => {
             value={formData.password}
             onChange={handleChange}
             placeholder="Enter your password"
+            maxLength={4}
             required
           />
         </div>

@@ -1,13 +1,16 @@
-import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   FaFolderPlus,
   FaUpload,
   FaUser,
   FaSignOutAlt,
   FaSignInAlt,
-} from "react-icons/fa";
-
+  FaUserShield,
+  FaUserTie,
+} from 'react-icons/fa';
+// Use a constant for the API base URL
+export const BASE_URL = 'http://localhost:4000';
 function DirectoryHeader({
   directoryName,
   onCreateFolderClick,
@@ -15,15 +18,14 @@ function DirectoryHeader({
   fileInputRef,
   handleFileSelect,
   disabled = false,
+  readOnly = false,
 }) {
-  // Use a constant for the API base URL
-  const BASE_URL = "http://localhost:4000";
-
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
-  const [userName, setUserName] = useState("Guest User");
-  const [userEmail, setUserEmail] = useState("guest@example.com");
+  const [userName, setUserName] = useState('Guest User');
+  const [userEmail, setUserEmail] = useState('guest@example.com');
   const [userPicture, setUserPicture] = useState(null);
+  const [userRole, setUserRole] = useState(null);
 
   const userMenuRef = useRef(null);
   const navigate = useNavigate();
@@ -35,27 +37,30 @@ function DirectoryHeader({
     async function fetchUser() {
       try {
         const response = await fetch(`${BASE_URL}/user`, {
-          credentials: "include",
+          credentials: 'include',
         });
         if (response.ok) {
           const data = await response.json();
+          console.log(data);
           // Set user info if logged in
           setUserName(data.name);
           setUserEmail(data.email);
-          setUserPicture(data.picture);
+          setUserRole(data.role);
+          // setUserPicture(data.picture);
           setLoggedIn(true);
         } else if (response.status === 401) {
           // User not logged in
-          setUserName("Guest User");
-          setUserEmail("guest@example.com");
+          setUserName('Guest User');
+          setUserEmail('guest@example.com');
+          setUserRole(null);
           setUserPicture(null);
           setLoggedIn(false);
         } else {
           // Handle other error statuses if needed
-          console.error("Error fetching user info:", response.status);
+          console.error('Error fetching user info:', response.status);
         }
       } catch (err) {
-        console.error("Error fetching user info:", err);
+        console.error('Error fetching user info:', err);
       }
     }
     fetchUser();
@@ -74,21 +79,21 @@ function DirectoryHeader({
   const handleLogout = async () => {
     try {
       const response = await fetch(`${BASE_URL}/user/logout`, {
-        method: "POST",
-        credentials: "include",
+        method: 'POST',
+        credentials: 'include',
       });
       if (response.ok) {
-        console.log("Logged out successfully");
+        console.log('Logged out successfully');
         // Optionally reset local state
         setLoggedIn(false);
-        setUserName("Guest User");
-        setUserEmail("guest@example.com");
-        navigate("/login");
+        setUserName('Guest User');
+        setUserEmail('guest@example.com');
+        navigate('/login');
       } else {
-        console.error("Logout failed");
+        console.error('Logout failed');
       }
     } catch (err) {
-      console.error("Logout error:", err);
+      console.error('Logout error:', err);
     } finally {
       setShowUserMenu(false);
     }
@@ -97,24 +102,28 @@ function DirectoryHeader({
   const handleLogoutAll = async () => {
     try {
       const response = await fetch(`${BASE_URL}/user/logout-all`, {
-        method: "POST",
-        credentials: "include",
+        method: 'POST',
+        credentials: 'include',
       });
       if (response.ok) {
-        console.log("Logged out successfully");
+        console.log('Logged out successfully');
         // Optionally reset local state
         setLoggedIn(false);
-        setUserName("Guest User");
-        setUserEmail("guest@example.com");
-        navigate("/login");
+        setUserName('Guest User');
+        setUserEmail('guest@example.com');
+        navigate('/login');
       } else {
-        console.error("Logout failed");
+        console.error('Logout failed');
       }
     } catch (err) {
-      console.error("Logout error:", err);
+      console.error('Logout error:', err);
     } finally {
       setShowUserMenu(false);
     }
+  };
+
+  const handleAdminDashboard = () => {
+    navigate('/users');
   };
 
   // -------------------------------------------
@@ -126,9 +135,9 @@ function DirectoryHeader({
         setShowUserMenu(false);
       }
     }
-    document.addEventListener("mousedown", handleDocumentClick);
+    document.addEventListener('mousedown', handleDocumentClick);
     return () => {
-      document.removeEventListener("mousedown", handleDocumentClick);
+      document.removeEventListener('mousedown', handleDocumentClick);
     };
   }, []);
 
@@ -136,22 +145,19 @@ function DirectoryHeader({
     <header className="directory-header">
       <h1>{directoryName}</h1>
       <div className="header-links">
-        {/* Create Folder (icon button) */}
         <button
           className="icon-button"
           title="Create Folder"
           onClick={onCreateFolderClick}
-          disabled={disabled}
+          disabled={disabled || readOnly}
         >
           <FaFolderPlus />
         </button>
-
-        {/* Upload Files (icon button) */}
         <button
           className="icon-button"
           title="Upload Files"
           onClick={onUploadFilesClick}
-          disabled={disabled}
+          disabled={disabled || readOnly}
         >
           <FaUpload />
         </button>
@@ -161,7 +167,7 @@ function DirectoryHeader({
           ref={fileInputRef}
           id="file-upload"
           type="file"
-          style={{ display: "none" }}
+          style={{ display: 'none' }}
           multiple
           onChange={handleFileSelect}
         />
@@ -189,6 +195,33 @@ function DirectoryHeader({
                     <span className="user-name">{userName}</span>
                     <span className="user-email">{userEmail}</span>
                   </div>
+                  {userRole === 'Owner' && (
+                    <button
+                      onClick={handleAdminDashboard}
+                      className="admin-dashboard-item"
+                    >
+                      <FaUserShield size={16} />
+                      Owner Dashboard
+                    </button>
+                  )}
+                  {userRole === 'Admin' && (
+                    <button
+                      onClick={handleAdminDashboard}
+                      className="admin-dashboard-item"
+                    >
+                      <FaUserShield size={16} />
+                      Admin Dashboard
+                    </button>
+                  )}
+                  {userRole === 'Manager' && (
+                    <button
+                      onClick={handleAdminDashboard}
+                      className="admin-dashboard-item"
+                    >
+                      <FaUserTie size={16} />
+                      Manager Dashboard
+                    </button>
+                  )}
                   <div className="user-menu-divider" />
                   <div
                     className="user-menu-item login-btn"
@@ -211,7 +244,7 @@ function DirectoryHeader({
                   <div
                     className="user-menu-item login-btn"
                     onClick={() => {
-                      navigate("/login");
+                      navigate('/login');
                       setShowUserMenu(false);
                     }}
                   >

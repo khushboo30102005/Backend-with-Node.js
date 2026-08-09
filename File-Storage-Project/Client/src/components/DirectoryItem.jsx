@@ -6,9 +6,9 @@ import {
   FaFileArchive,
   FaFileCode,
   FaFileAlt,
-} from "react-icons/fa";
-import { BsThreeDotsVertical } from "react-icons/bs";
-import ContextMenu from "../components/ContextMenu";
+} from 'react-icons/fa';
+import { BsThreeDotsVertical } from 'react-icons/bs';
+import ContextMenu from '../components/ContextMenu';
 
 function DirectoryItem({
   item,
@@ -16,6 +16,7 @@ function DirectoryItem({
   activeContextMenu,
   contextMenuPos,
   handleContextMenu,
+  closeContextMenu,
   getFileIcon,
   isUploading,
   uploadProgress,
@@ -24,34 +25,35 @@ function DirectoryItem({
   handleDeleteDirectory,
   openRenameModal,
   BASE_URL,
+  readOnly = false,
 }) {
   // Convert the file icon string to the actual Icon component
   function renderFileIcon(iconString) {
     switch (iconString) {
-      case "pdf":
+      case 'pdf':
         return <FaFilePdf />;
-      case "image":
+      case 'image':
         return <FaFileImage />;
-      case "video":
+      case 'video':
         return <FaFileVideo />;
-      case "archive":
+      case 'archive':
         return <FaFileArchive />;
-      case "code":
+      case 'code':
         return <FaFileCode />;
-      case "alt":
+      case 'alt':
       default:
         return <FaFileAlt />;
     }
   }
 
-  const isUploadingItem = item.id.startsWith("temp-");
+  const isUploadingItem = item.id.startsWith('temp-');
 
   return (
     <div
       className="list-item hoverable-row"
       onClick={() =>
         !(activeContextMenu || isUploading)
-          ? handleRowClick(item.isDirectory ? "directory" : "file", item.id)
+          ? handleRowClick(item.isDirectory ? 'directory' : 'file', item.id)
           : null
       }
       onContextMenu={(e) => handleContextMenu(e, item.id)}
@@ -83,7 +85,7 @@ function DirectoryItem({
             className="progress-bar"
             style={{
               width: `${uploadProgress}%`,
-              backgroundColor: uploadProgress === 100 ? "#039203" : "#007bff",
+              backgroundColor: uploadProgress === 100 ? '#039203' : '#007bff',
             }}
           ></div>
         </div>
@@ -100,6 +102,8 @@ function DirectoryItem({
           handleDeleteDirectory={handleDeleteDirectory}
           openRenameModal={openRenameModal}
           BASE_URL={BASE_URL}
+          readOnly={readOnly}
+          onClose={closeContextMenu}
         />
       )}
     </div>

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef } from 'react';
 
 function RenameModal({
   renameType,
@@ -6,6 +6,7 @@ function RenameModal({
   setRenameValue,
   onClose,
   onRenameSubmit,
+  error,
 }) {
   const inputRef = useRef(null);
 
@@ -14,7 +15,7 @@ function RenameModal({
     if (inputRef.current) {
       inputRef.current.focus();
 
-      const dotIndex = renameValue.lastIndexOf(".");
+      const dotIndex = renameValue.lastIndexOf('.');
       if (dotIndex > 0) {
         inputRef.current.setSelectionRange(0, dotIndex);
       } else {
@@ -24,15 +25,15 @@ function RenameModal({
 
     // Listen for "Escape" key to close the modal
     const handleKeyDown = (e) => {
-      if (e.key === "Escape") {
+      if (e.key === 'Escape') {
         onClose();
       }
     };
-    document.addEventListener("keydown", handleKeyDown);
+    document.addEventListener('keydown', handleKeyDown);
 
     // Cleanup keydown event listener on unmount
     return () => {
-      document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener('keydown', handleKeyDown);
     };
   }, []);
 
@@ -49,7 +50,7 @@ function RenameModal({
   return (
     <div className="modal-overlay" onClick={handleOverlayClick}>
       <div className="modal-content" onClick={handleContentClick}>
-        <h2>Rename {renameType === "file" ? "File" : "Folder"}</h2>
+        <h2>Rename {renameType === 'file' ? 'File' : 'Folder'}</h2>
         <form onSubmit={onRenameSubmit}>
           <input
             ref={inputRef}
@@ -59,6 +60,7 @@ function RenameModal({
             value={renameValue}
             onChange={(e) => setRenameValue(e.target.value)}
           />
+          {error && <p className="modal-error">{error}</p>}
           <div className="modal-buttons">
             <button className="primary-button" type="submit">
               Save

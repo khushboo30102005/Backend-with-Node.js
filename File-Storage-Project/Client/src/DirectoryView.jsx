@@ -1,34 +1,81 @@
-import { useEffect, useState, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import DirectoryHeader from "./components/DirectoryHeader";
-import CreateDirectoryModal from "./components/CreateDirectoryModal";
-import RenameModal from "./components/RenameModal";
-import DirectoryList from "./components/DirectoryList";
-import "./DirectoryView.css";
+import { useEffect, useState, useRef } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import DirectoryHeader from './components/DirectoryHeader';
+import CreateDirectoryModal from './components/CreateDirectoryModal';
+import RenameModal from './components/RenameModal';
+import DirectoryList from './components/DirectoryList';
+import './DirectoryView.css';
 
-function DirectoryView() {
-  const BASE_URL = "http://localhost:4000";
-  const { dirId } = useParams();
+function DirectoryView({ adminMode = false }) {
+  const BASE_URL = 'http://localhost:4000';
+  const { dirId, userId } = useParams();
+
   const navigate = useNavigate();
 
+  // Admin-mode: compute the API base and whether the viewer is read-only
+  const apiBase = adminMode ? `${BASE_URL}/admin/users/${userId}` : BASE_URL;
+  const [viewerRole, setViewerRole] = useState(null);
+  const [targetUserLabel, setTargetUserLabel] = useState('');
+  const readOnly = adminMode && viewerRole === 'Admin';
+
+  // Fetch viewer role (needed to decide read-only, only relevant in adminMode)
+  useEffect(() => {
+    if (!adminMode) return;
+    async function fetchViewerRole() {
+      try {
+        const response = await fetch(`${BASE_URL}/user`, {
+          credentials: 'include',
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setViewerRole(data.role);
+        }
+      } catch (err) {
+        console.error('Error fetching viewer role:', err);
+      }
+    }
+    fetchViewerRole();
+  }, [adminMode]);
+
+  useEffect(() => {
+    if (!adminMode) return;
+    async function fetchTargetUser() {
+      try {
+        const response = await fetch(`${BASE_URL}/users`, {
+          credentials: 'include',
+        });
+        if (response.ok) {
+          const users = await response.json();
+          const match = users.find((u) => u._id === userId);
+          if (match) {
+            setTargetUserLabel(`${match.name} (${match.email})`);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching target user:', err);
+      }
+    }
+    fetchTargetUser();
+  }, [adminMode, userId]);
+
   // Displayed directory name
-  const [directoryName, setDirectoryName] = useState("My Drive");
+  const [directoryName, setDirectoryName] = useState('My Drive');
 
   // Lists of items
   const [directoriesList, setDirectoriesList] = useState([]);
   const [filesList, setFilesList] = useState([]);
 
   // Error state
-  const [errorMessage, setErrorMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState('');
 
   // Modal states
   const [showCreateDirModal, setShowCreateDirModal] = useState(false);
-  const [newDirname, setNewDirname] = useState("New Folder");
+  const [newDirname, setNewDirname] = useState('New Folder');
 
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [renameType, setRenameType] = useState(null); // "directory" or "file"
   const [renameId, setRenameId] = useState(null);
-  const [renameValue, setRenameValue] = useState("");
+  const [renameValue, setRenameValue] = useState('');
 
   // Uploading states
   const fileInputRef = useRef(null);
@@ -41,6 +88,7 @@ function DirectoryView() {
   const [activeContextMenu, setActiveContextMenu] = useState(null);
   const [contextMenuPos, setContextMenuPos] = useState({ x: 0, y: 0 });
 
+  const [modalError, setModalError] = useState('');
   /**
    * Utility: handle fetch errors
    */
@@ -62,24 +110,21 @@ function DirectoryView() {
    * Fetch directory contents
    */
   async function getDirectoryItems() {
-    setErrorMessage(""); // clear any existing error
+    setErrorMessage('');
     try {
-      const response = await fetch(`${BASE_URL}/directory/${dirId || ""}`, {
-        credentials: "include",
+      const response = await fetch(`${apiBase}/directory/${dirId || ''}`, {
+        credentials: 'include',
       });
 
       if (response.status === 401) {
-        navigate("/login");
+        navigate('/login');
         return;
       }
 
       await handleFetchErrors(response);
       const data = await response.json();
 
-      // Set directory name
-      setDirectoryName(dirId ? data.name : "My Drive");
-
-      // Reverse directories and files so new items show on top
+      setDirectoryName(dirId ? data.name : 'My Drive');
       setDirectoriesList([...data.directories].reverse());
       setFilesList([...data.files].reverse());
     } catch (error) {
@@ -93,39 +138,43 @@ function DirectoryView() {
     setActiveContextMenu(null);
   }, [dirId]);
 
+  function closeContextMenu() {
+    setActiveContextMenu(null);
+  }
+
   /**
    * Decide file icon
    */
   function getFileIcon(filename) {
-    const ext = filename.split(".").pop().toLowerCase();
+    const ext = filename.split('.').pop().toLowerCase();
     switch (ext) {
-      case "pdf":
-        return "pdf";
-      case "png":
-      case "jpg":
-      case "jpeg":
-      case "gif":
-        return "image";
-      case "mp4":
-      case "mov":
-      case "avi":
-        return "video";
-      case "zip":
-      case "rar":
-      case "tar":
-      case "gz":
-        return "archive";
-      case "js":
-      case "jsx":
-      case "ts":
-      case "tsx":
-      case "html":
-      case "css":
-      case "py":
-      case "java":
-        return "code";
+      case 'pdf':
+        return 'pdf';
+      case 'png':
+      case 'jpg':
+      case 'jpeg':
+      case 'gif':
+        return 'image';
+      case 'mp4':
+      case 'mov':
+      case 'avi':
+        return 'video';
+      case 'zip':
+      case 'rar':
+      case 'tar':
+      case 'gz':
+        return 'archive';
+      case 'js':
+      case 'jsx':
+      case 'ts':
+      case 'tsx':
+      case 'html':
+      case 'css':
+      case 'py':
+      case 'java':
+        return 'code';
       default:
-        return "alt";
+        return 'alt';
     }
   }
 
@@ -133,10 +182,14 @@ function DirectoryView() {
    * Click row to open directory or file
    */
   function handleRowClick(type, id) {
-    if (type === "directory") {
-      navigate(`/directory/${id}`);
+    if (type === 'directory') {
+      navigate(
+        adminMode
+          ? `/admin/users/${userId}/directory/${id}`
+          : `/directory/${id}`,
+      );
     } else {
-      window.location.href = `${BASE_URL}/file/${id}`;
+      window.location.href = `${apiBase}/file/${id}`;
     }
   }
 
@@ -170,7 +223,7 @@ function DirectoryView() {
     setUploadQueue((prev) => [...prev, ...newItems]);
 
     // Clear file input so the same file can be chosen again if needed
-    e.target.value = "";
+    e.target.value = '';
 
     // Start uploading queue if not already uploading
     if (!isUploading) {
@@ -185,7 +238,6 @@ function DirectoryView() {
    */
   function processUploadQueue(queue) {
     if (queue.length === 0) {
-      // No more items to upload
       setIsUploading(false);
       setUploadQueue([]);
       setTimeout(() => {
@@ -197,32 +249,29 @@ function DirectoryView() {
     // Take first item
     const [currentItem, ...restQueue] = queue;
 
-    // Mark it as isUploading: true
     setFilesList((prev) =>
       prev.map((f) =>
-        f.id === currentItem.id ? { ...f, isUploading: true } : f
-      )
+        f.id === currentItem.id ? { ...f, isUploading: true } : f,
+      ),
     );
 
-    // Start upload
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", `${BASE_URL}/file/${dirId || ""}`, true);
+    const uploadUrl = dirId ? `${apiBase}/file/${dirId}` : `${apiBase}/file`;
+    xhr.open('POST',uploadUrl, true);
     xhr.withCredentials = true;
-    xhr.setRequestHeader("filename", currentItem.name);
+    xhr.setRequestHeader('filename', currentItem.name);
 
-    xhr.upload.addEventListener("progress", (evt) => {
+    xhr.upload.addEventListener('progress', (evt) => {
       if (evt.lengthComputable) {
         const progress = (evt.loaded / evt.total) * 100;
         setProgressMap((prev) => ({ ...prev, [currentItem.id]: progress }));
       }
     });
 
-    xhr.addEventListener("load", () => {
-      // Move on to the next item
+    xhr.addEventListener('load', () => {
       processUploadQueue(restQueue);
     });
 
-    // If user cancels, remove from the queue
     setUploadXhrMap((prev) => ({ ...prev, [currentItem.id]: xhr }));
     xhr.send(currentItem.file);
   }
@@ -259,11 +308,11 @@ function DirectoryView() {
    * Delete a file/directory
    */
   async function handleDeleteFile(id) {
-    setErrorMessage("");
+    setErrorMessage('');
     try {
-      const response = await fetch(`${BASE_URL}/file/${id}`, {
-        method: "DELETE",
-        credentials: "include",
+      const response = await fetch(`${apiBase}/file/${id}`, {
+        method: 'DELETE',
+        credentials: 'include',
       });
       await handleFetchErrors(response);
       getDirectoryItems();
@@ -273,11 +322,11 @@ function DirectoryView() {
   }
 
   async function handleDeleteDirectory(id) {
-    setErrorMessage("");
+    setErrorMessage('');
     try {
-      const response = await fetch(`${BASE_URL}/directory/${id}`, {
-        method: "DELETE",
-        credentials: "include",
+      const response = await fetch(`${apiBase}/directory/${id}`, {
+        method: 'DELETE',
+        credentials: 'include',
       });
       await handleFetchErrors(response);
       getDirectoryItems();
@@ -291,21 +340,23 @@ function DirectoryView() {
    */
   async function handleCreateDirectory(e) {
     e.preventDefault();
-    setErrorMessage("");
+    setModalError('');
     try {
-      const response = await fetch(`${BASE_URL}/directory/${dirId || ""}`, {
-        method: "POST",
-        headers: {
-          dirname: newDirname,
-        },
-        credentials: "include",
+      const response = await fetch(`${apiBase}/directory/${dirId || ''}`, {
+        method: 'POST',
+        headers: { dirname: newDirname },
+        credentials: 'include',
       });
-      await handleFetchErrors(response);
-      setNewDirname("New Folder");
+      if (!response.ok) {
+        const data = await response.json();
+        setModalError(data.error || 'Failed to create directory.');
+        return;
+      }
+      setNewDirname('New Folder');
       setShowCreateDirModal(false);
       getDirectoryItems();
     } catch (error) {
-      setErrorMessage(error.message);
+      setModalError(error.message);
     }
   }
 
@@ -321,33 +372,34 @@ function DirectoryView() {
 
   async function handleRenameSubmit(e) {
     e.preventDefault();
-    setErrorMessage("");
+    setModalError('');
     try {
       const url =
-        renameType === "file"
-          ? `${BASE_URL}/file/${renameId}`
-          : `${BASE_URL}/directory/${renameId}`;
+        renameType === 'file'
+          ? `${apiBase}/file/${renameId}`
+          : `${apiBase}/directory/${renameId}`;
       const response = await fetch(url, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(
-          renameType === "file"
+          renameType === 'file'
             ? { newFilename: renameValue }
-            : { newDirName: renameValue }
+            : { newDirName: renameValue },
         ),
-        credentials: "include",
+        credentials: 'include',
       });
-      await handleFetchErrors(response);
-
+      if (!response.ok) {
+        const data = await response.json();
+        setModalError(data.error || 'Failed to rename.');
+        return;
+      }
       setShowRenameModal(false);
-      setRenameValue("");
+      setRenameValue('');
       setRenameType(null);
       setRenameId(null);
       getDirectoryItems();
     } catch (error) {
-      setErrorMessage(error.message);
+      setModalError(error.message);
     }
   }
 
@@ -369,12 +421,9 @@ function DirectoryView() {
   }
 
   useEffect(() => {
-    function handleDocumentClick() {
-      setActiveContextMenu(null);
-    }
-    document.addEventListener("click", handleDocumentClick);
-    return () => document.removeEventListener("click", handleDocumentClick);
-  }, []);
+    getDirectoryItems();
+    setActiveContextMenu(null);
+  }, [dirId]);
 
   // Combine directories & files into one list for rendering
   const combinedItems = [
@@ -383,10 +432,16 @@ function DirectoryView() {
   ];
   return (
     <div className="directory-view">
-      {/* Top error message for general errors */}
+      {adminMode && (
+        <div className="admin-mode-banner">
+          Viewing {targetUserLabel || "another user's"} files —{' '}
+          {readOnly ? 'read-only' : 'Owner mode'}
+        </div>
+      )}
+
       {errorMessage &&
         errorMessage !==
-          "Directory not found or you do not have access to it!" && (
+          'Directory not found or you do not have access to it!' && (
           <div className="error-message">{errorMessage}</div>
         )}
 
@@ -396,14 +451,13 @@ function DirectoryView() {
         onUploadFilesClick={() => fileInputRef.current.click()}
         fileInputRef={fileInputRef}
         handleFileSelect={handleFileSelect}
-        // Disable if the user doesn't have access
         disabled={
           errorMessage ===
-          "Directory not found or you do not have access to it!"
+          'Directory not found or you do not have access to it!'
         }
+        readOnly={readOnly}
       />
 
-      {/* Create Directory Modal */}
       {showCreateDirModal && (
         <CreateDirectoryModal
           newDirname={newDirname}
@@ -413,7 +467,6 @@ function DirectoryView() {
         />
       )}
 
-      {/* Rename Modal */}
       {showRenameModal && (
         <RenameModal
           renameType={renameType}
@@ -423,11 +476,36 @@ function DirectoryView() {
           onRenameSubmit={handleRenameSubmit}
         />
       )}
+      {showCreateDirModal && (
+        <CreateDirectoryModal
+          newDirname={newDirname}
+          setNewDirname={setNewDirname}
+          onClose={() => {
+            setShowCreateDirModal(false);
+            setModalError('');
+          }}
+          onCreateDirectory={handleCreateDirectory}
+          error={modalError}
+        />
+      )}
+
+      {showRenameModal && (
+        <RenameModal
+          renameType={renameType}
+          renameValue={renameValue}
+          setRenameValue={setRenameValue}
+          onClose={() => {
+            setShowRenameModal(false);
+            setModalError('');
+          }}
+          onRenameSubmit={handleRenameSubmit}
+          error={modalError}
+        />
+      )}
 
       {combinedItems.length === 0 ? (
-        // Check if the error is specifically the "no access" error
         errorMessage ===
-        "Directory not found or you do not have access to it!" ? (
+        'Directory not found or you do not have access to it!' ? (
           <p className="no-data-message">
             Directory not found or you do not have access to it!
           </p>
@@ -444,6 +522,7 @@ function DirectoryView() {
           activeContextMenu={activeContextMenu}
           contextMenuPos={contextMenuPos}
           handleContextMenu={handleContextMenu}
+          closeContextMenu={closeContextMenu}
           getFileIcon={getFileIcon}
           isUploading={isUploading}
           progressMap={progressMap}
@@ -451,7 +530,8 @@ function DirectoryView() {
           handleDeleteFile={handleDeleteFile}
           handleDeleteDirectory={handleDeleteDirectory}
           openRenameModal={openRenameModal}
-          BASE_URL={BASE_URL}
+          BASE_URL={apiBase}
+          readOnly={readOnly}
         />
       )}
     </div>

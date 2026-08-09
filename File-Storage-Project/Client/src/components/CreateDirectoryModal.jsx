@@ -1,10 +1,11 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef } from 'react';
 
 function CreateDirectoryModal({
   newDirname,
   setNewDirname,
   onClose,
   onCreateDirectory,
+  error,
 }) {
   const inputRef = useRef(null);
 
@@ -17,15 +18,15 @@ function CreateDirectoryModal({
 
     // Listen for "Escape" key to close the modal
     const handleKeyDown = (e) => {
-      if (e.key === "Escape") {
+      if (e.key === 'Escape') {
         onClose();
       }
     };
-    document.addEventListener("keydown", handleKeyDown);
+    document.addEventListener('keydown', handleKeyDown);
 
     // Cleanup keydown event listener on unmount
     return () => {
-      document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener('keydown', handleKeyDown);
     };
   }, []);
 
@@ -52,6 +53,7 @@ function CreateDirectoryModal({
             value={newDirname}
             onChange={(e) => setNewDirname(e.target.value)}
           />
+          {error && <p className="modal-error">{error}</p>}
           <div className="modal-buttons">
             <button className="primary-button" type="submit">
               Create

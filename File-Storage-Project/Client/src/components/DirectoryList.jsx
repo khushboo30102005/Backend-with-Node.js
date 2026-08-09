@@ -6,6 +6,7 @@ function DirectoryList({
   activeContextMenu,
   contextMenuPos,
   handleContextMenu,
+  closeContextMenu,
   getFileIcon,
   isUploading,
   progressMap,
@@ -14,12 +15,12 @@ function DirectoryList({
   handleDeleteDirectory,
   openRenameModal,
   BASE_URL,
+  readOnly = false,
 }) {
   return (
     <div className="directory-list">
       {items.map((item) => {
         const uploadProgress = progressMap[item.id] || 0;
-
         return (
           <DirectoryItem
             key={item.id}
@@ -28,6 +29,7 @@ function DirectoryList({
             activeContextMenu={activeContextMenu}
             contextMenuPos={contextMenuPos}
             handleContextMenu={handleContextMenu}
+            closeContextMenu={closeContextMenu}
             getFileIcon={getFileIcon}
             isUploading={isUploading}
             uploadProgress={uploadProgress}
@@ -36,6 +38,7 @@ function DirectoryList({
             handleDeleteDirectory={handleDeleteDirectory}
             openRenameModal={openRenameModal}
             BASE_URL={BASE_URL}
+            readOnly={readOnly}
           />
         );
       })}

@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import { Link, useNavigate } from 'react-router-dom';
-import { loginWithGoogle, verifyLoginOtp } from './apis/authApi.js';
+import { loginWithGoogle } from './apis/loginWithGoogle';
 import { FaGithub } from 'react-icons/fa';
-import { BASE_URL } from './Register.jsx';
-import { loginUser } from './apis/userApi.js';
+import { BASE_URL } from '../Register.jsx';
 
 const Login = () => {
   const [formData, setFormData] = useState({
@@ -59,14 +58,30 @@ const Login = () => {
   // Step 1
   const handleLogin = async () => {
     setServerError('');
+
     try {
       setIsSending(true);
-      await loginUser(formData);
-      setOtpSent(true);
-      setOtpError('');
-      setCountdown(60);
+
+      const response = await fetch(`${BASE_URL}/user/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setOtpSent(true);
+        setOtpError('');
+        setCountdown(60);
+      } else {
+        setServerError(data.error || 'Login failed.');
+      }
     } catch (err) {
-      setServerError(err.response?.data?.error || 'Login failed.');
+      console.error(err);
+      setServerError('Something went wrong.');
     } finally {
       setIsSending(false);
     }
@@ -78,13 +93,33 @@ const Login = () => {
       setOtpError('Please enter OTP.');
       return;
     }
+
     try {
       setIsVerifying(true);
-      await verifyLoginOtp(formData.email, otp);
-      setOtpVerified(true);
-      navigate('/');
+
+      const response = await fetch(`${BASE_URL}/auth/verify-login-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          email: formData.email,
+          otp,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setOtpVerified(true);
+        navigate('/');
+      } else {
+        setOtpError(data.error || 'Invalid OTP.');
+      }
     } catch (err) {
-      setOtpError(err.response?.data?.error || 'Invalid OTP.');
+      console.error(err);
+      setOtpError('Something went wrong.');
     } finally {
       setIsVerifying(false);
     }
@@ -119,7 +154,6 @@ const Login = () => {
             name="email"
             value={formData.email}
             onChange={handleChange}
-            placeholder="e.g. jane@example.com"
             disabled={otpSent}
             required
           />
@@ -138,7 +172,6 @@ const Login = () => {
             name="password"
             value={formData.password}
             onChange={handleChange}
-            placeholder="Enter your password"
             disabled={otpSent}
             required
           />
@@ -197,9 +230,7 @@ const Login = () => {
             <button
               type="button"
               className={`w-full mt-1 px-4 py-[11px] rounded-lg text-white text-sm font-semibold cursor-pointer transition-[background-color,transform] duration-150 disabled:bg-indigo-200 disabled:cursor-not-allowed disabled:translate-y-0 ${
-                otpVerified
-                  ? 'bg-success'
-                  : 'bg-primary hover:bg-primary-hover hover:-translate-y-px'
+                otpVerified ? 'bg-success' : 'bg-primary hover:bg-primary-hover hover:-translate-y-px'
               }`}
               onClick={handleVerifyOtp}
               disabled={isVerifying || otpVerified || countdown === 0}
@@ -218,10 +249,7 @@ const Login = () => {
 
       <p className="text-center mt-4 text-sm text-text-muted">
         Don't have an account?{' '}
-        <Link
-          to="/register"
-          className="text-primary font-semibold no-underline hover:underline hover:text-primary-hover"
-        >
+        <Link to="/register" className="text-primary font-semibold no-underline hover:underline hover:text-primary-hover">
           Register
         </Link>
       </p>
@@ -233,12 +261,12 @@ const Login = () => {
       <div className="flex justify-center">
         <GoogleLogin
           onSuccess={async (credentialResponse) => {
-            try {
-              await loginWithGoogle(credentialResponse.credential);
-              navigate('/');
-            } catch (err) {
-              console.log(err.response?.data);
+            const data = await loginWithGoogle(credentialResponse.credential);
+            if (data.error) {
+              console.log(data);
+              return;
             }
+            navigate('/');
           }}
           theme="filled_blue"
           text="continue_with"

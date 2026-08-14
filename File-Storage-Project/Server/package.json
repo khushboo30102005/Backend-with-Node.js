@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "node --watch app.js"
+    "dev": "node --watch --env-file=.env app.js"
   },
   "keywords": [],
   "author": "",
@@ -15,10 +15,10 @@
     "bcrypt": "^6.0.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
-    "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "google-auth-library": "^11.0.0",
     "mongoose": "^9.6.3",
-    "nodemailer": "^9.0.3"
+    "nodemailer": "^9.0.3",
+    "redis": "^6.2.0"
   }
 }

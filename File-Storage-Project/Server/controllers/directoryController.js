@@ -95,7 +95,7 @@ export const deleteDirectory = async (req, res, next) => {
 };
 
 export const createDirectory = async (req, res, next) => {
-  const user = req.user;
+  const user = req.targetUser;
   const parentDirId = req.params.parentDirId || user.rootDirId.toString();
   const dirname = req.headers.dirname || 'New Folder';
   try {

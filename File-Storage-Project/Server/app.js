@@ -4,20 +4,19 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import directoryRoutes from './routes/directoryRoutes.js';
 import fileRoutes from './routes/fileRoutes.js';
-import userRoutes from './routes/userRoutes.js'; 
-import authRoutes from './routes/authRoutes.js'; 
-import adminRoutes from './routes/adminRoutes.js'; 
+import userRoutes from './routes/userRoutes.js';
+import authRoutes from './routes/authRoutes.js';
+import adminRoutes from './routes/adminRoutes.js';
 import checkAuth from './middlewares/authMiddleware.js';
-
-export const secretKey = 'proCodrr-StorageApp';
 
 await connectDB();
 const app = express();
-app.use(cookieParser(secretKey));  // this middleware parses the cookie send by the client, because it has secretKey, it can also verify signedCookie.
+const port = process.env.port || 4000;
+app.use(cookieParser(process.env.SESSION_SECRET)); // this middleware parses the cookie send by the client, because it has secretKey, it can also verify signedCookie.
 app.use(express.json());
 app.use(
   cors({
-    origin: 'http://localhost:5173',
+    origin: process.env.CLIENT_URL,
     credentials: true,
   }),
 );
@@ -32,6 +31,6 @@ app.use((err, req, res, next) => {
   res.status(err.status || 500).json({ error: 'Something went wrong!!' });
 });
 
-app.listen(4000, () => {
+app.listen(port, () => {
   console.log(`Server Started`);
 });

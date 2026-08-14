@@ -4,9 +4,10 @@ import bcrypt from 'bcrypt';
 import User from '../models/userModel.js';
 import Directory from '../models/directoryModel.js';
 import File from '../models/fileModel.js';
-import Session from '../models/sessionModel.js';
 import OTP from '../models/otpModel.js';
 import { sendOtpService } from '../services/sendOtpService.js';
+import redisClient from '../config/redis.js';
+import { deleteAllSessionsForUser } from '../services/delRedisSessionsService.js';
 const ROLE_RANKS = {
   User: 0,
   Manager: 1,
@@ -74,49 +75,61 @@ export const login = async (req, res, next) => {
   const { email, password } = req.body;
   try {
     const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(404).json({ error: 'Invalid Credentials' });
+    }
+
     if (user?.isDeleted) {
       return res.status(403).json({
         error: 'Your account has been deleted. Contact app owner to recover.',
       });
-    }
-    if (!user) {
-      return res.status(404).json({ error: 'Invalid Credentials' });
     }
 
     const isPasswordValid = await user.comparePassword(password);
     if (!isPasswordValid) {
       return res.status(404).json({ error: 'Invalid Credentials' });
     }
-    const allSessions = await Session.find({ userId: user._id });
-    if (allSessions.length >= 3) {
-      await allSessions[0].deleteOne();
+
+    const allSessions = await redisClient.ft.search(
+      'userIdIdx',
+      `@userId:{${user.id}}`,
+      {
+        RETURN: [],
+      },
+    );
+
+    if (allSessions.total >= 2) {
+      await redisClient.del(allSessions.documents[0].id);
     }
+
     const result = await sendOtpService(email);
-    const session = await Session.create({ userId: user._id });
+
     res.json({ message: result });
   } catch (error) {
-    res.json({ message: error.message });
+    next(error);
   }
 };
 
 export const getCurrentUser = async (req, res) => {
-  if (req.user.isDeleted) {
+  const user = await User.findById(req.user._id).lean();
+  if (user.isDeleted) {
     return res.status(403).json({
       error: 'Your account has been deleted. Contact app owner to recover.',
     });
   }
   res.status(200).json({
-    name: req.user.name,
-    email: req.user.email,
-    role: req.user.role,
-    picture: req.user.picture,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    picture: user.picture,
   });
 };
 
 export const logout = async (req, res) => {
   try {
     const sid = req.signedCookies.sid;
-    await Session.findByIdAndDelete(sid);
+    await redisClient.del(`session:${sid}`);
     res.clearCookie('sid');
     res.status(204).end();
   } catch (error) {
@@ -143,7 +156,7 @@ export const logoutById = async (req, res, next) => {
   }
 
   try {
-    await Session.deleteMany({ userId: req.params.userId });
+    await deleteAllSessionsForUser(req.params.userId);
     res.status(204).end();
   } catch (err) {
     next(err);
@@ -155,7 +168,14 @@ export const deleteUser = async (req, res, next) => {
     return res.status(403).json({ error: 'You can not delete yourself.' });
   }
   try {
-    await Session.deleteMany({ userId });
+    const targetUser = await User.findById(userId);
+    if (!targetUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    if (ROLE_RANKS[req.user.role] < ROLE_RANKS[targetUser.role]) {
+      return res.status(403).json({ error: 'You cannot delete this user.' });
+    }
+    await deleteAllSessionsForUser(userId);
     await User.findByIdAndUpdate(userId, { isDeleted: true });
     res.status(204).end();
   } catch (err) {
@@ -169,7 +189,14 @@ export const permanentlyDeleteUser = async (req, res, next) => {
     return res.status(403).json({ error: 'You can not delete yourself.' });
   }
   try {
-    await Session.deleteMany({ userId });
+    const targetUser = await User.findById(userId);
+    if (!targetUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    if (ROLE_RANKS[req.user.role] < ROLE_RANKS[targetUser.role]) {
+      return res.status(403).json({ error: 'You cannot delete this user.' });
+    }
+    await deleteAllSessionsForUser(userId);
     await File.deleteMany({ userId });
     await Directory.deleteMany({ userId });
     await User.findByIdAndDelete(userId);
@@ -182,12 +209,22 @@ export const permanentlyDeleteUser = async (req, res, next) => {
 export const logoutAll = async (req, res) => {
   try {
     const sid = req.signedCookies.sid;
-    const session = await Session.findById(sid);
-    await Session.deleteMany({ userId: session.userId });
+    const result = await redisClient.json.get(`session:${sid}`, {
+      path: '$.userId',
+    });
+
+    if (!result) {
+      res.clearCookie('sid');
+      return res.status(204).end();
+    }
+
+    const userId = result[0];
+    await deleteAllSessionsForUser(userId);
     res.clearCookie('sid');
     res.status(204).end();
   } catch (error) {
-    res.status(204).json({ message: 'Not logged out' });
+    console.log(error);
+    res.status(500).json({ message: 'Failed to logout from all sessions' });
   }
 };
 
@@ -196,8 +233,12 @@ export const getAllUsers = async (req, res) => {
     .select('name email picture role')
     .lean();
   const userPromises = users.map(async (user) => {
-    const session = await Session.findOne({ userId: user._id }).select('_id');
-    user.isLoggedIn = !!session;
+    const result = await redisClient.ft.search(
+      'userIdIdx',
+      `@userId:{${user._id}}`,
+      { RETURN: [], LIMIT: { from: 0, size: 1 } },
+    );
+    user.isLoggedIn = result.total > 0;
   });
   await Promise.all(userPromises);
   res.json(users);
@@ -255,6 +296,9 @@ export const changeUserRole = async (req, res, next) => {
     }
 
     await User.findByIdAndUpdate(userId, { role: newRole });
+
+    await deleteAllSessionsForUser(userId);
+
     res.status(204).end();
   } catch (err) {
     next(err);

@@ -1,16 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import './Auth.css';
 import { GoogleLogin } from '@react-oauth/google';
-import { loginWithGoogle } from './apis/loginWithGoogle';
-
+import { loginWithGoogle, sendOtp, verifyOtp } from './apis/authApi';
+import { registerUser } from './apis/userApi';
+export const BASE_URL = import.meta.env.VITE_BACKEND_BASE_URL;
 const Register = () => {
-  const BASE_URL = 'http://localhost:4000';
-
   const [formData, setFormData] = useState({
-    name: 'Khushi saini',
-    email: 'ks2612348@gmail.com',
-    password: 'abcd',
+    name: '',
+    email: '',
+    password: '',
   });
 
   const [serverError, setServerError] = useState('');
@@ -48,63 +46,38 @@ const Register = () => {
   }, [countdown, otpVerified]);
 
   // Send OTP handler
+
   const handleSendOtp = async () => {
     const { email } = formData;
     if (!email) {
       setOtpError('Please enter your email first.');
       return;
     }
-
     try {
       setIsSending(true);
-      const res = await fetch(`${BASE_URL}/auth/send-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      });
-      const data = await res.json();
-
-      if (res.ok) {
-        setOtpSent(true);
-        setCountdown(60); // allow resend after 60s
-        setOtpError('');
-      } else {
-        setOtpError(data.error || 'Failed to send OTP.');
-      }
+      await sendOtp(email);
+      setOtpSent(true);
+      setCountdown(60);
+      setOtpError('');
     } catch (err) {
-      console.error(err);
-      setOtpError('Something went wrong sending OTP.');
+      setOtpError(err.response?.data?.error || 'Failed to send OTP.');
     } finally {
       setIsSending(false);
     }
   };
-
   // Verify OTP handler
   const handleVerifyOtp = async () => {
-    const { email } = formData;
     if (!otp) {
       setOtpError('Please enter OTP.');
       return;
     }
-
     try {
       setIsVerifying(true);
-      const res = await fetch(`${BASE_URL}/auth/verify-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, otp }),
-      });
-      const data = await res.json();
-
-      if (res.ok) {
-        setOtpVerified(true);
-        setOtpError('');
-      } else {
-        setOtpError(data.error || 'Invalid or expired OTP.');
-      }
+      await verifyOtp(formData.email, otp);
+      setOtpVerified(true);
+      setOtpError('');
     } catch (err) {
-      console.error(err);
-      setOtpError('Something went wrong verifying OTP.');
+      setOtpError(err.response?.data?.error || 'Invalid or expired OTP.');
     } finally {
       setIsVerifying(false);
     }
@@ -115,72 +88,71 @@ const Register = () => {
     e.preventDefault();
     setServerError('');
     setIsSuccess(false);
-
     if (!otpVerified) {
       setOtpError('Please verify your email with OTP before registering.');
       return;
     }
-
     try {
-      const response = await fetch(`${BASE_URL}/user/register`, {
-        method: 'POST',
-        body: JSON.stringify({ ...formData, otp }),
-        headers: { 'Content-Type': 'application/json' },
-      });
-      const data = await response.json();
-
-      if (!response.ok || data.error) {
-        setServerError(data.error || 'Registration failed. Please try again.');
-        return;
-      }
-
+      await registerUser({ ...formData, otp });
       setIsSuccess(true);
-      setTimeout(() => navigate('/'), 2000);
-    } catch (error) {
-      setServerError('Something went wrong. Please try again.');
+      setTimeout(() => navigate('/login'), 2000);
+    } catch (err) {
+      setServerError(
+        err.response?.data?.error || 'Registration failed. Please try again.',
+      );
     }
   };
 
   return (
-    <div className="container">
-      <h2 className="heading">Register</h2>
-      <form className="form" onSubmit={handleSubmit}>
+    <div className="max-w-[400px] mx-auto my-[60px] p-8 bg-surface rounded-2xl shadow-[0_1px_3px_rgba(0,0,0,0.04),0_12px_32px_rgba(0,0,0,0.08)] border border-border font-sans">
+      <h2 className="text-center mb-6 text-2xl font-bold tracking-tight text-text">
+        Register
+      </h2>
+      <form className="flex flex-col" onSubmit={handleSubmit}>
         {/* Name */}
-        <div className="form-group">
-          <label htmlFor="name" className="label">
+        <div className="relative mb-5">
+          <label
+            htmlFor="name"
+            className="block mb-1.5 font-semibold text-[13px] text-gray-700"
+          >
             Name
           </label>
           <input
-            className="input"
+            className="w-full px-3 py-2.5 box-border border border-border rounded-lg text-sm transition-[border-color,box-shadow] duration-150 focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/12"
             type="text"
             id="name"
             name="name"
             value={formData.name}
             onChange={handleChange}
-            placeholder="Enter your name"
+            placeholder="e.g. Jane Cooper"
             required
           />
         </div>
 
         {/* Email + Send OTP */}
-        <div className="form-group">
-          <label htmlFor="email" className="label">
+        <div className="relative mb-5">
+          <label
+            htmlFor="email"
+            className="block mb-1.5 font-semibold text-[13px] text-gray-700"
+          >
             Email
           </label>
-          <div className="otp-wrapper">
+          <div className="relative">
             <input
-              className={`input ${serverError ? 'input-error' : ''}`}
+              className={`w-full pr-[84px] px-3 py-2.5 box-border border rounded-lg text-sm transition-[border-color,box-shadow] duration-150 focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/12 ${
+                serverError ? 'border-danger' : 'border-border'
+              }`}
               type="email"
               id="email"
               name="email"
               value={formData.email}
               onChange={handleChange}
-              placeholder="Enter your email"
+              placeholder="e.g. jane@example.com"
               required
             />
             <button
               type="button"
-              className="otp-button"
+              className="absolute top-1/2 right-1.5 -translate-y-1/2 px-2.5 py-1.5 text-xs font-semibold leading-none rounded-md bg-primary text-white cursor-pointer transition-colors duration-150 hover:bg-primary-hover disabled:opacity-55 disabled:cursor-not-allowed"
               onClick={handleSendOtp}
               disabled={isSending || countdown > 0 || otpVerified}
             >
@@ -193,18 +165,25 @@ const Register = () => {
                     : 'Send OTP'}
             </button>
           </div>
-          {serverError && <span className="error-msg">{serverError}</span>}
+          {serverError && (
+            <span className="absolute top-full left-0 mt-1 text-[0.72rem] text-danger whitespace-nowrap">
+              {serverError}
+            </span>
+          )}
         </div>
 
         {/* OTP Input + Verify */}
         {otpSent && (
-          <div className="form-group">
-            <label htmlFor="otp" className="label">
+          <div className="relative mb-5">
+            <label
+              htmlFor="otp"
+              className="block mb-1.5 font-semibold text-[13px] text-gray-700"
+            >
               Enter OTP
             </label>
-            <div className="otp-wrapper">
+            <div className="relative">
               <input
-                className="input"
+                className="w-full pr-[84px] px-3 py-2.5 box-border border border-border rounded-lg text-sm transition-[border-color,box-shadow] duration-150 focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/12 disabled:opacity-60"
                 type="text"
                 id="otp"
                 name="otp"
@@ -212,14 +191,17 @@ const Register = () => {
                 onChange={(e) => setOtp(e.target.value)}
                 placeholder="4-digit OTP"
                 maxLength={4}
-                disabled={otpVerified || (countdown === 0 && !otpVerified)}
+                disabled={otpVerified || countdown === 0}
                 required
               />
-
-              {otpError && <span className="error-msg">{otpError}</span>}
+              {otpError && (
+                <span className="absolute top-full left-0 mt-1 text-[0.72rem] text-danger whitespace-nowrap">
+                  {otpError}
+                </span>
+              )}
               <button
                 type="button"
-                className="otp-button"
+                className="absolute top-1/2 right-1.5 -translate-y-1/2 px-2.5 py-1.5 text-xs font-semibold leading-none rounded-md bg-primary text-white cursor-pointer transition-colors duration-150 hover:bg-primary-hover disabled:opacity-55 disabled:cursor-not-allowed"
                 onClick={handleVerifyOtp}
                 disabled={isVerifying || otpVerified || countdown === 0}
               >
@@ -236,41 +218,61 @@ const Register = () => {
         )}
 
         {/* Password */}
-        <div className="form-group">
-          <label htmlFor="password" className="label">
+        <div className="relative mb-5">
+          <label
+            htmlFor="password"
+            className="block mb-1.5 font-semibold text-[13px] text-gray-700"
+          >
             Password
           </label>
           <input
-            className="input"
+            className="w-full px-3 py-2.5 box-border border border-border rounded-lg text-sm transition-[border-color,box-shadow] duration-150 focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/12"
             type="password"
             id="password"
             name="password"
             value={formData.password}
             onChange={handleChange}
             placeholder="Enter your password"
-            maxLength={4}
             required
           />
         </div>
 
         <button
           type="submit"
-          className={`submit-button ${isSuccess ? 'success' : ''}`}
+          className={`w-full mt-1 px-4 py-[11px] rounded-lg text-white text-sm font-semibold cursor-pointer transition-[background-color,transform] duration-150 disabled:bg-indigo-200 disabled:cursor-not-allowed disabled:translate-y-0 ${
+            isSuccess
+              ? 'bg-success'
+              : 'bg-primary hover:bg-primary-hover hover:-translate-y-px'
+          }`}
           disabled={!otpVerified || isSuccess}
         >
           {isSuccess ? 'Registration Successful' : 'Register'}
         </button>
       </form>
-      <p className="link-text">
-        Already have an account? <Link to="/login">Login</Link>
+
+      <p className="text-center mt-4 text-sm text-text-muted">
+        Already have an account?{' '}
+        <Link
+          to="/login"
+          className="text-primary font-semibold no-underline hover:underline hover:text-primary-hover"
+        >
+          Login
+        </Link>
       </p>
-      <div className="or">
-        <span>or</span>
+
+      <div className="flex items-center justify-center my-6 text-text-muted text-[13px] before:content-[''] before:flex-1 before:h-px before:bg-border after:content-[''] after:flex-1 after:h-px after:bg-border">
+        <span className="px-3.5">or</span>
       </div>
-      <div className="google-login">
+
+      <div className="flex justify-center">
         <GoogleLogin
           onSuccess={async (credentialResponse) => {
-            await loginWithGoogle(credentialResponse.credential);
+            try {
+              await loginWithGoogle(credentialResponse.credential);
+              navigate('/');
+            } catch (err) {
+              console.log(err.response?.data);
+            }
           }}
           theme="filled_blue"
           text="continue_with"

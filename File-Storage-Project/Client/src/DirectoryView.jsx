@@ -4,10 +4,11 @@ import DirectoryHeader from './components/DirectoryHeader';
 import CreateDirectoryModal from './components/CreateDirectoryModal';
 import RenameModal from './components/RenameModal';
 import DirectoryList from './components/DirectoryList';
-import './DirectoryView.css';
+import DetailsPopup from './components/DetailsPopup';
+import ConfirmDeleteModal from './components/ConfirmDeleteModal';
+import { BASE_URL } from './Register';
 
 function DirectoryView({ adminMode = false }) {
-  const BASE_URL = 'http://localhost:4000';
   const { dirId, userId } = useParams();
 
   const navigate = useNavigate();
@@ -77,6 +78,10 @@ function DirectoryView({ adminMode = false }) {
   const [renameId, setRenameId] = useState(null);
   const [renameValue, setRenameValue] = useState('');
 
+  // Details popup + delete confirmation
+  const [detailsItem, setDetailsItem] = useState(null);
+  const [deleteConfirmItem, setDeleteConfirmItem] = useState(null);
+
   // Uploading states
   const fileInputRef = useRef(null);
   const [uploadQueue, setUploadQueue] = useState([]); // queued items to upload
@@ -89,6 +94,7 @@ function DirectoryView({ adminMode = false }) {
   const [contextMenuPos, setContextMenuPos] = useState({ x: 0, y: 0 });
 
   const [modalError, setModalError] = useState('');
+
   /**
    * Utility: handle fetch errors
    */
@@ -140,6 +146,29 @@ function DirectoryView({ adminMode = false }) {
 
   function closeContextMenu() {
     setActiveContextMenu(null);
+  }
+
+  /**
+   * Details popup
+   */
+  function openDetailsPopup(item) {
+    setDetailsItem(item);
+  }
+
+  /**
+   * Delete confirmation
+   */
+  function openDeleteConfirm(item) {
+    setDeleteConfirmItem(item);
+  }
+
+  function confirmDelete(item) {
+    if (item.isDirectory) {
+      handleDeleteDirectory(item.id);
+    } else {
+      handleDeleteFile(item.id);
+    }
+    setDeleteConfirmItem(null);
   }
 
   /**
@@ -257,7 +286,7 @@ function DirectoryView({ adminMode = false }) {
 
     const xhr = new XMLHttpRequest();
     const uploadUrl = dirId ? `${apiBase}/file/${dirId}` : `${apiBase}/file`;
-    xhr.open('POST',uploadUrl, true);
+    xhr.open('POST', uploadUrl, true);
     xhr.withCredentials = true;
     xhr.setRequestHeader('filename', currentItem.name);
 
@@ -420,20 +449,16 @@ function DirectoryView({ adminMode = false }) {
     }
   }
 
-  useEffect(() => {
-    getDirectoryItems();
-    setActiveContextMenu(null);
-  }, [dirId]);
-
   // Combine directories & files into one list for rendering
   const combinedItems = [
     ...directoriesList.map((d) => ({ ...d, isDirectory: true })),
     ...filesList.map((f) => ({ ...f, isDirectory: false })),
   ];
+
   return (
-    <div className="directory-view">
+    <div className="max-w-[1000px] mx-auto px-4 font-sans text-text">
       {adminMode && (
-        <div className="admin-mode-banner">
+        <div className="bg-indigo-50 text-primary-hover border border-indigo-200 rounded-lg px-4 py-2.5 text-sm font-medium mt-4">
           Viewing {targetUserLabel || "another user's"} files —{' '}
           {readOnly ? 'read-only' : 'Owner mode'}
         </div>
@@ -442,7 +467,9 @@ function DirectoryView({ adminMode = false }) {
       {errorMessage &&
         errorMessage !==
           'Directory not found or you do not have access to it!' && (
-          <div className="error-message">{errorMessage}</div>
+          <div className="bg-red-50 text-danger border border-red-200 rounded-lg px-4 py-2.5 text-sm mt-4">
+            {errorMessage}
+          </div>
         )}
 
       <DirectoryHeader
@@ -458,24 +485,6 @@ function DirectoryView({ adminMode = false }) {
         readOnly={readOnly}
       />
 
-      {showCreateDirModal && (
-        <CreateDirectoryModal
-          newDirname={newDirname}
-          setNewDirname={setNewDirname}
-          onClose={() => setShowCreateDirModal(false)}
-          onCreateDirectory={handleCreateDirectory}
-        />
-      )}
-
-      {showRenameModal && (
-        <RenameModal
-          renameType={renameType}
-          renameValue={renameValue}
-          setRenameValue={setRenameValue}
-          onClose={() => setShowRenameModal(false)}
-          onRenameSubmit={handleRenameSubmit}
-        />
-      )}
       {showCreateDirModal && (
         <CreateDirectoryModal
           newDirname={newDirname}
@@ -503,14 +512,26 @@ function DirectoryView({ adminMode = false }) {
         />
       )}
 
+      {detailsItem && (
+        <DetailsPopup item={detailsItem} onClose={() => setDetailsItem(null)} />
+      )}
+
+      {deleteConfirmItem && (
+        <ConfirmDeleteModal
+          item={deleteConfirmItem}
+          onConfirm={confirmDelete}
+          onCancel={() => setDeleteConfirmItem(null)}
+        />
+      )}
+
       {combinedItems.length === 0 ? (
         errorMessage ===
         'Directory not found or you do not have access to it!' ? (
-          <p className="no-data-message">
+          <p className="text-center italic mt-10 text-text-muted">
             Directory not found or you do not have access to it!
           </p>
         ) : (
-          <p className="no-data-message">
+          <p className="text-center italic mt-10 text-text-muted">
             This folder is empty. Upload files or create a folder to see some
             data.
           </p>
@@ -527,10 +548,10 @@ function DirectoryView({ adminMode = false }) {
           isUploading={isUploading}
           progressMap={progressMap}
           handleCancelUpload={handleCancelUpload}
-          handleDeleteFile={handleDeleteFile}
-          handleDeleteDirectory={handleDeleteDirectory}
           openRenameModal={openRenameModal}
-          BASE_URL={apiBase}
+          openDeleteConfirm={openDeleteConfirm}
+          openDetailsPopup={openDetailsPopup}
+          apiBase={apiBase}
           readOnly={readOnly}
         />
       )}

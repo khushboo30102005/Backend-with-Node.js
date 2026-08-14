@@ -12,14 +12,15 @@ import { resolveOwnUser } from '../middlewares/resolveTargetUser.js';
 const router = express.Router();
 
 router.param('parentDirId', validateIdMiddleware);
-
 router.param('id', validateIdMiddleware);
 
-router.route('/{:parentDirId}').post(resolveOwnUser, createDirectory);
-router.route('/{:id}').get(resolveOwnUser, getDirectoryById);
+router.use(resolveOwnUser);
+
+router.route('/{:parentDirId}').post(createDirectory);
+router.route('/{:id}').get(getDirectoryById);
 router
   .route('/:id')
-  .patch(resolveOwnUser, renameDirectory)
-  .delete(resolveOwnUser, deleteDirectory);
+  .patch(renameDirectory)
+  .delete(deleteDirectory);
 
 export default router;

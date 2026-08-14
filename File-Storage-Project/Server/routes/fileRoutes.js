@@ -11,16 +11,18 @@ import { resolveOwnUser } from '../middlewares/resolveTargetUser.js';
 
 const router = express.Router();
 
-router.param('parentDirId',resolveOwnUser, validateIdMiddleware);
+router.param('parentDirId', validateIdMiddleware);
 
-router.param('id',resolveOwnUser, validateIdMiddleware);
+router.param('id', validateIdMiddleware);
 
-router.post('/{:parentDirId}',resolveOwnUser, uploadFile);
+router.use(resolveOwnUser);
 
-router.get('/:id',resolveOwnUser, getFile);
+router.post('/{:parentDirId}', uploadFile);
 
-router.patch('/:id', resolveOwnUser, updateFile);
+router.get('/:id', getFile);
 
-router.delete('/:id',resolveOwnUser, deleteFile);
+router.patch('/:id', updateFile);
+
+router.delete('/:id', deleteFile);
 
 export default router;

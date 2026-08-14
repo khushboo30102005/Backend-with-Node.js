@@ -1,4 +1,4 @@
-import DirectoryItem from "./DirectoryItem";
+import DirectoryItem from './DirectoryItem';
 
 function DirectoryList({
   items,
@@ -11,14 +11,14 @@ function DirectoryList({
   isUploading,
   progressMap,
   handleCancelUpload,
-  handleDeleteFile,
-  handleDeleteDirectory,
   openRenameModal,
-  BASE_URL,
+  openDeleteConfirm,
+  openDetailsPopup,
+  apiBase,
   readOnly = false,
 }) {
   return (
-    <div className="directory-list">
+    <div className="flex flex-col gap-1.5 mt-6">
       {items.map((item) => {
         const uploadProgress = progressMap[item.id] || 0;
         return (
@@ -34,10 +34,10 @@ function DirectoryList({
             isUploading={isUploading}
             uploadProgress={uploadProgress}
             handleCancelUpload={handleCancelUpload}
-            handleDeleteFile={handleDeleteFile}
-            handleDeleteDirectory={handleDeleteDirectory}
             openRenameModal={openRenameModal}
-            BASE_URL={BASE_URL}
+            openDeleteConfirm={openDeleteConfirm}
+            openDetailsPopup={openDetailsPopup}
+            apiBase={apiBase}
             readOnly={readOnly}
           />
         );

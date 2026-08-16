@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+  </head>
+  <body>
+    <h1>Social Media App</h1>
+    <iframe src="http://127.0.0.1:5501/index.html" frameborder="0"></iframe>
+
+    <script>
+      const iframe = document.querySelector('iframe');
+      iframe.addEventListener('load', (e) => {
+        console.log(iframe.contentDocument)
+        // const aboutHeading =
+        //   iframe.contentDocument.querySelector('.blog-heading');
+        // console.log(aboutHeading);
+      });
+    </script>
+  </body>
+</html>

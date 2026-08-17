@@ -7,7 +7,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-await mongoose.connect(process.env.DB_URL
+await mongoose.connect('mongodb://admin:admin@localhost/xssAttackData?authSource=admin'
 );
 
 const victimSchema = new mongoose.Schema({

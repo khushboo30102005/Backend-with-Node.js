@@ -2,7 +2,7 @@ import OTP from '../models/otpModel.js';
 import nodemailer from 'nodemailer';
 export async function sendOtpService(email) {
   const otp = Math.floor(1000 + Math.random() * 9000).toString();
-  const a = await OTP.findOneAndUpdate(
+  await OTP.findOneAndUpdate(
     { email },
     { otp, createdAt: Date.now() },
     { upsert: true },

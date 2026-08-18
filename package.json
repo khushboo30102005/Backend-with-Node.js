@@ -1,0 +1,11 @@
+{
+  "dependencies": {
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "dompurify": "^3.4.13",
+    "express": "^5.2.1",
+    "jsdom": "^29.1.1",
+    "mongoose": "^9.9.2",
+    "zod": "^4.4.3"
+  }
+}

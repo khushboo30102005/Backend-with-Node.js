@@ -5,15 +5,24 @@ import User from '../models/userModel.js';
 import { verifyIdToken } from '../services/googleAuthService.js';
 import { sendOtpService } from '../services/sendOtpService.js';
 import redisClient from '../config/redis.js';
+import { emailSchema, otpSchema } from '../validator/authSchema.js';
 
 export const sendOTP = async (req, res, next) => {
-  const { email } = req.body;
+  const { success, data } = emailSchema.safeParse(req.body);
+  if (!success) {
+    return res.status(400).json({ error: 'Invalid email' });
+  }
+  const { email } = data;
   const result = await sendOtpService(email);
   res.json(result);
 };
 
 export const verifyOTP = async (req, res, next) => {
-  const { email, otp } = req.body;
+  const { success, data } = otpSchema.safeParse(req.body);
+  if (!success) {
+    return res.status(400).json({ error: 'Invalid or expired OTP.' });
+  }
+  const { email, otp } = data;
   const otpRecord = await OTP.findOne({ email, otp });
   if (!otpRecord) {
     return res.status(400).json({ error: 'Invalid or expired OTP.' });
@@ -22,7 +31,11 @@ export const verifyOTP = async (req, res, next) => {
 };
 
 export const verifyLoginOTP = async (req, res, next) => {
-  const { email, otp } = req.body;
+  const { success, data } = otpSchema.safeParse(req.body);
+  if (!success) {
+    return res.status(400).json({ error: 'Invalid or expired OTP.' });
+  }
+  const { email, otp } = data;
   try {
     const otpRecord = await OTP.findOne({ email, otp });
     if (!otpRecord) {
@@ -53,6 +66,7 @@ export const verifyLoginOTP = async (req, res, next) => {
     await otpRecord.deleteOne();
     return res.json({ message: 'Logged in' });
   } catch (error) {
+    console.log(error);
     next(error);
   }
 };

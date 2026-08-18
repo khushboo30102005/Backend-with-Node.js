@@ -19,8 +19,13 @@ import {
   updateFile,
   uploadFile,
 } from '../controllers/fileController.js';
+import validateIdMiddleware from '../middlewares/validateIdMiddleware.js';
 
 const router = express.Router();
+
+router.param('userId', validateIdMiddleware);
+router.param('id', validateIdMiddleware);
+router.param('parentDirId', validateIdMiddleware);
 
 // adminDirectoryRoutes.js
 router.get(

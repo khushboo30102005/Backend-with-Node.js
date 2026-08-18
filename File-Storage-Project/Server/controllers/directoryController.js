@@ -32,6 +32,9 @@ export const renameDirectory = async (req, res, next) => {
   const user = req.user;
   const { id } = req.params;
   const { newDirName } = req.body;
+  if (typeof newDirName !== 'string' || newDirName.trim().length < 3) {
+    return res.status(400).json({ error: 'Invalid directory name' });
+  }
   try {
     await Directory.findOneAndUpdate(
       { _id: id, userId: req.targetUser._id },

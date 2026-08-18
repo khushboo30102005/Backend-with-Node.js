@@ -20,3 +20,7 @@ Thumbs.db
 
 
 *.mp4
+
+# Local HTTPS certificates
+cert.pem
+key.pem

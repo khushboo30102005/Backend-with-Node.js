@@ -1,5 +1,6 @@
 import mongoose, { Schema, Types } from 'mongoose';
 import { ObjectId } from 'mongodb';
+import * as z from 'zod';
 import bcrypt from 'bcrypt';
 import User from '../models/userModel.js';
 import Directory from '../models/directoryModel.js';
@@ -8,16 +9,24 @@ import OTP from '../models/otpModel.js';
 import { sendOtpService } from '../services/sendOtpService.js';
 import redisClient from '../config/redis.js';
 import { deleteAllSessionsForUser } from '../services/delRedisSessionsService.js';
+import { loginSchema, registerSchema } from '../validator/authSchema.js';
 const ROLE_RANKS = {
   User: 0,
   Manager: 1,
   Admin: 2,
   Owner: 3,
 };
+
 export const register = async (req, res, next) => {
-  const { name, email, password, otp } = req.body;
+  const { success, data, error } = registerSchema.safeParse(req.body);
+  if (!success) {
+    return res.status(400).json({ error: z.flattenError(error).fieldErrors });
+  }
+  const { name, email, password, otp } = data;
   const otpRecord = await OTP.findOne({ email, otp });
+  console.log(otpRecord);
   if (!otpRecord) {
+    console.log(z.fla);
     return res.status(400).json({ error: 'Invalid or expired OTP.' });
   }
   await otpRecord.deleteOne();
@@ -72,7 +81,12 @@ export const register = async (req, res, next) => {
 };
 
 export const login = async (req, res, next) => {
-  const { email, password } = req.body;
+  const { success, data } = loginSchema.safeParse(req.body);
+  if (!success) {
+    return res.status(400).json({ error: 'Invalid Credentials' });
+  }
+
+  const { email, password } = data;
   try {
     const user = await User.findOne({ email });
 
@@ -113,6 +127,9 @@ export const login = async (req, res, next) => {
 
 export const getCurrentUser = async (req, res) => {
   const user = await User.findById(req.user._id).lean();
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
   if (user.isDeleted) {
     return res.status(403).json({
       error: 'Your account has been deleted. Contact app owner to recover.',
@@ -136,34 +153,42 @@ export const logout = async (req, res) => {
     res.status(204).json({ message: 'Not logged out' });
   }
 };
+
 export const logoutById = async (req, res, next) => {
-  const targetUser = await User.findById(req.params.userId);
-
-  if (!targetUser) {
-    return res.status(404).json({ error: 'User not found' });
-  }
-
-  const actorRole = req.user.role;
-  const targetRole = targetUser.role;
-
-  const blocked =
-    (actorRole === 'Manager' &&
-      (targetRole === 'Admin' || targetRole === 'Owner')) ||
-    (actorRole === 'Admin' && targetRole === 'Owner');
-
-  if (blocked) {
-    return res.status(403).json({ error: 'You cannot logout this user.' });
-  }
-
   try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.userId)) {
+      return res.status(400).json({ error: 'Invalid user ID' });
+    }
+    const targetUser = await User.findById(req.params.userId);
+
+    if (!targetUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const actorRole = req.user.role;
+    const targetRole = targetUser.role;
+
+    const blocked =
+      (actorRole === 'Manager' &&
+        (targetRole === 'Admin' || targetRole === 'Owner')) ||
+      (actorRole === 'Admin' && targetRole === 'Owner');
+
+    if (blocked) {
+      return res.status(403).json({ error: 'You cannot logout this user.' });
+    }
+
     await deleteAllSessionsForUser(req.params.userId);
     res.status(204).end();
   } catch (err) {
     next(err);
   }
 };
+
 export const deleteUser = async (req, res, next) => {
   const { userId } = req.params;
+  if (!mongoose.Types.ObjectId.isValid(userId)) {
+    return res.status(400).json({ error: 'Invalid user ID' });
+  }
   if (req.user._id.toString() === userId) {
     return res.status(403).json({ error: 'You can not delete yourself.' });
   }
@@ -185,6 +210,9 @@ export const deleteUser = async (req, res, next) => {
 
 export const permanentlyDeleteUser = async (req, res, next) => {
   const { userId } = req.params;
+  if (!mongoose.Types.ObjectId.isValid(userId)) {
+    return res.status(400).json({ error: 'Invalid user ID' });
+  }
   if (req.user._id.toString() === userId) {
     return res.status(403).json({ error: 'You can not delete yourself.' });
   }
@@ -253,6 +281,9 @@ export const getDeletedUsers = async (req, res) => {
 
 export const recoverUser = async (req, res, next) => {
   const { userId } = req.params;
+  if (!mongoose.Types.ObjectId.isValid(userId)) {
+    return res.status(400).json({ error: 'Invalid user ID' });
+  }
   try {
     await User.findByIdAndUpdate(userId, { isDeleted: false });
     res.status(204).end();
@@ -263,6 +294,9 @@ export const recoverUser = async (req, res, next) => {
 
 export const changeUserRole = async (req, res, next) => {
   const { userId } = req.params;
+  if (!mongoose.Types.ObjectId.isValid(userId)) {
+    return res.status(400).json({ error: 'Invalid user ID' });
+  }
   const { role: newRole } = req.body;
 
   if (req.user._id.toString() === userId) {

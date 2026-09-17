@@ -97,8 +97,9 @@ const Register = () => {
       setIsSuccess(true);
       setTimeout(() => navigate('/login'), 2000);
     } catch (err) {
+      console.log(err.response?.data?.error);
       setServerError(
-        err.response?.data?.error || 'Registration failed. Please try again.',
+       'Registration failed. Please try again.',
       );
     }
   };

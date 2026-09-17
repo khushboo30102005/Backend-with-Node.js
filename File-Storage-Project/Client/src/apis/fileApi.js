@@ -16,8 +16,10 @@ export const uploadFileWithProgress = async (
   dirId,
   file,
   filename,
+  filesize,
   onUploadProgress,
   base = '',
+  signal,
 ) => {
   const { data } = await axiosWithCreds.post(
     `${base}/file/${dirId || ''}`,
@@ -26,8 +28,10 @@ export const uploadFileWithProgress = async (
       headers: {
         'Content-Type': file.type,
         filename,
+        filesize,
       },
       onUploadProgress,
+      signal,
     },
   );
   return data;

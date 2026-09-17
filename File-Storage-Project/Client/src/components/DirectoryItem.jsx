@@ -9,6 +9,26 @@ import {
 } from 'react-icons/fa';
 import { BsThreeDotsVertical } from 'react-icons/bs';
 import ContextMenu from '../components/ContextMenu';
+import { formatSize } from './DetailsPopup';
+
+const FILE_ICON_STYLES = {
+  pdf: { icon: FaFilePdf, color: 'text-red-500', bg: 'bg-red-50' },
+  image: { icon: FaFileImage, color: 'text-emerald-500', bg: 'bg-emerald-50' },
+  video: { icon: FaFileVideo, color: 'text-purple-500', bg: 'bg-purple-50' },
+  archive: { icon: FaFileArchive, color: 'text-amber-600', bg: 'bg-amber-50' },
+  code: { icon: FaFileCode, color: 'text-blue-500', bg: 'bg-blue-50' },
+  alt: { icon: FaFileAlt, color: 'text-gray-500', bg: 'bg-gray-100' },
+};
+
+function formatModified(dateStr) {
+  if (!dateStr) return '';
+  const date = new Date(dateStr);
+  return date.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
 
 function DirectoryItem({
   item,
@@ -27,26 +47,11 @@ function DirectoryItem({
   apiBase,
   readOnly = false,
 }) {
-  // Convert the file icon string to the actual Icon component
-  function renderFileIcon(iconString) {
-    switch (iconString) {
-      case 'pdf':
-        return <FaFilePdf />;
-      case 'image':
-        return <FaFileImage />;
-      case 'video':
-        return <FaFileVideo />;
-      case 'archive':
-        return <FaFileArchive />;
-      case 'code':
-        return <FaFileCode />;
-      case 'alt':
-      default:
-        return <FaFileAlt />;
-    }
-  }
-
   const isUploadingItem = item.id.startsWith('temp-');
+  const fileStyle = !item.isDirectory
+    ? FILE_ICON_STYLES[getFileIcon(item.name)] || FILE_ICON_STYLES.alt
+    : null;
+  const FileIconComponent = fileStyle?.icon;
 
   return (
     <div
@@ -58,19 +63,39 @@ function DirectoryItem({
       }
       onContextMenu={(e) => handleContextMenu(e, item.id)}
     >
-      <div className="flex items-center gap-2">
-        <div className="flex items-center gap-2.5 px-3.5 py-3 text-sm font-medium">
-          {item.isDirectory ? (
-            <FaFolder className="text-[#f5a623] text-[1.25em]" />
-          ) : (
-            renderFileIcon(getFileIcon(item.name))
-          )}
-          <span>{item.name}</span>
-        </div>
+      <div className="flex items-center gap-3 px-3.5 py-2.5">
+        {/* Icon */}
+        {item.isDirectory ? (
+          <span className="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
+            <FaFolder className="text-amber-500 text-base" />
+          </span>
+        ) : (
+          <span
+            className={`w-9 h-9 rounded-lg ${fileStyle.bg} flex items-center justify-center flex-shrink-0`}
+          >
+            <FileIconComponent className={`${fileStyle.color} text-base`} />
+          </span>
+        )}
+
+        {/* Name */}
+        <span
+          className="text-sm font-medium text-text truncate min-w-0 flex-shrink"
+          title={item.name}
+        >
+          {item.name}
+        </span>
+
+        {/* Metadata — hidden on very small screens to avoid crowding */}
+        {!isUploadingItem && (
+          <div className="hidden sm:flex items-center gap-4 ml-auto flex-shrink-0 text-xs text-text-muted">
+            {typeof item.size === 'number' && <span>{formatSize(item.size)}</span>}
+            {item.updatedAt && <span>{formatModified(item.updatedAt)}</span>}
+          </div>
+        )}
 
         {/* Three dots for context menu */}
         <div
-          className="flex items-center justify-center text-[1.2em] cursor-pointer ml-auto text-text-muted rounded-full p-2 mr-1.5 transition-colors duration-150 hover:bg-gray-100 hover:text-text"
+          className={`flex items-center justify-center text-[1.2em] cursor-pointer flex-shrink-0 text-text-muted rounded-full p-2 transition-colors duration-150 hover:bg-gray-100 hover:text-text ${isUploadingItem ? '' : 'sm:ml-0 ml-auto'}`}
           onClick={(e) => handleContextMenu(e, item.id)}
         >
           <BsThreeDotsVertical />

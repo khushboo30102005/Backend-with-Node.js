@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router';
 import { loginWithGoogle, verifyLoginOtp } from './apis/authApi.js';
 import { FaGithub } from 'react-icons/fa';
 import { BASE_URL } from './Register.jsx';

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { BASE_URL } from './Register';
 import DeleteUserModal from './components/DeleteUserModal';
 

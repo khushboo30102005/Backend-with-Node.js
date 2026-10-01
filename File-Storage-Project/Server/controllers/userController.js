@@ -1,5 +1,4 @@
 import mongoose, { Schema, Types } from 'mongoose';
-import { ObjectId } from 'mongodb';
 import * as z from 'zod';
 import bcrypt from 'bcrypt';
 import User from '../models/userModel.js';
@@ -10,6 +9,11 @@ import { sendOtpService } from '../services/sendOtpService.js';
 import redisClient from '../config/redis.js';
 import { deleteAllSessionsForUser } from '../services/delRedisSessionsService.js';
 import { loginSchema, registerSchema } from '../validator/authSchema.js';
+import { JSDOM } from 'jsdom';
+import DOMPurify from 'dompurify';
+
+const window = new JSDOM('').window;
+const purify = DOMPurify(window);
 const ROLE_RANKS = {
   User: 0,
   Manager: 1,
@@ -20,13 +24,13 @@ const ROLE_RANKS = {
 export const register = async (req, res, next) => {
   const { success, data, error } = registerSchema.safeParse(req.body);
   if (!success) {
-    return res.status(400).json({ error: z.flattenError(error).fieldErrors });
+    return res.status(400).json({
+      error: Object.values(z.flattenError(error).fieldErrors).flat()[0],
+    });
   }
   const { name, email, password, otp } = data;
   const otpRecord = await OTP.findOne({ email, otp });
-  console.log(otpRecord);
   if (!otpRecord) {
-    console.log(z.fla);
     return res.status(400).json({ error: 'Invalid or expired OTP.' });
   }
   await otpRecord.deleteOne();
@@ -41,22 +45,24 @@ export const register = async (req, res, next) => {
     const rootDirId = new Types.ObjectId();
     const userId = new Types.ObjectId();
     session.startTransaction();
-    await User.insertOne(
-      {
-        _id: userId,
-        name,
-        email,
-        password,
-        rootDirId,
-      },
-      { session },
-    );
-    await Directory.insertOne(
+    const userData = {
+      _id: userId,
+      name: purify.sanitize(name, {
+        ALLOWED_TAGS: [],
+        ALLOWED_ATTR: [],
+      }),
+      email: purify.sanitize(email),
+      password, 
+      rootDirId,
+    };
+    await User.insertOne(userData, { session });
+    const dir = await Directory.insertOne(
       {
         _id: rootDirId,
-        name: `root-${email}`,
+        name: `root-${purify.sanitize(email)}`,
         parentDirId: null,
         userId,
+        path: [rootDirId],
       },
       { session },
     );
@@ -99,7 +105,6 @@ export const login = async (req, res, next) => {
         error: 'Your account has been deleted. Contact app owner to recover.',
       });
     }
-
     const isPasswordValid = await user.comparePassword(password);
     if (!isPasswordValid) {
       return res.status(404).json({ error: 'Invalid Credentials' });
@@ -125,28 +130,38 @@ export const login = async (req, res, next) => {
   }
 };
 
-export const getCurrentUser = async (req, res) => {
-  const user = await User.findById(req.user._id).lean();
-  if (!user) {
-    return res.status(404).json({ error: 'User not found' });
-  }
-  if (user.isDeleted) {
-    return res.status(403).json({
-      error: 'Your account has been deleted. Contact app owner to recover.',
+export const getCurrentUser = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id).lean();
+
+    if (!user || user.isDeleted) {
+      return res.status(401).json({
+        error: 'User not found or account is unavailable.',
+      });
+    }
+    const rootDir = await Directory.findById(user.rootDirId)
+      .select('size')
+      .lean();
+    return res.status(200).json({
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      picture: user.picture,
+      maxStorageInBytes: user.maxStorageInBytes,
+      usedStorageInBytes: rootDir ? rootDir.size : 0,
     });
+  } catch (error) {
+    next(error);
   }
-  res.status(200).json({
-    name: user.name,
-    email: user.email,
-    role: user.role,
-    picture: user.picture,
-  });
 };
 
 export const logout = async (req, res) => {
   try {
     const sid = req.signedCookies.sid;
-    await redisClient.del(`session:${sid}`);
+
+    if (sid) {
+      await redisClient.del(`session:${sid}`);
+    }
     res.clearCookie('sid');
     res.status(204).end();
   } catch (error) {
@@ -156,10 +171,11 @@ export const logout = async (req, res) => {
 
 export const logoutById = async (req, res, next) => {
   try {
-    if (!mongoose.Types.ObjectId.isValid(req.params.userId)) {
+    const { userId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
       return res.status(400).json({ error: 'Invalid user ID' });
     }
-    const targetUser = await User.findById(req.params.userId);
+    const targetUser = await User.findById(userId).select('role');
 
     if (!targetUser) {
       return res.status(404).json({ error: 'User not found' });
@@ -177,7 +193,7 @@ export const logoutById = async (req, res, next) => {
       return res.status(403).json({ error: 'You cannot logout this user.' });
     }
 
-    await deleteAllSessionsForUser(req.params.userId);
+    await deleteAllSessionsForUser(userId);
     res.status(204).end();
   } catch (err) {
     next(err);
@@ -200,8 +216,8 @@ export const deleteUser = async (req, res, next) => {
     if (ROLE_RANKS[req.user.role] < ROLE_RANKS[targetUser.role]) {
       return res.status(403).json({ error: 'You cannot delete this user.' });
     }
-    await deleteAllSessionsForUser(userId);
     await User.findByIdAndUpdate(userId, { isDeleted: true });
+    await deleteAllSessionsForUser(userId);
     res.status(204).end();
   } catch (err) {
     next(err);
@@ -217,7 +233,7 @@ export const permanentlyDeleteUser = async (req, res, next) => {
     return res.status(403).json({ error: 'You can not delete yourself.' });
   }
   try {
-    const targetUser = await User.findById(userId);
+    const targetUser = await User.findById(userId).select('role');
     if (!targetUser) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -237,6 +253,10 @@ export const permanentlyDeleteUser = async (req, res, next) => {
 export const logoutAll = async (req, res) => {
   try {
     const sid = req.signedCookies.sid;
+    if (!sid) {
+      res.clearCookie('sid');
+      return res.status(204).end();
+    }
     const result = await redisClient.json.get(`session:${sid}`, {
       path: '$.userId',
     });
@@ -272,11 +292,16 @@ export const getAllUsers = async (req, res) => {
   res.json(users);
 };
 
-export const getDeletedUsers = async (req, res) => {
-  const users = await User.find({ isDeleted: true })
-    .select('name email picture role')
-    .lean();
-  res.json(users);
+export const getDeletedUsers = async (req, res, next) => {
+  try {
+    const users = await User.find({ isDeleted: true })
+      .select('name email picture role')
+      .lean();
+
+    return res.status(200).json(users);
+  } catch (err) {
+    next(err);
+  }
 };
 
 export const recoverUser = async (req, res, next) => {

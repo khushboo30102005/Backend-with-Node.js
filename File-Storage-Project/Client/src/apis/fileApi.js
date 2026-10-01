@@ -45,3 +45,19 @@ export const getFileUrl = (id, base = '') => {
 export const getFileDownloadUrl = (id, base = '') => {
   return `${base}/file/${id}?action=download`;
 };
+
+export const moveFile = async (id, newParentId, base = '') => {
+  const { data } = await axiosWithCreds.patch(`${base}/file/${id}/move`, {
+    newParentId,
+  });
+  return data;
+};
+
+export const restoreFile = async (id) => {
+  const { data } = await axiosWithCreds.patch(`/file/${id}/restore`);
+  return data;
+};
+export const permanentlyDeleteFile = async (id) => {
+  const { data } = await axiosWithCreds.delete(`/file/${id}/permanent`);
+  return data;
+};

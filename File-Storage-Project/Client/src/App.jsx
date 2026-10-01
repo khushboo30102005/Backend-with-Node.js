@@ -1,38 +1,46 @@
-import { createBrowserRouter, RouterProvider } from "react-router";
-import DirectoryView from "./DirectoryView";
-import Register from "./Register";
-import "./App.css";
-import Login from "./Login";
-import UsersPage from "./UsersPage";
+import { createBrowserRouter, RouterProvider } from 'react-router';
+import DirectoryView from './DirectoryView';
+import Register from './Register';
+import './App.css';
+import Login from './Login';
+import UsersPage from './UsersPage';
+import RootRoute from './RootRoute';
+import SharedWithMe from './components/SharedWithMe';
+import Layout from './components/Layout';
+import TrashPage from './TrashPage';
 
 const router = createBrowserRouter([
   {
-    path: "/",
-    element: <DirectoryView />,
+    path: '/',
+    element: <RootRoute />,
   },
   {
-    path: "/register",
+    path: '/register',
     element: <Register />,
   },
   {
-    path: "/login",
+    path: '/login',
     element: <Login />,
   },
   {
-    path: "/users",
+    path: '/users',
     element: <UsersPage />,
   },
   {
-    path: "/directory/:dirId",
-    element: <DirectoryView />,
+    path: '/directory/:dirId',
+    element: <Layout><DirectoryView /></Layout>,
   },
   {
-    path: "/admin/users/:userId/directory",
-    element: <DirectoryView adminMode />,
+    path: '/shared-with-me',
+    element: <Layout><SharedWithMe /></Layout>,
   },
   {
-    path: "/admin/users/:userId/directory/:dirId",
-    element: <DirectoryView adminMode />,
+    path: '/trash',
+    element: (
+      <Layout>
+        <TrashPage />
+      </Layout>
+    ),
   },
 ]);
 

@@ -43,13 +43,7 @@ router.get(
   getDirectoryById,
 );
 
-router.post(
-  '/users/:userId/directory',
-  checkAuth,
-  checkIsOwnerUser,
-  resolveTargetUserFullAccess,
-  createDirectory,
-);
+
 router.post(
   '/users/:userId/directory/:parentDirId',
   checkAuth,
@@ -82,13 +76,7 @@ router.get(
   getFile,
 );
 
-router.post(
-  '/users/:userId/file',
-  checkAuth,
-  checkIsOwnerUser,
-  resolveTargetUserFullAccess,
-  uploadFile,
-);
+
 router.post(
   '/users/:userId/file/:parentDirId',
   checkAuth,

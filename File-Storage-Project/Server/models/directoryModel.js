@@ -4,9 +4,15 @@ const directorySchema = new Schema(
   {
     name: {
       type: String,
-      required: true,
+      required: [true, 'Directory name is required'],
       trim: true,
-      minlength: [1, 'Name cannot be empty'],
+      minLength: [3, 'Directory name must be at least 3 characters long'],
+      maxLength: [100, 'Directory name cannot exceed 100 characters'],
+    },
+    size: {
+      type: Number,
+      required: true,
+      default: 0,
     },
     userId: {
       type: Schema.Types.ObjectId,
@@ -17,8 +23,21 @@ const directorySchema = new Schema(
       default: null,
       ref: 'Directory',
     },
+    path: {
+      type: [Schema.Types.ObjectId],
+      required: true,
+      default: [],
+    },
+    isTrashed: {
+      type: Boolean,
+      default: false,
+    },
+    trashedAt: {
+      type: Date,
+      default: null,
+    },
   },
-  { strict: 'throw' },
+  { strict: 'throw', timestamps: true },
 );
 
 const Directory = model('Directory', directorySchema);

@@ -25,3 +25,19 @@ export const renameDirectory = async (id, newDirName, base = '') => {
   });
   return data;
 };
+
+export const moveDirectory = async (id, newParentId, base = '') => {
+  const { data } = await axiosWithCreds.patch(`${base}/directory/${id}/move`, {
+    newParentId,
+  });
+  return data;
+};
+
+export const restoreDirectory = async (id) => {
+  const { data } = await axiosWithCreds.patch(`/directory/${id}/restore`);
+  return data;
+};
+export const permanentlyDeleteDirectory = async (id) => {
+  const { data } = await axiosWithCreds.delete(`/directory/${id}/permanent`);
+  return data;
+};

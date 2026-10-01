@@ -18,12 +18,14 @@ import {
   recoverUser,
   changeUserRole,
 } from '../controllers/userController.js';
+import { authLimiter } from '../middlewares/rateLimitMiddleware.js';
+import { searchUsers } from '../controllers/shareController.js';
 
 const router = express.Router();
 
-router.post('/user/register', register);
+router.post('/user/register',authLimiter, register);
 
-router.post('/user/login', login);
+router.post('/user/login',authLimiter, login);
 
 router.get('/user', checkAuth, getCurrentUser);
 
@@ -54,5 +56,8 @@ router.delete(
 router.patch('/users/:userId/recover', checkAuth, checkIsOwnerUser, recoverUser);
 
 router.patch('/users/:userId/role', checkAuth, checkNotRegularUser, changeUserRole);
+
+
+router.get('/users/search', checkAuth, searchUsers);
 
 export default router;

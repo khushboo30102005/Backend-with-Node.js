@@ -10,6 +10,13 @@ import ConfirmDeleteModal from './components/ConfirmDeleteModal';
 import BreadcrumbBar from './components/BreadcrumbBar';
 import { BASE_URL } from './Register';
 import { useAutoDismissError } from './hooks/useAutoDismissError';
+import SelectionToolbar from './components/SelectionToolbar';
+import BulkDeleteConfirmModal from './components/BulkDeleteConfirmModal';
+import { getItemKey } from './utils/itemKey';
+
+import MoveModal from './components/MoveModal';
+import { moveDirectory as moveDirectoryApi } from './apis/directoryApi';
+import { moveFile as moveFileApi } from './apis/fileApi';
 
 import {
   getDirectoryItems as fetchDirectoryItems,
@@ -23,22 +30,22 @@ import {
   uploadFileWithProgress,
   getFileUrl,
 } from './apis/fileApi';
-import { fetchUser, fetchAllUsers } from './apis/userApi';
-
-function DirectoryView({ adminMode = false }) {
-  const { dirId, userId } = useParams();
+import { fetchUser } from './apis/userApi';
+import ShareModal from './components/ShareModal';
+function DirectoryView() {
+  const { dirId } = useParams();
   const navigate = useNavigate();
-
-  const apiBase = adminMode ? `/admin/users/${userId}` : '';
-  const [viewerRole, setViewerRole] = useState(null);
-  const [targetUserLabel, setTargetUserLabel] = useState('');
-  const readOnly = adminMode && viewerRole === 'Admin';
 
   const [maxStorageInBytes, setMaxStorageInBytes] = useState(0);
   const [usedStorageInBytes, setUsedStorageInBytes] = useState(0);
   const availableStorageBytes = maxStorageInBytes - usedStorageInBytes;
 
   const [storageRefreshKey, setStorageRefreshKey] = useState(0);
+
+  const [selectedKeys, setSelectedKeys] = useState(new Set());
+  const [bulkDeleteItems, setBulkDeleteItems] = useState([]);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [moveItems, setMoveItems] = useState([]);
 
   useEffect(() => {
     async function loadStorageInfo() {
@@ -53,32 +60,7 @@ function DirectoryView({ adminMode = false }) {
     loadStorageInfo();
   }, [storageRefreshKey]);
 
-  useEffect(() => {
-    if (!adminMode) return;
-    async function fetchViewerRole() {
-      try {
-        const data = await fetchUser();
-        setViewerRole(data.role);
-      } catch (err) {
-        console.error('Error fetching viewer role:', err);
-      }
-    }
-    fetchViewerRole();
-  }, [adminMode]);
-
-  useEffect(() => {
-    if (!adminMode) return;
-    async function fetchTargetUserInfo() {
-      try {
-        const users = await fetchAllUsers();
-        const match = users.find((u) => u._id === userId);
-        if (match) setTargetUserLabel(`${match.name} (${match.email})`);
-      } catch (err) {
-        console.error('Error fetching target user:', err);
-      }
-    }
-    fetchTargetUserInfo();
-  }, [adminMode, userId]);
+  const [shareModalItem, setShareModalItem] = useState(null);
 
   const [directoryName, setDirectoryName] = useState('My Drive');
   const [breadcrumb, setBreadcrumb] = useState([]);
@@ -116,7 +98,7 @@ function DirectoryView({ adminMode = false }) {
   async function getDirectoryItems() {
     setErrorMessage('');
     try {
-      const data = await fetchDirectoryItems(dirId, apiBase);
+      const data = await fetchDirectoryItems(dirId);
       setDirectoryName(dirId ? data.name : 'My Drive');
       setBreadcrumb(data.breadcrumb || []);
       setDirectoriesList([...data.directories].reverse());
@@ -134,6 +116,8 @@ function DirectoryView({ adminMode = false }) {
     getDirectoryItems();
     setActiveContextMenu(null);
     setSearchQuery('');
+    setSelectedKeys(new Set());
+    setSelectionMode(false);
   }, [dirId]);
 
   function closeContextMenu() {
@@ -192,25 +176,15 @@ function DirectoryView({ adminMode = false }) {
 
   function handleRowClick(type, id) {
     if (type === 'directory') {
-      navigate(
-        adminMode
-          ? `/admin/users/${userId}/directory/${id}`
-          : `/directory/${id}`,
-      );
+      navigate(`/directory/${id}`);
     } else {
-      window.location.href = `${BASE_URL}${getFileUrl(id, apiBase)}`;
+      window.location.href = `${BASE_URL}${getFileUrl(id)}`;
     }
   }
 
   function handleBreadcrumbClick(id) {
     const isRoot = breadcrumb.length > 0 && id === breadcrumb[0].id;
-    navigate(
-      adminMode
-        ? `/admin/users/${userId}/directory${isRoot ? '' : `/${id}`}`
-        : isRoot
-          ? '/'
-          : `/directory/${id}`,
-    );
+    navigate(isRoot ? '/' : `/directory/${id}`);
   }
 
   function handleFileSelect(e) {
@@ -296,7 +270,7 @@ function DirectoryView({ adminMode = false }) {
           setProgressMap((prev) => ({ ...prev, [currentItem.id]: progress }));
         }
       },
-      apiBase,
+      undefined,
       controller.signal,
     )
       .then(() => {
@@ -338,7 +312,7 @@ function DirectoryView({ adminMode = false }) {
   async function handleDeleteFile(id) {
     setErrorMessage('');
     try {
-      await deleteFileApi(id, apiBase);
+      await deleteFileApi(id);
       getDirectoryItems();
       setStorageRefreshKey((prev) => prev + 1);
     } catch (err) {
@@ -349,7 +323,7 @@ function DirectoryView({ adminMode = false }) {
   async function handleDeleteDirectory(id) {
     setErrorMessage('');
     try {
-      await deleteDirectoryApi(id, apiBase);
+      await deleteDirectoryApi(id);
       getDirectoryItems();
       setStorageRefreshKey((prev) => prev + 1);
     } catch (err) {
@@ -363,7 +337,7 @@ function DirectoryView({ adminMode = false }) {
     e.preventDefault();
     setModalError('');
     try {
-      await createDirectoryApi(dirId, newDirname, apiBase);
+      await createDirectoryApi(dirId, newDirname);
       setNewDirname('New Folder');
       setShowCreateDirModal(false);
       getDirectoryItems();
@@ -384,9 +358,9 @@ function DirectoryView({ adminMode = false }) {
     setModalError('');
     try {
       if (renameType === 'file') {
-        await renameFileApi(renameId, renameValue, apiBase);
+        await renameFileApi(renameId, renameValue);
       } else {
-        await renameDirectoryApi(renameId, renameValue, apiBase);
+        await renameDirectoryApi(renameId, renameValue);
       }
       setShowRenameModal(false);
       setRenameValue('');
@@ -416,7 +390,6 @@ function DirectoryView({ adminMode = false }) {
     ...directoriesList.map((d) => ({ ...d, isDirectory: true })),
     ...filesList.map((f) => ({ ...f, isDirectory: false })),
   ];
-  // console.log({ dirs: directoriesList.length, files: filesList.length });
 
   const query = searchQuery.trim().toLowerCase();
   const visibleItems = query
@@ -426,18 +399,139 @@ function DirectoryView({ adminMode = false }) {
   const isDirNotFoundError =
     errorMessage === 'Directory not found or you do not have access to it!';
 
+  const selectableItems = visibleItems.filter(
+    (item) => !item.id.startsWith('temp-'),
+  );
+
+  function handleToggleSelect(item) {
+    if (!selectionMode || item.id.startsWith('temp-')) return;
+
+    const key = getItemKey(item);
+
+    setSelectedKeys((prev) => {
+      const next = new Set(prev);
+
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+
+      return next;
+    });
+  }
+
+  function toggleSelectionMode() {
+    setSelectionMode((prev) => {
+      if (prev) setSelectedKeys(new Set()); // exiting clears any selection
+      return !prev;
+    });
+  }
+
+  function handleSelectAll() {
+    if (!selectionMode || selectableItems.length === 0) return;
+
+    setSelectedKeys((prev) => {
+      const next = new Set(prev);
+
+      const allSelected = selectableItems.every((item) =>
+        next.has(getItemKey(item)),
+      );
+
+      if (allSelected) {
+        selectableItems.forEach((item) => {
+          next.delete(getItemKey(item));
+        });
+      } else {
+        selectableItems.forEach((item) => {
+          next.add(getItemKey(item));
+        });
+      }
+
+      return next;
+    });
+  }
+
+  const allSelected =
+    selectableItems.length > 0 &&
+    selectableItems.every((item) => selectedKeys.has(getItemKey(item)));
+
+  const selectedItems = combinedItems.filter((item) =>
+    selectedKeys.has(getItemKey(item)),
+  );
+  function openBulkDeleteConfirm() {
+    if (selectedItems.length === 0) return;
+
+    setBulkDeleteItems(selectedItems);
+  }
+
+  async function confirmBulkDelete(items) {
+    if (!items || items.length === 0) return;
+
+    setErrorMessage('');
+
+    const results = await Promise.allSettled(
+      items.map((item) =>
+        item.isDirectory ? deleteDirectoryApi(item.id) : deleteFileApi(item.id),
+      ),
+    );
+
+    const failedCount = results.filter(
+      (result) => result.status === 'rejected',
+    ).length;
+
+    setBulkDeleteItems([]);
+    setSelectedKeys(new Set());
+
+    await getDirectoryItems();
+    setStorageRefreshKey((prev) => prev + 1);
+
+    if (failedCount > 0) {
+      setErrorMessage(
+        `${failedCount} ${
+          failedCount === 1 ? 'item' : 'items'
+        } could not be deleted.`,
+      );
+    }
+  }
+
+  function openMoveModal(items) {
+    setMoveItems(items);
+  }
+
+  async function handleMoveConfirm(destinationId) {
+    const targets = moveItems;
+    const results = await Promise.allSettled(
+      targets.map((item) =>
+        item.isDirectory
+          ? moveDirectoryApi(item.id, destinationId)
+          : moveFileApi(item.id, destinationId),
+      ),
+    );
+
+    const failed = results.filter((r) => r.status === 'rejected');
+
+    setMoveItems([]);
+    setSelectedKeys(new Set());
+    await getDirectoryItems();
+    setStorageRefreshKey((prev) => prev + 1);
+
+    if (failed.length > 0) {
+      setErrorMessage(
+        `${failed.length} of ${targets.length} item${targets.length === 1 ? '' : 's'} could not be moved.`,
+      );
+    }
+  }
+
+  function openShareModal(item) {
+    setShareModalItem(item);
+  }
   return (
     <div className="max-w-[1000px] mx-auto px-4 font-sans text-text">
       <BreadcrumbBar
         breadcrumb={breadcrumb}
         onBreadcrumbClick={handleBreadcrumbClick}
       />
-      {adminMode && (
-        <div className="bg-indigo-50 text-primary-hover border border-indigo-200 rounded-lg px-4 py-2.5 text-sm font-medium mt-4">
-          Viewing {targetUserLabel || "another user's"} files —{' '}
-          {readOnly ? 'read-only' : 'Owner mode'}
-        </div>
-      )}
       {errorMessage && !isDirNotFoundError && (
         <div className="bg-red-50 text-danger border border-red-200 rounded-lg px-4 py-2.5 text-sm mt-4">
           {errorMessage}
@@ -450,7 +544,6 @@ function DirectoryView({ adminMode = false }) {
         fileInputRef={fileInputRef}
         handleFileSelect={handleFileSelect}
         disabled={isDirNotFoundError}
-        readOnly={readOnly}
         storageRefreshKey={storageRefreshKey}
         searchValue={searchQuery}
         onSearchChange={setSearchQuery}
@@ -480,11 +573,23 @@ function DirectoryView({ adminMode = false }) {
           error={modalError}
         />
       )}
+      {shareModalItem && (
+        <ShareModal
+          file={shareModalItem}
+          onClose={() => setShareModalItem(null)}
+        />
+      )}
+      {moveItems.length > 0 && (
+        <MoveModal
+          items={moveItems}
+          onConfirm={handleMoveConfirm}
+          onCancel={() => setMoveItems([])}
+        />
+      )}
       {detailsItem && (
         <DetailsPopup
           item={detailsItem}
           breadcrumb={breadcrumb}
-          apiBase={apiBase}
           onClose={() => setDetailsItem(null)}
         />
       )}
@@ -493,6 +598,14 @@ function DirectoryView({ adminMode = false }) {
           item={deleteConfirmItem}
           onConfirm={confirmDelete}
           onCancel={() => setDeleteConfirmItem(null)}
+        />
+      )}
+
+      {bulkDeleteItems.length > 0 && (
+        <BulkDeleteConfirmModal
+          items={bulkDeleteItems}
+          onConfirm={confirmBulkDelete}
+          onCancel={() => setBulkDeleteItems([])}
         />
       )}
       {isDirNotFoundError ? (
@@ -508,47 +621,70 @@ function DirectoryView({ adminMode = false }) {
           <p className="text-sm text-text-muted mb-5 max-w-[280px]">
             Upload a file or create a folder to start organizing your files.
           </p>
-          {!readOnly && (
-            <div className="flex items-center gap-2.5">
-              <button
-                onClick={() => setShowCreateDirModal(true)}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-semibold bg-primary text-white cursor-pointer hover:bg-primary-hover transition-colors"
-              >
-                <FaPlus size={11} />
-                New folder
-              </button>
-              <button
-                onClick={() => fileInputRef.current.click()}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-semibold bg-white border border-border text-gray-700 cursor-pointer hover:bg-gray-50 transition-colors"
-              >
-                <FaUpload size={11} />
-                Upload
-              </button>
-            </div>
-          )}
+          <div className="flex items-center gap-2.5">
+            <button
+              onClick={() => setShowCreateDirModal(true)}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-semibold bg-primary text-white cursor-pointer hover:bg-primary-hover transition-colors"
+            >
+              <FaPlus size={11} />
+              New folder
+            </button>
+            <button
+              onClick={() => fileInputRef.current.click()}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-semibold bg-white border border-border text-gray-700 cursor-pointer hover:bg-gray-50 transition-colors"
+            >
+              <FaUpload size={11} />
+              Upload
+            </button>
+          </div>
         </div>
       ) : query && visibleItems.length === 0 ? (
         <p className="text-center italic mt-10 text-text-muted">
           No files or folders match "{searchQuery}".
         </p>
       ) : (
-        <DirectoryList
-          items={visibleItems}
-          handleRowClick={handleRowClick}
-          activeContextMenu={activeContextMenu}
-          contextMenuPos={contextMenuPos}
-          handleContextMenu={handleContextMenu}
-          closeContextMenu={closeContextMenu}
-          getFileIcon={getFileIcon}
-          isUploading={isUploading}
-          progressMap={progressMap}
-          handleCancelUpload={handleCancelUpload}
-          openRenameModal={openRenameModal}
-          openDeleteConfirm={openDeleteConfirm}
-          openDetailsPopup={openDetailsPopup}
-          apiBase={apiBase}
-          readOnly={readOnly}
-        />
+        <>
+          {selectableItems.length > 0 && (
+            <div className="flex justify-end mt-3">
+              <button
+                type="button"
+                onClick={toggleSelectionMode}
+                className="px-3 py-1.5 rounded-full text-xs font-semibold text-primary border border-primary/30 hover:bg-primary/5 transition-colors cursor-pointer"
+              >
+                {selectionMode ? 'Cancel selection' : 'Select'}
+              </button>
+            </div>
+          )}
+          <SelectionToolbar
+            selectedCount={selectedItems.length}
+            totalCount={selectableItems.length}
+            allSelected={allSelected}
+            onSelectAll={handleSelectAll}
+            onClearSelection={() => setSelectedKeys(new Set())}
+            onDelete={openBulkDeleteConfirm}
+            onMove={() => openMoveModal(selectedItems)}
+          />
+          <DirectoryList
+            items={visibleItems}
+            handleRowClick={handleRowClick}
+            activeContextMenu={activeContextMenu}
+            contextMenuPos={contextMenuPos}
+            handleContextMenu={handleContextMenu}
+            closeContextMenu={closeContextMenu}
+            getFileIcon={getFileIcon}
+            isUploading={isUploading}
+            progressMap={progressMap}
+            handleCancelUpload={handleCancelUpload}
+            openRenameModal={openRenameModal}
+            openDeleteConfirm={openDeleteConfirm}
+            openDetailsPopup={openDetailsPopup}
+            openMoveModal={openMoveModal}
+            openShareModal={openShareModal}
+            selectedKeys={selectedKeys}
+            onToggleSelect={handleToggleSelect}
+            selectionMode={selectionMode}
+          />
+        </>
       )}
     </div>
   );

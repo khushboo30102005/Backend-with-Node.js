@@ -61,3 +61,10 @@ export const changeUserRole = async (id, role) => {
   const { data } = await axiosWithCreds.patch(`/users/${id}/role`, { role });
   return data;
 };
+
+export const searchUsers = async (q) => {
+  const { data } = await axiosWithCreds.get('/users/search', {
+    params: { q },
+  });
+  return data;
+};

@@ -3,6 +3,9 @@ import validateIdMiddleware from '../middlewares/validateIdMiddleware.js';
 import {
   deleteFile,
   getFile,
+  moveFile,
+  permanentlyDeleteFile,
+  restoreFile,
   updateFile,
   uploadFile,
 } from '../controllers/fileController.js';
@@ -25,4 +28,10 @@ router.patch('/:id', updateFile);
 
 router.delete('/:id', deleteFile);
 
+router.patch('/:id/move', moveFile);
+
+
+// fileRoutes.js — same idea
+router.patch('/:id/restore', restoreFile);
+router.delete('/:id/permanent', permanentlyDeleteFile);
 export default router;

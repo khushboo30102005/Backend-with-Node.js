@@ -9,6 +9,7 @@ import {
   FaUserShield,
   FaUserTie,
   FaSearch,
+  FaShareAlt,
 } from 'react-icons/fa';
 import { fetchUser, logoutAllSessions, logoutUser } from '../apis/userApi';
 
@@ -130,7 +131,7 @@ function DirectoryHeader({
         <div className="flex flex-wrap items-center gap-2">
           {!readOnly && (
             <button
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-semibold bg-primary text-white cursor-pointer transition-colors duration-150 hover:enabled:bg-primary-hover disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-semibold bg-surface border border-border text-text cursor-pointer transition-all duration-150 hover:enabled:bg-surface-hover hover:enabled:border-gray-300 hover:enabled:scale-[1.03] active:enabled:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
               title="New folder"
               onClick={onCreateFolderClick}
               disabled={disabled}
@@ -141,7 +142,7 @@ function DirectoryHeader({
           )}
 
           <button
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-semibold bg-white border border-border text-gray-700 cursor-pointer transition-colors duration-150 hover:enabled:bg-gray-50 hover:enabled:border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-semibold bg-surface border border-border text-text cursor-pointer transition-all duration-150 hover:enabled:bg-surface-hover hover:enabled:border-gray-300 hover:enabled:scale-[1.03] active:enabled:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
             title="Upload files"
             onClick={onUploadFilesClick}
             disabled={disabled || readOnly}
@@ -163,7 +164,7 @@ function DirectoryHeader({
           {/* User Icon & Dropdown Menu */}
           <div className="relative" ref={userMenuRef}>
             <button
-              className="bg-transparent border-none cursor-pointer flex items-center justify-center rounded-full p-0.5 transition-colors duration-150 hover:bg-gray-100"
+              className="bg-transparent border-none cursor-pointer flex items-center justify-center rounded-full p-0.5 transition-all duration-150 hover:bg-primary/10 ring-2 ring-transparent hover:ring-primary/20"
               title="User Menu"
               onClick={handleUserIconClick}
             >
@@ -174,90 +175,73 @@ function DirectoryHeader({
                   alt="User"
                 />
               ) : (
-                <span className="w-8 h-8 rounded-full bg-indigo-100 text-primary flex items-center justify-center">
+                <span className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center">
                   <FaUser size={14} />
                 </span>
               )}
             </button>
 
             {showUserMenu && (
-              <div className="absolute top-11 right-0 bg-surface border border-border rounded-xl shadow-[0_4px_16px_rgba(0,0,0,0.12),0_1px_3px_rgba(0,0,0,0.08)] z-[999] w-[calc(100vw-2rem)] max-w-[260px] overflow-hidden">
-                {loggedIn ? (
-                  <>
-                    <div className="flex flex-col py-3.5 px-4 cursor-auto">
-                      <span className="font-bold text-text truncate">{userName}</span>
-                      <span className="text-[0.82rem] text-text-muted truncate">
-                        {userEmail}
-                      </span>
-                      <div className="flex flex-col text-xs mt-3">
-                        <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden mb-1.5 shadow-inner">
-                          <div
-                            className={`${barColorClass} rounded-full h-full transition-[width] duration-500 ease-out`}
-                            style={{ width: `${usedPercent}%` }}
-                          ></div>
-                        </div>
-                        <div className="text-[11px] text-text-muted font-medium">
-                          {usedGB.toFixed(2)} GB of {totalGB.toFixed(0)} GB used
-                        </div>
-                      </div>
-                    </div>
-                    {userRole === 'Owner' && (
-                      <button
-                        onClick={handleAdminDashboard}
-                        className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-gray-700 bg-transparent border-none cursor-pointer hover:bg-gray-100 transition-colors"
-                      >
-                        <FaUserShield size={16} className="text-primary" />
-                        Owner Dashboard
-                      </button>
-                    )}
-                    {userRole === 'Admin' && (
-                      <button
-                        onClick={handleAdminDashboard}
-                        className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-gray-700 bg-transparent border-none cursor-pointer hover:bg-gray-100 transition-colors"
-                      >
-                        <FaUserShield size={16} className="text-primary" />
-                        Admin Dashboard
-                      </button>
-                    )}
-                    {userRole === 'Manager' && (
-                      <button
-                        onClick={handleAdminDashboard}
-                        className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-gray-700 bg-transparent border-none cursor-pointer hover:bg-gray-100 transition-colors"
-                      >
-                        <FaUserTie size={16} className="text-primary" />
-                        Manager Dashboard
-                      </button>
-                    )}
-                    <div className="border-t border-border" />
-                    <div
-                      className="flex items-center gap-2 px-4 py-2.5 cursor-pointer text-gray-700 text-[0.9rem] whitespace-nowrap hover:bg-gray-100 transition-colors"
-                      onClick={handleLogout}
-                    >
-                      <FaSignOutAlt className="text-primary" />
-                      <span>Logout</span>
-                    </div>
-                    <div
-                      className="flex items-center gap-2 px-4 py-2.5 cursor-pointer text-gray-700 text-[0.9rem] whitespace-nowrap hover:bg-gray-100 transition-colors"
-                      onClick={handleLogoutAll}
-                    >
-                      <FaSignOutAlt className="text-primary" />
-                      <span>Logout all devices</span>
-                    </div>
-                  </>
-                ) : (
-                  <div
-                    className="flex items-center gap-2 px-4 py-2.5 cursor-pointer text-gray-700 text-[0.9rem] whitespace-nowrap hover:bg-gray-100 transition-colors"
-                    onClick={() => {
-                      navigate('/login');
-                      setShowUserMenu(false);
-                    }}
-                  >
-                    <FaSignInAlt className="text-primary" />
-                    <span>Login</span>
-                  </div>
-                )}
-              </div>
-            )}
+  <div className="absolute top-11 right-0 bg-surface border border-border rounded-xl shadow-[0_4px_16px_rgba(0,0,0,0.12),0_1px_3px_rgba(0,0,0,0.08)] z-[999] w-[calc(100vw-2rem)] max-w-[220px] overflow-hidden">
+    {loggedIn ? (
+      <>
+        {userRole === 'Owner' && (
+          <button
+            onClick={handleAdminDashboard}
+            className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-gray-700 bg-transparent border-none cursor-pointer hover:bg-gray-100 transition-colors"
+          >
+            <FaUserShield size={16} className="text-primary" />
+            Owner Dashboard
+          </button>
+        )}
+        {userRole === 'Admin' && (
+          <button
+            onClick={handleAdminDashboard}
+            className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-gray-700 bg-transparent border-none cursor-pointer hover:bg-gray-100 transition-colors"
+          >
+            <FaUserShield size={16} className="text-primary" />
+            Admin Dashboard
+          </button>
+        )}
+        {userRole === 'Manager' && (
+          <button
+            onClick={handleAdminDashboard}
+            className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-gray-700 bg-transparent border-none cursor-pointer hover:bg-gray-100 transition-colors"
+          >
+            <FaUserTie size={16} className="text-primary" />
+            Manager Dashboard
+          </button>
+        )}
+        {userRole !== 'User' && <div className="border-t border-border" />}
+        <div
+          className="flex items-center gap-2 px-4 py-2.5 cursor-pointer text-gray-700 text-[0.9rem] whitespace-nowrap hover:bg-gray-100 transition-colors"
+          onClick={handleLogout}
+        >
+          <FaSignOutAlt className="text-primary" />
+          <span>Logout</span>
+        </div>
+        <div
+          className="flex items-center gap-2 px-4 py-2.5 cursor-pointer text-gray-700 text-[0.9rem] whitespace-nowrap hover:bg-gray-100 transition-colors"
+          onClick={handleLogoutAll}
+        >
+          <FaSignOutAlt className="text-primary" />
+          <span>Logout all devices</span>
+        </div>
+      </>
+    ) : (
+      <div
+        className="flex items-center gap-2 px-4 py-2.5 cursor-pointer text-gray-700 text-[0.9rem] whitespace-nowrap hover:bg-gray-100 transition-colors"
+        onClick={() => {
+          navigate('/login');
+          setShowUserMenu(false);
+        }}
+      >
+        <FaSignInAlt className="text-primary" />
+        <span>Login</span>
+      </div>
+    )}
+  </div>
+)}
           </div>
         </div>
       </div>
@@ -273,7 +257,7 @@ function DirectoryHeader({
             value={searchValue}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Search files and folders..."
-            className="w-full pl-9 pr-3 py-2 rounded-lg border border-border text-sm bg-white transition-colors duration-150 focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/12"
+            className="w-full pl-9 pr-3 py-2 rounded-lg border border-border text-sm bg-surface text-text transition-colors duration-150 focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/12"
           />
         </div>
       )}

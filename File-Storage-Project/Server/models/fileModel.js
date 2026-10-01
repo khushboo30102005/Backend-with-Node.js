@@ -6,6 +6,10 @@ const fileSchema = new Schema(
       type: String,
       required: true,
     },
+    size: {
+      type: Number,
+      required: true,
+    },
     extension: {
       type: String,
       required: true,
@@ -18,8 +22,16 @@ const fileSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: 'Directory',
     },
+    isTrashed: {
+      type: Boolean,
+      default: false,
+    },
+    trashedAt: {
+      type: Date,
+      default: null,
+    },
   },
-  { strict: 'throw' },
+  { strict: 'throw', timestamps: true },
 );
 
 const File = model('File', fileSchema);

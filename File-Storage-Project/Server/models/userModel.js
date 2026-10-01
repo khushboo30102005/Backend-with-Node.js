@@ -27,7 +27,8 @@ const userSchema = new Schema(
 
     picture: {
       type: String,
-      default: 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png',
+      default:
+        'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png',
     },
     role: {
       type: String,
@@ -42,14 +43,18 @@ const userSchema = new Schema(
       type: Schema.Types.ObjectId,
       required: true,
     },
+    maxStorageInBytes: {
+      type:Number,
+      required: true,
+      default: 1 * 1024 ** 3,
+    },
   },
-  { strict: 'throw' }
+  { strict: 'throw' },
 );
 
 userSchema.pre('save', async function () {
   if (!this.isModified('password')) return;
   this.password = await bcrypt.hash(this.password, 12);
-  console.log(this.password)
 });
 
 userSchema.methods.comparePassword = async function (candidatePassword) {

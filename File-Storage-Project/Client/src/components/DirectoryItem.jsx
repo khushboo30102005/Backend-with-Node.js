@@ -44,8 +44,14 @@ function DirectoryItem({
   openRenameModal,
   openDeleteConfirm,
   openDetailsPopup,
+  openMoveModal,
+  openShareModal,
+  onRestore,
+  openPermanentDeleteConfirm,
   apiBase,
-  readOnly = false,
+  isSelected = false,
+  onToggleSelect,
+  selectionMode = false,
 }) {
   const isUploadingItem = item.id.startsWith('temp-');
   const fileStyle = !item.isDirectory
@@ -53,9 +59,12 @@ function DirectoryItem({
     : null;
   const FileIconComponent = fileStyle?.icon;
 
+  const permission = item.permission || 'owner';
+  const canSelect = permission === 'owner';
+
   return (
     <div
-      className="flex flex-col relative gap-1 border border-border rounded-[10px] bg-surface cursor-pointer transition-colors duration-150 hover:bg-surface-hover hover:border-gray-300 hover:shadow-[0_1px_4px_rgba(0,0,0,0.04)]"
+      className="flex flex-col relative gap-1 border border-border rounded-[10px] bg-surface cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:bg-surface-hover hover:border-gray-300 hover:shadow-[0_4px_12px_rgba(0,0,0,0.06)] active:scale-[0.99]"
       onClick={() =>
         !(activeContextMenu || isUploading)
           ? handleRowClick(item.isDirectory ? 'directory' : 'file', item.id)
@@ -64,6 +73,16 @@ function DirectoryItem({
       onContextMenu={(e) => handleContextMenu(e, item.id)}
     >
       <div className="flex items-center gap-3 px-3.5 py-2.5">
+        {canSelect && !isUploadingItem && selectionMode && (
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={() => onToggleSelect(item)}
+            onClick={(e) => e.stopPropagation()}
+            className="w-4 h-4 shrink-0 cursor-pointer accent-primary"
+            aria-label={`Select ${item.name}`}
+          />
+        )}
         {/* Icon */}
         {item.isDirectory ? (
           <span className="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
@@ -88,7 +107,9 @@ function DirectoryItem({
         {/* Metadata — hidden on very small screens to avoid crowding */}
         {!isUploadingItem && (
           <div className="hidden sm:flex items-center gap-4 ml-auto flex-shrink-0 text-xs text-text-muted">
-            {typeof item.size === 'number' && <span>{formatSize(item.size)}</span>}
+            {typeof item.size === 'number' && (
+              <span>{formatSize(item.size)}</span>
+            )}
             {item.updatedAt && <span>{formatModified(item.updatedAt)}</span>}
           </div>
         )}
@@ -130,9 +151,13 @@ function DirectoryItem({
           handleCancelUpload={handleCancelUpload}
           openRenameModal={openRenameModal}
           openDeleteConfirm={openDeleteConfirm}
+          openMoveModal={openMoveModal}
           openDetailsPopup={openDetailsPopup}
+          openShareModal={openShareModal}
+          onRestore={onRestore}
+          openPermanentDeleteConfirm={openPermanentDeleteConfirm}
           apiBase={apiBase}
-          readOnly={readOnly}
+          permission={permission}
           onClose={closeContextMenu}
         />
       )}

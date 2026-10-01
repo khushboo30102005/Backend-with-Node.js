@@ -6,17 +6,26 @@
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "node --watch --env-file=.env app.js"
+    "dev": "node --watch --env-file=.env app.js",
+    "debug": "node --inspect --env-file=.env app.js",
+    "setup": "node --env-file=.env config/setup.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1132.0",
+    "@aws-sdk/lib-storage": "^3.1132.0",
+    "@aws-sdk/s3-request-presigner": "^3.1132.0",
     "bcrypt": "^6.0.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
+    "dompurify": "^3.4.14",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.7.0",
     "google-auth-library": "^11.0.0",
+    "helmet": "^8.3.0",
+    "jsdom": "^30.0.1",
     "mongoose": "^9.6.3",
     "nodemailer": "^9.0.3",
     "redis": "^6.2.0"

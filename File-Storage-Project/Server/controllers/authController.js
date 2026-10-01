@@ -54,6 +54,7 @@ export const verifyLoginOTP = async (req, res, next) => {
       userId: user._id,
       rootDirId: user.rootDirId,
       role: user.role,
+      maxStorageInBytes: user.maxStorageInBytes,
     });
 
     const sessionExpiryTime = 60 * 1000 * 60 * 24 * 7;
@@ -61,6 +62,7 @@ export const verifyLoginOTP = async (req, res, next) => {
     res.cookie('sid', sessionId, {
       httpOnly: true,
       signed: true,
+      sameSite: 'lax',
       maxAge: sessionExpiryTime,
     });
     await otpRecord.deleteOne();
@@ -111,6 +113,7 @@ export const loginWithGoogle = async (req, res, next) => {
         userId: user._id.toString(),
         rootDirId: user.rootDirId.toString(),
         role: user.role,
+        maxStorageInBytes: user.maxStorageInBytes,
       });
 
       // Redis EXPIRE uses seconds
@@ -122,6 +125,7 @@ export const loginWithGoogle = async (req, res, next) => {
       res.cookie('sid', sessionId, {
         httpOnly: true,
         signed: true,
+        sameSite: 'lax',
         maxAge: sessionExpiryTime * 1000,
       });
 
@@ -145,6 +149,7 @@ export const loginWithGoogle = async (req, res, next) => {
           name: `root-${email}`,
           parentDirId: null,
           userId,
+          path: [rootDirId],
         },
         {
           session: mongooseSession,
@@ -173,6 +178,8 @@ export const loginWithGoogle = async (req, res, next) => {
       await redisClient.json.set(redisKey, '$', {
         userId: userId.toString(),
         rootDirId: rootDirId.toString(),
+        role: user.role,
+        maxStorageInBytes: user.maxStorageInBytes,
       });
 
       // Redis uses seconds
@@ -184,6 +191,7 @@ export const loginWithGoogle = async (req, res, next) => {
       res.cookie('sid', sessionId, {
         httpOnly: true,
         signed: true,
+        sameSite: 'lax',
         maxAge: sessionExpiryTime * 1000,
       });
 
@@ -191,7 +199,9 @@ export const loginWithGoogle = async (req, res, next) => {
         message: 'account created and logged in',
       });
     } catch (err) {
-      await mongooseSession.abortTransaction();
+      if (mongooseSession.inTransaction()) {
+        await mongooseSession.abortTransaction();
+      }
       throw err;
     } finally {
       await mongooseSession.endSession();

@@ -237,9 +237,7 @@ export default function UsersPage() {
                   Status
                 </th>
                 <th className="border-b border-gray-100"></th>
-                {(userRole === 'Admin' || userRole === 'Owner') && (
-                  <th className="border-b border-gray-100"></th>
-                )}
+                
                 {userRole !== 'User' && (
                   <th className="border-b border-gray-100"></th>
                 )}
@@ -302,18 +300,7 @@ export default function UsersPage() {
                       </button>
                     </td>
                   )}
-                  {(userRole === 'Admin' || userRole === 'Owner') && (
-                    <td className={cellBase} data-label="Files">
-                      <button
-                        className={buttonBase}
-                        onClick={() =>
-                          navigate(`/admin/users/${user._id}/directory`)
-                        }
-                      >
-                        View Files
-                      </button>
-                    </td>
-                  )}
+
                   {userRole !== 'User' && (
                     <td className={cellBase} data-label="Role">
                       <div className="flex items-center gap-2 max-[640px]:flex-wrap max-[640px]:w-full">

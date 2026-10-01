@@ -15,6 +15,7 @@ export default async function checkAuth(req, res, next) {
     _id: session.userId,
     rootDirId: session.rootDirId,
     role: session.role,
+    maxStorageInBytes: session.maxStorageInBytes,
   };
   next();
 }

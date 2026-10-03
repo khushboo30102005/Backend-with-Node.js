@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import { connectDB } from './db.js';
 
-await connectDB('mongodb://khushboo:Storage2026@127.0.0.1:27017/storageApp');
+await connectDB(process.env.MONGODB_URI);
 
 const db = mongoose.connection.db;
 const client = mongoose.connection.getClient();

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useLocation } from 'react-router';
 import { FaHdd, FaShareAlt, FaTrash, FaBars, FaTimes } from 'react-icons/fa';
 import Sidebar from './Sidebar';
+import ProfileMenu from './ProfileMenu';
 
 // Same matching rules as Sidebar so "My Drive" also highlights on /directory/:id
 const navItems = [
@@ -54,6 +55,10 @@ function Layout({ children }) {
                 <FaTimes size={16} />
               </button>
             </div>
+
+            {/* Profile + account menu (dashboard, logout, logout all) */}
+            <ProfileMenu onNavigate={() => setMobileOpen(false)} />
+
             <nav className="flex flex-col gap-1">
               {navItems.map(({ to, label, icon: Icon, match }) => (
                 <Link

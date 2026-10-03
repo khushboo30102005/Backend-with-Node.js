@@ -571,7 +571,6 @@ function DirectoryView() {
         fileInputRef={fileInputRef}
         handleFileSelect={handleFileSelect}
         disabled={isDirNotFoundError}
-        storageRefreshKey={storageRefreshKey}
         searchValue={searchQuery}
         onSearchChange={setSearchQuery}
       />

@@ -1,4 +1,4 @@
-import { createBrowserRouter, RouterProvider } from 'react-router';
+import { createBrowserRouter, RouterProvider, Link } from 'react-router';
 import DirectoryView from './DirectoryView';
 import Register from './Register';
 import './App.css';
@@ -8,6 +8,23 @@ import RootRoute from './RootRoute';
 import SharedWithMe from './components/SharedWithMe';
 import Layout from './components/Layout';
 import TrashPage from './TrashPage';
+
+function NotFound() {
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center gap-3 text-center px-4">
+      <h1 className="text-2xl font-bold text-text">Page not found</h1>
+      <p className="text-sm text-text-muted">
+        The page you're looking for doesn't exist.
+      </p>
+      <Link
+        to="/"
+        className="px-4 py-2 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary-hover transition-colors"
+      >
+        Go to My Drive
+      </Link>
+    </div>
+  );
+}
 
 const router = createBrowserRouter([
   {
@@ -28,11 +45,19 @@ const router = createBrowserRouter([
   },
   {
     path: '/directory/:dirId',
-    element: <Layout><DirectoryView /></Layout>,
+    element: (
+      <Layout>
+        <DirectoryView />
+      </Layout>
+    ),
   },
   {
     path: '/shared-with-me',
-    element: <Layout><SharedWithMe /></Layout>,
+    element: (
+      <Layout>
+        <SharedWithMe />
+      </Layout>
+    ),
   },
   {
     path: '/trash',
@@ -41,6 +66,10 @@ const router = createBrowserRouter([
         <TrashPage />
       </Layout>
     ),
+  },
+  {
+    path: '*',
+    element: <NotFound />,
   },
 ]);
 

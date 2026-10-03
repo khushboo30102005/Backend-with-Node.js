@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router';
 import { FaShareAlt } from 'react-icons/fa';
 import DirectoryHeader from './DirectoryHeader';
 import DirectoryList from './DirectoryList';
@@ -10,6 +11,7 @@ import { getFileUrl, renameFile } from '../apis/fileApi';
 import { useAutoDismissError } from '../hooks/useAutoDismissError';
 
 function SharedWithMe() {
+  const navigate = useNavigate();
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useAutoDismissError();
@@ -33,7 +35,13 @@ function SharedWithMe() {
       const data = await getSharedWithMe();
       setEntries(data);
     } catch (err) {
-      setErrorMessage(err.response?.data?.error || 'Could not load shared files.');
+      if (err.response?.status === 401) {
+        navigate('/login');
+        return;
+      }
+      setErrorMessage(
+        err.response?.data?.error || 'Could not load shared files.',
+      );
     } finally {
       setLoading(false);
     }
@@ -73,9 +81,9 @@ function SharedWithMe() {
   }
 
   // Shared files never support navigation into a folder (folder sharing
-  // isn't implemented) — a click always opens/views the file directly.
+  // isn't implemented) — a click always opens the file in a new tab.
   function handleRowClick(type, id) {
-    window.location.href = `${BASE_URL}${getFileUrl(id)}`;
+    window.open(`${BASE_URL}${getFileUrl(id)}`, '_blank', 'noopener');
   }
 
   function handleContextMenu(e, id) {
@@ -98,8 +106,7 @@ function SharedWithMe() {
   }
 
   // Only reachable for editor-permission files — Rename is the one write
-  // action Editors have (see permission table); Delete/Move/Share never
-  // render for non-owner items, so they don't need real handlers here.
+  // action Editors have.
   function openRenameModal(type, id, currentName) {
     setRenameId(id);
     setRenameValue(currentName);
@@ -120,10 +127,6 @@ function SharedWithMe() {
     }
   }
 
-  // Items here carry their own `.permission` (viewer/editor) so
-  // DirectoryItem/ContextMenu render the correct action set per file —
-  // no separate blanket prop needed, see DirectoryItem's permission
-  // derivation.
   const items = entries.map((entry) => ({
     id: entry.file.id,
     name: entry.file.name,
@@ -136,7 +139,7 @@ function SharedWithMe() {
 
   return (
     <div className="max-w-[1000px] mx-auto px-4 font-sans text-text">
-      <DirectoryHeader directoryName="Shared with me" disabled />
+      <DirectoryHeader directoryName="Shared with me" readOnly />
 
       {errorMessage && (
         <div className="bg-red-50 text-danger border border-red-200 rounded-lg px-4 py-2.5 text-sm mt-4">
@@ -169,7 +172,9 @@ function SharedWithMe() {
           <div className="w-14 h-14 rounded-full bg-indigo-50 flex items-center justify-center mb-4">
             <FaShareAlt size={20} className="text-primary" />
           </div>
-          <p className="font-semibold text-text mb-1">Nothing shared with you yet</p>
+          <p className="font-semibold text-text mb-1">
+            Nothing shared with you yet
+          </p>
           <p className="text-sm text-text-muted max-w-[280px]">
             Files other people share with you will show up here.
           </p>

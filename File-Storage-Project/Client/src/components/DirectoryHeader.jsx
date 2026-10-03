@@ -9,7 +9,6 @@ import {
   FaUserShield,
   FaUserTie,
   FaSearch,
-  FaShareAlt,
 } from 'react-icons/fa';
 import { fetchUser, logoutAllSessions, logoutUser } from '../apis/userApi';
 
@@ -27,23 +26,8 @@ function DirectoryHeader({
 }) {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
-  const [userName, setUserName] = useState('Guest User');
-  const [userEmail, setUserEmail] = useState('guest@example.com');
   const [userPicture, setUserPicture] = useState(null);
   const [userRole, setUserRole] = useState(null);
-  const [maxStorageInBytes, setMaxStorageInBytes] = useState(1073741824);
-  const [usedStorageInBytes, setUsedStorageInBytes] = useState(0);
-
-  const usedGB = usedStorageInBytes / 1024 ** 3;
-  const totalGB = maxStorageInBytes / 1024 ** 3;
-  const usedPercent = totalGB > 0 ? Math.min((usedGB / totalGB) * 100, 100) : 0;
-
-  const barColorClass =
-    usedPercent >= 90
-      ? 'bg-gradient-to-r from-red-500 to-red-600'
-      : usedPercent >= 70
-        ? 'bg-gradient-to-r from-amber-400 to-orange-500'
-        : 'bg-gradient-to-r from-primary to-purple-500';
 
   const userMenuRef = useRef(null);
   const navigate = useNavigate();
@@ -52,16 +36,11 @@ function DirectoryHeader({
     async function loadUser() {
       try {
         const data = await fetchUser();
-        setUserName(data.name);
-        setUserEmail(data.email);
         setUserRole(data.role);
-        setMaxStorageInBytes(data.maxStorageInBytes);
-        setUsedStorageInBytes(data.usedStorageInBytes);
+        setUserPicture(data.picture || null);
         setLoggedIn(true);
       } catch (err) {
         if (err.response?.status === 401) {
-          setUserName('Guest User');
-          setUserEmail('guest@example.com');
           setUserRole(null);
           setUserPicture(null);
           setLoggedIn(false);
@@ -81,8 +60,6 @@ function DirectoryHeader({
     try {
       await logoutUser();
       setLoggedIn(false);
-      setUserName('Guest User');
-      setUserEmail('guest@example.com');
       navigate('/login');
     } catch (err) {
       console.error('Logout error:', err);
@@ -95,8 +72,6 @@ function DirectoryHeader({
     try {
       await logoutAllSessions();
       setLoggedIn(false);
-      setUserName('Guest User');
-      setUserEmail('guest@example.com');
       navigate('/login');
     } catch (err) {
       console.error('Logout error:', err);
@@ -121,8 +96,14 @@ function DirectoryHeader({
     };
   }, []);
 
+  const actionButtonClass =
+    'flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-semibold  border border-border text-text cursor-pointer transition-all duration-150 hover:enabled:bg-surface-hover hover:enabled:border-gray-300 hover:enabled:scale-[1.03] active:enabled:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed';
+
+  const menuRowClass =
+    'flex items-center gap-2 px-4 py-2.5 cursor-pointer text-[0.9rem] whitespace-nowrap hover:bg-gray-100 transition-colors';
+
   return (
-    <header className="flex flex-col gap-3 border-b border-border py-4 bg-surface">
+    <header className="flex flex-col gap-3 border-b border-border py-4 ">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="m-0 text-[1.5rem] font-bold tracking-tight text-text truncate max-w-[45vw]">
           {directoryName}
@@ -130,36 +111,38 @@ function DirectoryHeader({
 
         <div className="flex flex-wrap items-center gap-2">
           {!readOnly && (
-            <button
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-semibold bg-surface border border-border text-text cursor-pointer transition-all duration-150 hover:enabled:bg-surface-hover hover:enabled:border-gray-300 hover:enabled:scale-[1.03] active:enabled:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
-              title="New folder"
-              onClick={onCreateFolderClick}
-              disabled={disabled}
-            >
-              <FaPlus size={12} />
-              <span>New</span>
-            </button>
+            <>
+              <button
+                className={actionButtonClass}
+                title="New folder"
+                onClick={onCreateFolderClick}
+                disabled={disabled}
+              >
+                <FaPlus size={12} />
+                <span>New</span>
+              </button>
+
+              <button
+                className={actionButtonClass}
+                title="Upload files"
+                onClick={onUploadFilesClick}
+                disabled={disabled}
+              >
+                <FaUpload size={12} />
+                <span className="hidden sm:inline">Upload</span>
+              </button>
+
+              {/* Hidden file input */}
+              <input
+                ref={fileInputRef}
+                id="file-upload"
+                type="file"
+                className="hidden"
+                multiple
+                onChange={handleFileSelect}
+              />
+            </>
           )}
-
-          <button
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-semibold bg-surface border border-border text-text cursor-pointer transition-all duration-150 hover:enabled:bg-surface-hover hover:enabled:border-gray-300 hover:enabled:scale-[1.03] active:enabled:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed"
-            title="Upload files"
-            onClick={onUploadFilesClick}
-            disabled={disabled || readOnly}
-          >
-            <FaUpload size={12} />
-            <span className="hidden sm:inline">Upload</span>
-          </button>
-
-          {/* Hidden file input */}
-          <input
-            ref={fileInputRef}
-            id="file-upload"
-            type="file"
-            className="hidden"
-            multiple
-            onChange={handleFileSelect}
-          />
 
           {/* User Icon & Dropdown Menu */}
           <div className="relative" ref={userMenuRef}>
@@ -182,66 +165,62 @@ function DirectoryHeader({
             </button>
 
             {showUserMenu && (
-  <div className="absolute top-11 right-0 bg-surface border border-border rounded-xl shadow-[0_4px_16px_rgba(0,0,0,0.12),0_1px_3px_rgba(0,0,0,0.08)] z-[999] w-[calc(100vw-2rem)] max-w-[220px] overflow-hidden">
-    {loggedIn ? (
-      <>
-        {userRole === 'Owner' && (
-          <button
-            onClick={handleAdminDashboard}
-            className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-gray-700 bg-transparent border-none cursor-pointer hover:bg-gray-100 transition-colors"
-          >
-            <FaUserShield size={16} className="text-primary" />
-            Owner Dashboard
-          </button>
-        )}
-        {userRole === 'Admin' && (
-          <button
-            onClick={handleAdminDashboard}
-            className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-gray-700 bg-transparent border-none cursor-pointer hover:bg-gray-100 transition-colors"
-          >
-            <FaUserShield size={16} className="text-primary" />
-            Admin Dashboard
-          </button>
-        )}
-        {userRole === 'Manager' && (
-          <button
-            onClick={handleAdminDashboard}
-            className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-gray-700 bg-transparent border-none cursor-pointer hover:bg-gray-100 transition-colors"
-          >
-            <FaUserTie size={16} className="text-primary" />
-            Manager Dashboard
-          </button>
-        )}
-        {userRole !== 'User' && <div className="border-t border-border" />}
-        <div
-          className="flex items-center gap-2 px-4 py-2.5 cursor-pointer text-gray-700 text-[0.9rem] whitespace-nowrap hover:bg-gray-100 transition-colors"
-          onClick={handleLogout}
-        >
-          <FaSignOutAlt className="text-primary" />
-          <span>Logout</span>
-        </div>
-        <div
-          className="flex items-center gap-2 px-4 py-2.5 cursor-pointer text-gray-700 text-[0.9rem] whitespace-nowrap hover:bg-gray-100 transition-colors"
-          onClick={handleLogoutAll}
-        >
-          <FaSignOutAlt className="text-primary" />
-          <span>Logout all devices</span>
-        </div>
-      </>
-    ) : (
-      <div
-        className="flex items-center gap-2 px-4 py-2.5 cursor-pointer text-gray-700 text-[0.9rem] whitespace-nowrap hover:bg-gray-100 transition-colors"
-        onClick={() => {
-          navigate('/login');
-          setShowUserMenu(false);
-        }}
-      >
-        <FaSignInAlt className="text-primary" />
-        <span>Login</span>
-      </div>
-    )}
-  </div>
-)}
+              <div className="absolute top-11 right-0 bg-surface border border-border rounded-xl shadow-[0_4px_16px_rgba(0,0,0,0.12),0_1px_3px_rgba(0,0,0,0.08)] z-[999] w-[calc(100vw-2rem)] max-w-[220px] overflow-hidden">
+                {loggedIn ? (
+                  <>
+                    {userRole === 'Owner' && (
+                      <button
+                        onClick={handleAdminDashboard}
+                        className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-gray-700 bg-transparent border-none cursor-pointer hover:bg-gray-100 transition-colors"
+                      >
+                        <FaUserShield size={16} className="text-primary" />
+                        Owner Dashboard
+                      </button>
+                    )}
+                    {userRole === 'Admin' && (
+                      <button
+                        onClick={handleAdminDashboard}
+                        className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-gray-700 bg-transparent border-none cursor-pointer hover:bg-gray-100 transition-colors"
+                      >
+                        <FaUserShield size={16} className="text-primary" />
+                        Admin Dashboard
+                      </button>
+                    )}
+                    {userRole === 'Manager' && (
+                      <button
+                        onClick={handleAdminDashboard}
+                        className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-gray-700 bg-transparent border-none cursor-pointer hover:bg-gray-100 transition-colors"
+                      >
+                        <FaUserTie size={16} className="text-primary" />
+                        Manager Dashboard
+                      </button>
+                    )}
+                    {userRole !== 'User' && (
+                      <div className="border-t border-border" />
+                    )}
+                    <div className={menuRowClass} onClick={handleLogout}>
+                      <FaSignOutAlt className="text-primary" />
+                      <span>Logout</span>
+                    </div>
+                    <div className={menuRowClass} onClick={handleLogoutAll}>
+                      <FaSignOutAlt className="text-primary" />
+                      <span>Logout all devices</span>
+                    </div>
+                  </>
+                ) : (
+                  <div
+                    className={menuRowClass}
+                    onClick={() => {
+                      navigate('/login');
+                      setShowUserMenu(false);
+                    }}
+                  >
+                    <FaSignInAlt className="text-primary" />
+                    <span>Login</span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -257,7 +236,7 @@ function DirectoryHeader({
             value={searchValue}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Search files and folders..."
-            className="w-full pl-9 pr-3 py-2 rounded-lg border border-border text-sm bg-surface text-text transition-colors duration-150 focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/12"
+            className="w-full pl-9 pr-3 py-2 rounded-lg border border-border text-sm  text-text transition-colors duration-150 focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/12"
           />
         </div>
       )}

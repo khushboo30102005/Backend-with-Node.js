@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router';
-import { BASE_URL } from './Register';
+import { Link, useNavigate } from 'react-router';
 import DeleteUserModal from './components/DeleteUserModal';
 
 import {
@@ -31,6 +30,9 @@ const cellBase =
   'max-[640px]:before:text-[11px] max-[640px]:before:uppercase max-[640px]:before:tracking-wide ' +
   'max-[640px]:before:text-gray-400 max-[640px]:before:mr-3 max-[640px]:before:flex-shrink-0';
 
+const headerCell =
+  'text-left text-[11px] font-bold uppercase tracking-wide text-gray-400 px-5 py-4 border-b border-gray-100';
+
 const buttonBase =
   'px-3 py-1.5 text-xs font-semibold rounded-md border border-gray-300 bg-white text-gray-700 ' +
   'cursor-pointer transition-colors duration-150 hover:enabled:bg-gray-100 hover:enabled:border-gray-400 ' +
@@ -41,12 +43,30 @@ const dangerButton =
   'cursor-pointer transition-colors duration-150 hover:enabled:bg-red-100 hover:enabled:border-red-400 ' +
   'disabled:opacity-40 disabled:cursor-not-allowed';
 
+const tableClass =
+  'w-full border-separate border-spacing-0 bg-surface rounded-[14px] overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.06)] border border-gray-100 max-[640px]:block max-[640px]:bg-transparent max-[640px]:shadow-none max-[640px]:border-0';
+
+const rowClass =
+  'hover:bg-gray-50 transition-colors max-[640px]:block max-[640px]:bg-white max-[640px]:border max-[640px]:border-gray-100 max-[640px]:rounded-xl max-[640px]:shadow-sm max-[640px]:mb-3 max-[640px]:p-3';
+
+function Avatar({ user }) {
+  return user.picture ? (
+    <img
+      src={user.picture}
+      alt={user.name}
+      className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+    />
+  ) : (
+    <span className="w-8 h-8 rounded-full flex items-center justify-center bg-gradient-to-br from-indigo-500 to-purple-500 text-white text-xs font-bold flex-shrink-0">
+      {user.name?.[0]?.toUpperCase()}
+    </span>
+  );
+}
+
 export default function UsersPage() {
   const [users, setUsers] = useState([]);
-  const [loggedIn, setLoggedIn] = useState(false);
   const [userName, setUserName] = useState('Guest User');
   const [userEmail, setUserEmail] = useState('guest@example.com');
-  const [userPicture, setUserPicture] = useState(null);
   const [userRole, setUserRole] = useState(null);
   const [deleteModalUser, setDeleteModalUser] = useState(null);
   const [showDeleted, setShowDeleted] = useState(false);
@@ -70,8 +90,6 @@ export default function UsersPage() {
       setUserName(data.name);
       setUserEmail(data.email);
       setUserRole(data.role);
-      setUserPicture(data.picture);
-      setLoggedIn(true);
     } catch (err) {
       if (err.response?.status === 401) navigate('/login');
       else console.error('Error fetching user info:', err);
@@ -81,7 +99,6 @@ export default function UsersPage() {
   async function loadDeletedUsers() {
     try {
       const data = await fetchDeletedUsers();
-      console.log(data)
       setDeletedUsers(data);
     } catch (err) {
       console.error('Error fetching deleted users:', err);
@@ -152,13 +169,20 @@ export default function UsersPage() {
 
   useEffect(() => {
     if (showDeleted) {
-      loadDeletedUsers()
+      loadDeletedUsers();
     }
   }, [showDeleted]);
 
+  const canDelete = userRole === 'Admin' || userRole === 'Owner';
+  const canSeeRole = userRole !== 'User';
+
   return (
     <div className="max-w-[1100px] mx-auto my-10 px-4 md:px-6 font-sans text-text">
-      <h1 className="text-[28px] font-bold tracking-tight mb-1.5 inline-block bg-gradient-to-br from-primary to-purple-600 bg-clip-text text-transparent">
+      <Link to="/" className="text-sm text-primary hover:underline">
+        ← Back to My Drive
+      </Link>
+
+      <h1 className="mt-3 text-[28px] font-bold tracking-tight mb-1.5 block w-fit bg-gradient-to-br from-primary to-purple-600 bg-clip-text text-transparent">
         All Users
       </h1>
       <h2 className="text-sm font-medium text-gray-400 mb-7">
@@ -176,36 +200,19 @@ export default function UsersPage() {
 
       <div className="w-full overflow-x-auto">
         {showDeleted ? (
-          <table className="w-full border-separate border-spacing-0 bg-surface rounded-[14px] overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.06)] border border-gray-100 max-[640px]:block max-[640px]:bg-transparent max-[640px]:shadow-none max-[640px]:border-0">
+          <table className={tableClass}>
             <thead className="bg-gradient-to-b from-gray-50 to-gray-100 max-[640px]:hidden">
               <tr>
-                <th className="text-left text-[11px] font-bold uppercase tracking-wide text-gray-400 px-5 py-4 border-b border-gray-100">
-                  Name
-                </th>
-                <th className="text-left text-[11px] font-bold uppercase tracking-wide text-gray-400 px-5 py-4 border-b border-gray-100">
-                  Email
-                </th>
+                <th className={headerCell}>Name</th>
+                <th className={headerCell}>Email</th>
                 <th className="border-b border-gray-100"></th>
               </tr>
             </thead>
             <tbody className="max-[640px]:block">
               {deletedUsers.map((user) => (
-                <tr
-                  key={user._id}
-                  className="hover:bg-gray-50 transition-colors max-[640px]:block max-[640px]:bg-white max-[640px]:border max-[640px]:border-gray-100 max-[640px]:rounded-xl max-[640px]:shadow-sm max-[640px]:mb-3 max-[640px]:p-3"
-                >
+                <tr key={user._id} className={rowClass}>
                   <td className="flex items-center gap-2.5 font-semibold text-text px-3 py-2.5 border-b border-gray-100 max-[640px]:border-b-0">
-                    {user.picture ? (
-                      <img
-                        src={user.picture}
-                        alt={user.name}
-                        className="w-8 h-8 rounded-full object-cover flex-shrink-0"
-                      />
-                    ) : (
-                      <span className="w-8 h-8 rounded-full flex items-center justify-center bg-gradient-to-br from-indigo-500 to-purple-500 text-white text-xs font-bold flex-shrink-0">
-                        {user.name?.[0]?.toUpperCase()}
-                      </span>
-                    )}
+                    <Avatar user={user} />
                     <span>{user.name}</span>
                   </td>
                   <td className={cellBase} data-label="Email">
@@ -224,119 +231,103 @@ export default function UsersPage() {
             </tbody>
           </table>
         ) : (
-          <table className="w-full border-separate border-spacing-0 bg-surface rounded-[14px] overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.06)] border border-gray-100 max-[640px]:block max-[640px]:bg-transparent max-[640px]:shadow-none max-[640px]:border-0">
+          <table className={tableClass}>
             <thead className="bg-gradient-to-b from-gray-50 to-gray-100 max-[640px]:hidden">
               <tr>
-                <th className="text-left text-[11px] font-bold uppercase tracking-wide text-gray-400 px-5 py-4 border-b border-gray-100">
-                  Name
-                </th>
-                <th className="text-left text-[11px] font-bold uppercase tracking-wide text-gray-400 px-5 py-4 border-b border-gray-100">
-                  Email
-                </th>
-                <th className="text-left text-[11px] font-bold uppercase tracking-wide text-gray-400 px-5 py-4 border-b border-gray-100">
-                  Status
-                </th>
+                <th className={headerCell}>Name</th>
+                <th className={headerCell}>Email</th>
+                <th className={headerCell}>Status</th>
                 <th className="border-b border-gray-100"></th>
-                
-                {userRole !== 'User' && (
-                  <th className="border-b border-gray-100"></th>
-                )}
-                {userRole !== 'User' && (
-                  <th className="border-b border-gray-100"></th>
-                )}
+                {canDelete && <th className="border-b border-gray-100"></th>}
+                {canSeeRole && <th className={headerCell}>Role</th>}
               </tr>
             </thead>
             <tbody className="max-[640px]:block">
-              {users.map((user) => (
-                <tr
-                  key={user._id}
-                  className="hover:bg-gray-50 transition-colors max-[640px]:block max-[640px]:bg-white max-[640px]:border max-[640px]:border-gray-100 max-[640px]:rounded-xl max-[640px]:shadow-sm max-[640px]:mb-3 max-[640px]:p-3"
-                >
-                  <td className="flex items-center gap-2.5 font-semibold text-text px-3 py-2.5 border-b border-gray-100 max-[640px]:border-b-0">
-                    {user.picture ? (
-                      <img
-                        src={user.picture}
-                        alt={user.name}
-                        className="w-8 h-8 rounded-full object-cover flex-shrink-0"
-                      />
-                    ) : (
-                      <span className="w-8 h-8 rounded-full flex items-center justify-center bg-gradient-to-br from-indigo-500 to-purple-500 text-white text-xs font-bold flex-shrink-0">
-                        {user.name?.[0]?.toUpperCase()}
-                      </span>
-                    )}
-                    <span>{user.name}</span>
-                  </td>
-                  <td className={cellBase} data-label="Email">
-                    {user.email}
-                  </td>
-                  <td className={cellBase} data-label="Status">
-                    {user.isLoggedIn ? 'Logged In' : 'Logged Out'}
-                  </td>
-                  <td className={cellBase} data-label="Logout">
-                    <button
-                      className={buttonBase}
-                      onClick={() => logoutUser(user)}
-                      disabled={
-                        !user.isLoggedIn ||
-                        (userRole === 'Manager' &&
-                          (user.role === 'Admin' || user.role === 'Owner')) ||
-                        (userRole === 'Admin' && user.role === 'Owner')
-                      }
-                    >
-                      Logout
-                    </button>
-                  </td>
-                  {(userRole === 'Admin' || userRole === 'Owner') && (
-                    <td className={cellBase} data-label="Delete">
+              {users.map((user) => {
+                const locked =
+                  userEmail === user.email ||
+                  ROLE_RANKS[userRole] < ROLE_RANKS[user.role];
+                return (
+                  <tr key={user._id} className={rowClass}>
+                    <td className="flex items-center gap-2.5 font-semibold text-text px-3 py-2.5 border-b border-gray-100 max-[640px]:border-b-0">
+                      <Avatar user={user} />
+                      <span>{user.name}</span>
+                    </td>
+                    <td className={cellBase} data-label="Email">
+                      {user.email}
+                    </td>
+                    <td className={cellBase} data-label="Status">
+                      {user.isLoggedIn ? 'Logged In' : 'Logged Out'}
+                    </td>
+                    <td className={cellBase} data-label="Logout">
                       <button
-                        className={dangerButton}
-                        onClick={() => setDeleteModalUser(user)}
+                        className={buttonBase}
+                        onClick={() => logoutUser(user)}
                         disabled={
-                          userEmail === user.email ||
-                          ROLE_RANKS[userRole] < ROLE_RANKS[user.role]
+                          !user.isLoggedIn ||
+                          (userRole === 'Manager' &&
+                            (user.role === 'Admin' ||
+                              user.role === 'Owner')) ||
+                          (userRole === 'Admin' && user.role === 'Owner')
                         }
                       >
-                        Delete
+                        Logout
                       </button>
                     </td>
-                  )}
-
-                  {userRole !== 'User' && (
-                    <td className={cellBase} data-label="Role">
-                      <div className="flex items-center gap-2 max-[640px]:flex-wrap max-[640px]:w-full">
-                        <select
-                          className="px-2.5 py-1.5 rounded-md border border-gray-300 text-[13px] bg-white flex-1 min-w-0"
-                          value={roleEdits[user._id] ?? user.role}
-                          onChange={(e) =>
-                            handleRoleSelect(user._id, e.target.value)
-                          }
-                          disabled={
-                            userEmail === user.email ||
-                            ROLE_RANKS[userRole] < ROLE_RANKS[user.role]
-                          }
-                        >
-                          <option value="User">User</option>
-                          <option value="Manager">Manager</option>
-                          <option value="Admin">Admin</option>
-                          <option value="Owner">Owner</option>
-                        </select>
+                    {canDelete && (
+                      <td className={cellBase} data-label="Delete">
                         <button
-                          className={buttonBase}
-                          onClick={() => saveRole(user)}
-                          disabled={
-                            userEmail === user.email ||
-                            ROLE_RANKS[userRole] < ROLE_RANKS[user.role] ||
-                            !roleEdits[user._id] ||
-                            roleEdits[user._id] === user.role
-                          }
+                          className={dangerButton}
+                          onClick={() => setDeleteModalUser(user)}
+                          disabled={locked}
                         >
-                          Save
+                          Delete
                         </button>
-                      </div>
-                    </td>
-                  )}
-                </tr>
-              ))}
+                      </td>
+                    )}
+
+                    {canSeeRole && (
+                      <td className={cellBase} data-label="Role">
+                        <div className="flex items-center gap-2 max-[640px]:flex-wrap max-[640px]:w-full">
+                          <select
+                            className="px-2.5 py-1.5 rounded-md border border-gray-300 text-[13px] bg-white flex-1 min-w-0"
+                            value={roleEdits[user._id] ?? user.role}
+                            onChange={(e) =>
+                              handleRoleSelect(user._id, e.target.value)
+                            }
+                            disabled={locked}
+                          >
+                            {/* Only offer roles the current user may assign
+                                (the server rejects anything higher). */}
+                            {Object.keys(ROLE_RANKS)
+                              .filter(
+                                (r) =>
+                                  ROLE_RANKS[r] <= ROLE_RANKS[userRole] ||
+                                  r === user.role,
+                              )
+                              .map((r) => (
+                                <option key={r} value={r}>
+                                  {r}
+                                </option>
+                              ))}
+                          </select>
+                          <button
+                            className={buttonBase}
+                            onClick={() => saveRole(user)}
+                            disabled={
+                              locked ||
+                              !roleEdits[user._id] ||
+                              roleEdits[user._id] === user.role
+                            }
+                          >
+                            Save
+                          </button>
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}

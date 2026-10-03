@@ -60,6 +60,13 @@ function DirectoryView() {
     loadStorageInfo();
   }, [storageRefreshKey]);
 
+  // Tell the Sidebar to refresh its storage ring after uploads/deletes/moves
+  useEffect(() => {
+    if (storageRefreshKey > 0) {
+      window.dispatchEvent(new Event('storage-changed'));
+    }
+  }, [storageRefreshKey]);
+
   const [shareModalItem, setShareModalItem] = useState(null);
 
   const [directoryName, setDirectoryName] = useState('My Drive');
@@ -68,9 +75,13 @@ function DirectoryView() {
   const [directoriesList, setDirectoriesList] = useState([]);
   const [filesList, setFilesList] = useState([]);
 
-  // Auto-dismissing error states (section 12)
+  // Auto-dismissing error states
   const [errorMessage, setErrorMessage] = useAutoDismissError();
   const [modalError, setModalError] = useAutoDismissError();
+
+  // "Directory not found" is a persistent page state, not a toast, so it
+  // must not live in the auto-dismissing error.
+  const [dirNotFound, setDirNotFound] = useState(false);
 
   const [showCreateDirModal, setShowCreateDirModal] = useState(false);
   const [newDirname, setNewDirname] = useState('New Folder');
@@ -88,15 +99,18 @@ function DirectoryView() {
   const [uploadControllerMap, setUploadControllerMap] = useState({});
   const [progressMap, setProgressMap] = useState({});
   const [isUploading, setIsUploading] = useState(false);
+  // Ids of queued uploads the user cancelled before their turn came
+  const cancelledRef = useRef(new Set());
 
   const [activeContextMenu, setActiveContextMenu] = useState(null);
   const [contextMenuPos, setContextMenuPos] = useState({ x: 0, y: 0 });
 
-  // Search UI (client-side filter only — no backend search endpoint exists)
+  // Search UI (client-side filter only)
   const [searchQuery, setSearchQuery] = useState('');
 
   async function getDirectoryItems() {
     setErrorMessage('');
+    setDirNotFound(false);
     try {
       const data = await fetchDirectoryItems(dirId);
       setDirectoryName(dirId ? data.name : 'My Drive');
@@ -106,6 +120,10 @@ function DirectoryView() {
     } catch (err) {
       if (err.response?.status === 401) {
         navigate('/login');
+        return;
+      }
+      if (err.response?.status === 404) {
+        setDirNotFound(true);
         return;
       }
       setErrorMessage(err.response?.data?.error || 'Request failed');
@@ -178,7 +196,8 @@ function DirectoryView() {
     if (type === 'directory') {
       navigate(`/directory/${id}`);
     } else {
-      window.location.href = `${BASE_URL}${getFileUrl(id)}`;
+      // Open in a new tab so the app (and any running upload) stays alive
+      window.open(`${BASE_URL}${getFileUrl(id)}`, '_blank', 'noopener');
     }
   }
 
@@ -247,6 +266,13 @@ function DirectoryView() {
 
     const [currentItem, ...restQueue] = queue;
 
+    // Skip uploads that were cancelled while waiting in the queue
+    if (cancelledRef.current.has(currentItem.id)) {
+      cancelledRef.current.delete(currentItem.id);
+      processUploadQueue(restQueue);
+      return;
+    }
+
     setFilesList((prev) =>
       prev.map((f) =>
         f.id === currentItem.id ? { ...f, isUploading: true } : f,
@@ -289,6 +315,8 @@ function DirectoryView() {
   }
 
   function handleCancelUpload(tempId) {
+    cancelledRef.current.add(tempId);
+
     const controller = uploadControllerMap[tempId];
     if (controller) {
       controller.abort();
@@ -396,8 +424,7 @@ function DirectoryView() {
     ? combinedItems.filter((item) => item.name.toLowerCase().includes(query))
     : combinedItems;
 
-  const isDirNotFoundError =
-    errorMessage === 'Directory not found or you do not have access to it!';
+  const isDirNotFoundError = dirNotFound;
 
   const selectableItems = visibleItems.filter(
     (item) => !item.id.startsWith('temp-'),
@@ -532,7 +559,7 @@ function DirectoryView() {
         breadcrumb={breadcrumb}
         onBreadcrumbClick={handleBreadcrumbClick}
       />
-      {errorMessage && !isDirNotFoundError && (
+      {errorMessage && (
         <div className="bg-red-50 text-danger border border-red-200 rounded-lg px-4 py-2.5 text-sm mt-4">
           {errorMessage}
         </div>

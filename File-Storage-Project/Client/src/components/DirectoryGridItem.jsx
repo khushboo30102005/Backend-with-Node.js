@@ -24,10 +24,21 @@ function DirectoryGridItem({
   const permission = item.permission || 'owner';
   const canSelect = permission === 'owner';
 
+  function handleClick() {
+    if (activeContextMenu) return;
+    if (selectionMode) {
+      if (canSelect) onToggleSelect(item);
+      return;
+    }
+    handleRowClick('directory', item.id);
+  }
+
   return (
     <div
-      className="group relative flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border border-border bg-surface cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(0,0,0,0.06)] hover:border-gray-300 active:scale-[0.97]"
-      onClick={() => (!activeContextMenu ? handleRowClick('directory', item.id) : null)}
+      className={`group relative flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border bg-surface cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(0,0,0,0.06)] hover:border-gray-300 active:scale-[0.97] ${
+        isSelected ? 'border-primary bg-primary/5' : 'border-border'
+      }`}
+      onClick={handleClick}
       onContextMenu={(e) => handleContextMenu(e, item.id)}
     >
       {canSelect && selectionMode && (
@@ -41,8 +52,10 @@ function DirectoryGridItem({
         />
       )}
 
+      {/* Always visible on touch screens, hover-only on larger screens */}
       <div
-        className="absolute top-1.5 right-1.5 flex items-center justify-center text-text-muted rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150 hover:bg-gray-100 hover:text-text"
+        className="absolute top-1.5 right-1.5 flex items-center justify-center text-text-muted rounded-full p-1.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-150 hover:bg-gray-100 hover:text-text"
+        onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => handleContextMenu(e, item.id)}
       >
         <BsThreeDotsVertical size={14} />

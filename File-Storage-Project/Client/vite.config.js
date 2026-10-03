@@ -11,7 +11,7 @@ export default defineConfig({
         "default-src 'self'; " +
         "script-src 'self' 'unsafe-inline' https://accounts.google.com https://apis.google.com; " +
         "connect-src 'self' http://localhost:4000 https://accounts.google.com; " +
-        "img-src 'self' data: blob: https://*.googleusercontent.com; " +
+        "img-src 'self' data: blob: https://*.googleusercontent.com https://cdn.pixabay.com; " +
         "style-src 'self' 'unsafe-inline' https://accounts.google.com; " +
         "frame-src 'self' https://accounts.google.com; " +
         "object-src 'none'; " +

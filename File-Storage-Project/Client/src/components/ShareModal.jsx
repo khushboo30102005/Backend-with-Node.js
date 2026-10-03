@@ -138,6 +138,9 @@ function ShareModal({ file, onClose }) {
   const isSearchingOwnEmail =
     currentUserEmail && query.trim().toLowerCase() === currentUserEmail;
 
+  const selectClass =
+    'border border-border text-sm bg-surface text-text rounded-lg';
+
   return (
     <div
       className="fixed inset-0 bg-black/45 backdrop-blur-[2px] flex items-center justify-center z-[999] p-4"
@@ -150,7 +153,10 @@ function ShareModal({ file, onClose }) {
         {/* Header */}
         <div className="flex items-start justify-between gap-3 px-6 pt-6 pb-4">
           <div className="min-w-0">
-            <h2 className="text-base font-bold text-text truncate" title={file.name}>
+            <h2
+              className="text-base font-bold text-text truncate"
+              title={file.name}
+            >
               Share "{file.name}"
             </h2>
           </div>
@@ -170,8 +176,11 @@ function ShareModal({ file, onClose }) {
 
           {selectedUser ? (
             <>
-              <div className="flex items-center gap-2.5 mb-3 px-3 py-2 rounded-lg border border-primary bg-indigo-50">
-                <FaUserCircle className="text-gray-400 flex-shrink-0" size={22} />
+              <div className="flex items-center gap-2.5 mb-3 px-3 py-2 rounded-lg border border-primary bg-primary/10">
+                <FaUserCircle
+                  className="text-gray-400 flex-shrink-0"
+                  size={22}
+                />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-text truncate">
                     {selectedUser.name}
@@ -193,7 +202,7 @@ function ShareModal({ file, onClose }) {
                 <select
                   value={newPermission}
                   onChange={(e) => setNewPermission(e.target.value)}
-                  className="flex-1 px-2.5 py-2 rounded-lg border border-border text-sm bg-white"
+                  className={`flex-1 px-2.5 py-2 ${selectClass}`}
                 >
                   <option value="viewer">Viewer — can view & download</option>
                   <option value="editor">Editor — can also rename</option>
@@ -218,20 +227,23 @@ function ShareModal({ file, onClose }) {
                   type="text"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search by exact email address..."
-                  className="w-full pl-8 pr-3 py-2 rounded-lg border border-border text-sm focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/12"
+                  placeholder="Search by email address..."
+                  className="w-full pl-8 pr-3 py-2 rounded-lg border border-border text-sm bg-surface text-text focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/12"
                 />
               </div>
 
               {query.trim().length >= 3 && (
-                <div className="mt-1.5 bg-white border border-border rounded-lg max-h-[180px] overflow-y-auto">
+                <div className="mt-1.5 bg-surface border border-border rounded-lg max-h-[180px] overflow-y-auto">
                   {searching ? (
-                    <p className="text-xs text-text-muted px-3 py-2.5">Searching...</p>
+                    <p className="text-xs text-text-muted px-3 py-2.5">
+                      Searching...
+                    </p>
                   ) : results.length === 0 && hasSearched ? (
                     <div className="px-3 py-2.5">
                       {isSearchingOwnEmail ? (
                         <p className="text-xs text-text-muted">
-                          That's your own account — you can't share a file with yourself.
+                          That's your own account — you can't share a file with
+                          yourself.
                         </p>
                       ) : (
                         <>
@@ -239,7 +251,8 @@ function ShareModal({ file, onClose }) {
                             No registered user found with that email.
                           </p>
                           <p className="text-[11px] text-gray-400 mt-0.5">
-                            You can only share with people who already have an account.
+                            You can only share with people who already have an
+                            account.
                           </p>
                         </>
                       )}
@@ -249,12 +262,19 @@ function ShareModal({ file, onClose }) {
                       <button
                         key={user._id}
                         onClick={() => selectUser(user)}
-                        className="flex items-center gap-2.5 w-full px-3 py-2 text-left hover:bg-gray-100 transition-colors"
+                        className="flex items-center gap-2.5 w-full px-3 py-2 text-left hover:bg-surface-hover transition-colors"
                       >
-                        <FaUserCircle className="text-gray-400 flex-shrink-0" size={20} />
+                        <FaUserCircle
+                          className="text-gray-400 flex-shrink-0"
+                          size={20}
+                        />
                         <div className="min-w-0">
-                          <p className="text-sm text-text truncate">{user.name}</p>
-                          <p className="text-xs text-text-muted truncate">{user.email}</p>
+                          <p className="text-sm text-text truncate">
+                            {user.name}
+                          </p>
+                          <p className="text-xs text-text-muted truncate">
+                            {user.email}
+                          </p>
                         </div>
                       </button>
                     ))
@@ -265,7 +285,9 @@ function ShareModal({ file, onClose }) {
           )}
 
           {successMessage && (
-            <p className="text-xs text-emerald-600 font-medium mb-3">{successMessage}</p>
+            <p className="text-xs text-emerald-600 font-medium mb-3">
+              {successMessage}
+            </p>
           )}
           {error && <p className="text-xs text-danger mb-3">{error}</p>}
 
@@ -277,14 +299,19 @@ function ShareModal({ file, onClose }) {
             {loadingShares ? (
               <p className="text-xs text-text-muted py-2">Loading...</p>
             ) : shares.length === 0 ? (
-              <p className="text-xs text-text-muted py-2">Not shared with anyone yet.</p>
+              <p className="text-xs text-text-muted py-2">
+                Not shared with anyone yet.
+              </p>
             ) : (
               shares.map((share) => (
                 <div
                   key={share.shareId}
                   className="flex items-center gap-2.5 py-2"
                 >
-                  <FaUserCircle className="text-gray-400 flex-shrink-0" size={22} />
+                  <FaUserCircle
+                    className="text-gray-400 flex-shrink-0"
+                    size={22}
+                  />
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-text truncate">
                       {share.user.name}
@@ -295,8 +322,10 @@ function ShareModal({ file, onClose }) {
                   </div>
                   <select
                     value={share.permission}
-                    onChange={(e) => handlePermissionChange(share, e.target.value)}
-                    className="px-2 py-1.5 rounded-md border border-gray-300 text-xs bg-white flex-shrink-0"
+                    onChange={(e) =>
+                      handlePermissionChange(share, e.target.value)
+                    }
+                    className={`px-2 py-1.5 text-xs flex-shrink-0 ${selectClass} rounded-md`}
                   >
                     <option value="viewer">Viewer</option>
                     <option value="editor">Editor</option>

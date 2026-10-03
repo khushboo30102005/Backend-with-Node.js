@@ -57,11 +57,15 @@ function Sidebar() {
         const total = data.maxStorageInBytes || 1;
         setUsedPercent(Math.min((data.usedStorageInBytes / total) * 100, 100));
       } catch (err) {
-        // Sidebar shows a blank profile card if this fails — non-critical,
-        // DirectoryHeader/pages still redirect to /login on real auth failures.
+        // Non-critical — pages redirect to /login on real auth failures.
       }
     }
     loadUser();
+
+    // DirectoryView fires this after uploads / deletes / moves so the
+    // storage ring never goes stale.
+    window.addEventListener('storage-changed', loadUser);
+    return () => window.removeEventListener('storage-changed', loadUser);
   }, []);
 
   useEffect(() => {

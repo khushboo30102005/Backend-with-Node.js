@@ -3,7 +3,6 @@ import { GoogleLogin } from '@react-oauth/google';
 import { Link, useNavigate } from 'react-router';
 import { loginWithGoogle, verifyLoginOtp } from './apis/authApi.js';
 import { FaGithub } from 'react-icons/fa';
-import { BASE_URL } from './Register.jsx';
 import { loginUser } from './apis/userApi.js';
 
 const Login = () => {
@@ -37,17 +36,21 @@ const Login = () => {
     return () => clearTimeout(timer);
   }, [countdown, otpVerified]);
 
+  const resetOtpState = () => {
+    setOtp('');
+    setOtpSent(false);
+    setOtpVerified(false);
+    setOtpError('');
+    setCountdown(0);
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
 
     setServerError('');
 
     if (name === 'email') {
-      setOtp('');
-      setOtpSent(false);
-      setOtpVerified(false);
-      setOtpError('');
-      setCountdown(0);
+      resetOtpState();
     }
 
     setFormData((prev) => ({
@@ -90,6 +93,16 @@ const Login = () => {
     }
   };
 
+  // Enter key submits whichever step is active
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (otpSent) {
+      if (!isVerifying && !otpVerified && countdown > 0) handleVerifyOtp();
+    } else if (!isSending) {
+      handleLogin();
+    }
+  };
+
   const loginWithGitHub = () => {
     const params = new URLSearchParams({
       client_id: import.meta.env.VITE_GITHUB_CLIENT_ID,
@@ -100,21 +113,24 @@ const Login = () => {
     window.location.href = `https://github.com/login/oauth/authorize?${params}`;
   };
 
+  const inputClass = (hasError) =>
+    `w-full px-3 py-2.5 box-border border rounded-lg text-sm transition-[border-color,box-shadow] duration-150 focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/12 disabled:opacity-60 ${
+      hasError ? 'border-danger' : 'border-border'
+    }`;
+
   return (
     <div className="max-w-[400px] mx-auto my-[60px] p-8 bg-surface rounded-2xl shadow-[0_1px_3px_rgba(0,0,0,0.04),0_12px_32px_rgba(0,0,0,0.08)] border border-border font-sans">
       <h2 className="text-center mb-6 text-2xl font-bold tracking-tight text-text">
         Login
       </h2>
-      <form className="flex flex-col">
+      <form className="flex flex-col" onSubmit={handleSubmit}>
         {/* Email */}
         <div className="relative mb-5">
           <label className="block mb-1.5 font-semibold text-[13px] text-gray-700">
             Email
           </label>
           <input
-            className={`w-full px-3 py-2.5 box-border border rounded-lg text-sm transition-[border-color,box-shadow] duration-150 focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/12 disabled:opacity-60 ${
-              serverError ? 'border-danger' : 'border-border'
-            }`}
+            className={inputClass(serverError)}
             type="email"
             name="email"
             value={formData.email}
@@ -123,6 +139,15 @@ const Login = () => {
             disabled={otpSent}
             required
           />
+          {otpSent && (
+            <button
+              type="button"
+              className="mt-1.5 text-xs text-primary font-semibold hover:underline"
+              onClick={resetOtpState}
+            >
+              Use a different email
+            </button>
+          )}
         </div>
 
         {/* Password */}
@@ -131,9 +156,7 @@ const Login = () => {
             Password
           </label>
           <input
-            className={`w-full px-3 py-2.5 box-border border rounded-lg text-sm transition-[border-color,box-shadow] duration-150 focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/12 disabled:opacity-60 ${
-              serverError ? 'border-danger' : 'border-border'
-            }`}
+            className={inputClass(serverError)}
             type="password"
             name="password"
             value={formData.password}
@@ -152,9 +175,8 @@ const Login = () => {
         {/* Send OTP / Login */}
         {!otpSent && (
           <button
-            type="button"
+            type="submit"
             className="w-full mt-1 px-4 py-[11px] rounded-lg text-white text-sm font-semibold cursor-pointer transition-[background-color,transform] duration-150 bg-primary hover:bg-primary-hover hover:-translate-y-px disabled:bg-indigo-200 disabled:cursor-not-allowed disabled:translate-y-0"
-            onClick={handleLogin}
             disabled={isSending}
           >
             {isSending ? 'Checking...' : 'Login'}
@@ -177,6 +199,7 @@ const Login = () => {
                   maxLength={4}
                   placeholder="4-digit OTP"
                   disabled={otpVerified}
+                  autoFocus
                 />
                 <button
                   type="button"
@@ -194,14 +217,15 @@ const Login = () => {
               )}
             </div>
 
+            {/* Disabled style only on the non-verified branch so the
+                "Verified" state stays green. */}
             <button
-              type="button"
-              className={`w-full mt-1 px-4 py-[11px] rounded-lg text-white text-sm font-semibold cursor-pointer transition-[background-color,transform] duration-150 disabled:bg-indigo-200 disabled:cursor-not-allowed disabled:translate-y-0 ${
+              type="submit"
+              className={`w-full mt-1 px-4 py-[11px] rounded-lg text-white text-sm font-semibold transition-[background-color,transform] duration-150 ${
                 otpVerified
-                  ? 'bg-success'
-                  : 'bg-primary hover:bg-primary-hover hover:-translate-y-px'
+                  ? 'bg-success cursor-default'
+                  : 'bg-primary cursor-pointer hover:bg-primary-hover hover:-translate-y-px disabled:bg-indigo-200 disabled:cursor-not-allowed disabled:translate-y-0'
               }`}
-              onClick={handleVerifyOtp}
               disabled={isVerifying || otpVerified || countdown === 0}
             >
               {isVerifying
@@ -237,14 +261,16 @@ const Login = () => {
               await loginWithGoogle(credentialResponse.credential);
               navigate('/');
             } catch (err) {
-              console.log(err.response?.data);
+              setServerError(
+                err.response?.data?.error || 'Google login failed.',
+              );
             }
           }}
           theme="filled_blue"
           text="continue_with"
           shape="pill"
           onError={() => {
-            console.log('Login Failed');
+            setServerError('Google login failed.');
           }}
           useOneTap
         />
@@ -252,6 +278,7 @@ const Login = () => {
 
       <div>
         <button
+          type="button"
           className="w-full max-w-[260px] h-10 mx-auto mt-2.5 flex items-center justify-center gap-2.5 bg-[#1a73e8] text-white border-none rounded-full text-sm font-medium cursor-pointer transition-colors duration-200 hover:bg-[#1765cc] active:bg-[#1557b0] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1a73e8] focus-visible:outline-offset-2"
           onClick={loginWithGitHub}
         >

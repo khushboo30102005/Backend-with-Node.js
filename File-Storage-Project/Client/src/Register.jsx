@@ -46,7 +46,6 @@ const Register = () => {
   }, [countdown, otpVerified]);
 
   // Send OTP handler
-
   const handleSendOtp = async () => {
     const { email } = formData;
     if (!email) {
@@ -97,12 +96,15 @@ const Register = () => {
       setIsSuccess(true);
       setTimeout(() => navigate('/login'), 2000);
     } catch (err) {
-      console.log(err.response?.data?.error);
+      // Show the real reason (email already exists, account deleted, ...)
       setServerError(
-       'Registration failed. Please try again.',
+        err.response?.data?.error || 'Registration failed. Please try again.',
       );
     }
   };
+
+  const errorTextClass =
+    'absolute top-full left-0 mt-1 text-[0.72rem] text-danger whitespace-nowrap';
 
   return (
     <div className="max-w-[400px] mx-auto my-[60px] p-8 bg-surface rounded-2xl shadow-[0_1px_3px_rgba(0,0,0,0.04),0_12px_32px_rgba(0,0,0,0.08)] border border-border font-sans">
@@ -141,7 +143,9 @@ const Register = () => {
           <div className="relative">
             <input
               className={`w-full pr-[84px] px-3 py-2.5 box-border border rounded-lg text-sm transition-[border-color,box-shadow] duration-150 focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/12 ${
-                serverError ? 'border-danger' : 'border-border'
+                serverError || (!otpSent && otpError)
+                  ? 'border-danger'
+                  : 'border-border'
               }`}
               type="email"
               id="email"
@@ -166,10 +170,11 @@ const Register = () => {
                     : 'Send OTP'}
             </button>
           </div>
-          {serverError && (
-            <span className="absolute top-full left-0 mt-1 text-[0.72rem] text-danger whitespace-nowrap">
-              {serverError}
-            </span>
+          {serverError && <span className={errorTextClass}>{serverError}</span>}
+          {/* Before the OTP box exists, send-OTP failures (rate limit,
+              invalid email) have nowhere else to show. */}
+          {!otpSent && !serverError && otpError && (
+            <span className={errorTextClass}>{otpError}</span>
           )}
         </div>
 
@@ -195,11 +200,7 @@ const Register = () => {
                 disabled={otpVerified || countdown === 0}
                 required
               />
-              {otpError && (
-                <span className="absolute top-full left-0 mt-1 text-[0.72rem] text-danger whitespace-nowrap">
-                  {otpError}
-                </span>
-              )}
+              {otpError && <span className={errorTextClass}>{otpError}</span>}
               <button
                 type="button"
                 className="absolute top-1/2 right-1.5 -translate-y-1/2 px-2.5 py-1.5 text-xs font-semibold leading-none rounded-md bg-primary text-white cursor-pointer transition-colors duration-150 hover:bg-primary-hover disabled:opacity-55 disabled:cursor-not-allowed"
@@ -238,12 +239,14 @@ const Register = () => {
           />
         </div>
 
+        {/* The disabled style lives only on the non-success branch, so the
+            success state stays green instead of turning light indigo. */}
         <button
           type="submit"
-          className={`w-full mt-1 px-4 py-[11px] rounded-lg text-white text-sm font-semibold cursor-pointer transition-[background-color,transform] duration-150 disabled:bg-indigo-200 disabled:cursor-not-allowed disabled:translate-y-0 ${
+          className={`w-full mt-1 px-4 py-[11px] rounded-lg text-white text-sm font-semibold transition-[background-color,transform] duration-150 ${
             isSuccess
-              ? 'bg-success'
-              : 'bg-primary hover:bg-primary-hover hover:-translate-y-px'
+              ? 'bg-success cursor-default'
+              : 'bg-primary cursor-pointer hover:bg-primary-hover hover:-translate-y-px disabled:bg-indigo-200 disabled:cursor-not-allowed disabled:translate-y-0'
           }`}
           disabled={!otpVerified || isSuccess}
         >
@@ -272,13 +275,15 @@ const Register = () => {
               await loginWithGoogle(credentialResponse.credential);
               navigate('/');
             } catch (err) {
-              console.log(err.response?.data);
+              setServerError(
+                err.response?.data?.error || 'Google sign-in failed.',
+              );
             }
           }}
           theme="filled_blue"
           text="continue_with"
           onError={() => {
-            console.log('Login Failed');
+            setServerError('Google sign-in failed.');
           }}
           useOneTap
         />

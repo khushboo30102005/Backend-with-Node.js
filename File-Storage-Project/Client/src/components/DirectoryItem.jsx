@@ -38,7 +38,6 @@ function DirectoryItem({
   handleContextMenu,
   closeContextMenu,
   getFileIcon,
-  isUploading,
   uploadProgress,
   handleCancelUpload,
   openRenameModal,
@@ -62,14 +61,22 @@ function DirectoryItem({
   const permission = item.permission || 'owner';
   const canSelect = permission === 'owner';
 
+  function handleClick() {
+    // Only this row's own upload state matters, not whether *any* upload runs
+    if (activeContextMenu || isUploadingItem) return;
+    if (selectionMode) {
+      if (canSelect) onToggleSelect(item);
+      return;
+    }
+    handleRowClick(item.isDirectory ? 'directory' : 'file', item.id);
+  }
+
   return (
     <div
-      className="flex flex-col relative gap-1 border border-border rounded-[10px] bg-surface cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:bg-surface-hover hover:border-gray-300 hover:shadow-[0_4px_12px_rgba(0,0,0,0.06)] active:scale-[0.99]"
-      onClick={() =>
-        !(activeContextMenu || isUploading)
-          ? handleRowClick(item.isDirectory ? 'directory' : 'file', item.id)
-          : null
-      }
+      className={`flex flex-col relative gap-1 border rounded-[10px] bg-surface cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:bg-surface-hover hover:border-gray-300 hover:shadow-[0_4px_12px_rgba(0,0,0,0.06)] active:scale-[0.99] ${
+        isSelected ? 'border-primary bg-primary/5' : 'border-border'
+      }`}
+      onClick={handleClick}
       onContextMenu={(e) => handleContextMenu(e, item.id)}
     >
       <div className="flex items-center gap-3 px-3.5 py-2.5">
@@ -117,6 +124,7 @@ function DirectoryItem({
         {/* Three dots for context menu */}
         <div
           className={`flex items-center justify-center text-[1.2em] cursor-pointer flex-shrink-0 text-text-muted rounded-full p-2 transition-colors duration-150 hover:bg-gray-100 hover:text-text ${isUploadingItem ? '' : 'sm:ml-0 ml-auto'}`}
+          onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => handleContextMenu(e, item.id)}
         >
           <BsThreeDotsVertical />

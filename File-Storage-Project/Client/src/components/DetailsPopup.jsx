@@ -1,5 +1,12 @@
-import { useEffect, useState } from 'react';
-import { FaFolder, FaFileAlt, FaClock, FaHdd, FaUserCircle, FaTimes } from 'react-icons/fa';
+import { useEffect } from 'react';
+import {
+  FaFolder,
+  FaFileAlt,
+  FaClock,
+  FaHdd,
+  FaUserCircle,
+  FaTimes,
+} from 'react-icons/fa';
 
 export const formatSize = (bytes = 0) => {
   const KB = 1024;
@@ -24,11 +31,6 @@ function DetailRow({ label, value }) {
 }
 
 function DetailsPopup({ item, breadcrumb = [], onClose }) {
-  const [details] = useState({
-    numberOfFiles: 0,
-    numberOfFolders: 0,
-  });
-
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') onClose();
@@ -40,7 +42,6 @@ function DetailsPopup({ item, breadcrumb = [], onClose }) {
   if (!item) return null;
 
   const { name, isDirectory, size, createdAt, updatedAt, sharedBy } = item;
-  const { numberOfFiles, numberOfFolders } = details;
 
   const path =
     breadcrumb.length > 0
@@ -48,8 +49,7 @@ function DetailsPopup({ item, breadcrumb = [], onClose }) {
       : name;
 
   // "Shared with me" items carry `sharedBy` — for those, show a trimmed
-  // view (Shared by / Path / Size only). Own Drive items never set this,
-  // so they keep the full detail set unchanged.
+  // view (Shared by / Path / Size only).
   const isSharedItem = Boolean(sharedBy);
 
   return (
@@ -98,14 +98,20 @@ function DetailsPopup({ item, breadcrumb = [], onClose }) {
               label="Shared by"
               value={
                 <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-                  <FaUserCircle size={12} className="text-text-muted flex-shrink-0" />
+                  <FaUserCircle
+                    size={12}
+                    className="text-text-muted flex-shrink-0"
+                  />
                   {sharedBy.name}
                 </span>
               }
             />
           )}
 
-          <DetailRow label="Path" value={<span className="break-all">{path}</span>} />
+          <DetailRow
+            label="Path"
+            value={<span className="break-all">{path}</span>}
+          />
           <DetailRow
             label="Size"
             value={
@@ -136,12 +142,6 @@ function DetailsPopup({ item, breadcrumb = [], onClose }) {
                   </span>
                 }
               />
-              {isDirectory && (
-                <>
-                  <DetailRow label="Files" value={numberOfFiles} />
-                  <DetailRow label="Folders" value={numberOfFolders} />
-                </>
-              )}
             </>
           )}
         </div>

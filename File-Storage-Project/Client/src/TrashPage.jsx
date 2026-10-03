@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router';
 import { FaTrash } from 'react-icons/fa';
 import DirectoryHeader from './components/DirectoryHeader';
 import DirectoryList from './components/DirectoryList';
@@ -13,6 +14,7 @@ import { restoreFile, permanentlyDeleteFile } from './apis/fileApi';
 import { useAutoDismissError } from './hooks/useAutoDismissError';
 
 function TrashPage() {
+  const navigate = useNavigate();
   const [directories, setDirectories] = useState([]);
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -34,6 +36,10 @@ function TrashPage() {
       setDirectories(data.directories || []);
       setFiles(data.files || []);
     } catch (err) {
+      if (err.response?.status === 401) {
+        navigate('/login');
+        return;
+      }
       setErrorMessage(err.response?.data?.error || 'Could not load Trash.');
     } finally {
       setLoading(false);
@@ -73,8 +79,7 @@ function TrashPage() {
     }
   }
 
-  // Trashed items aren't browsable or downloadable-as-navigation — the
-  // row click does nothing here; all actions happen via the context menu.
+  // Trashed items aren't browsable — all actions happen via the context menu.
   function handleRowClick() {}
 
   function handleContextMenu(e, id) {
@@ -125,14 +130,20 @@ function TrashPage() {
       setPermanentDeleteItem(null);
       load();
     } catch (err) {
-      setErrorMessage(err.response?.data?.error || 'Could not permanently delete item.');
+      setErrorMessage(
+        err.response?.data?.error || 'Could not permanently delete item.',
+      );
     }
   }
 
   async function handleEmptyTrash() {
     const allItems = [...directories, ...files];
     if (allItems.length === 0) return;
-    if (!confirm(`Permanently delete all ${allItems.length} item(s) in Trash? This cannot be undone.`)) {
+    if (
+      !confirm(
+        `Permanently delete all ${allItems.length} item(s) in Trash? This cannot be undone.`,
+      )
+    ) {
       return;
     }
     setErrorMessage('');
@@ -157,7 +168,7 @@ function TrashPage() {
 
   return (
     <div className="max-w-[1000px] mx-auto px-4 font-sans text-text">
-      <DirectoryHeader directoryName="Trash" disabled />
+      <DirectoryHeader directoryName="Trash" readOnly />
 
       {errorMessage && (
         <div className="bg-red-50 text-danger border border-red-200 rounded-lg px-4 py-2.5 text-sm mt-4">

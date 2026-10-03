@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { FaHome, FaChevronRight, FaEllipsisH } from 'react-icons/fa';
 
-const MAX_VISIBLE = 4; 
+const MAX_VISIBLE = 4;
 
 function BreadcrumbBar({ breadcrumb = [], onBreadcrumbClick }) {
   const [showHidden, setShowHidden] = useState(false);
@@ -22,8 +22,7 @@ function BreadcrumbBar({ breadcrumb = [], onBreadcrumbClick }) {
   const shouldCollapse = breadcrumb.length > MAX_VISIBLE;
 
   // When collapsing: show first (home), an ellipsis for the middle chunk,
-  // then the last 2 segments — keeps navigation to nearby folders visible
-  // while hiding the long middle of a deep path.
+  // then the last 2 segments.
   const first = breadcrumb[0];
   const lastTwo = breadcrumb.slice(-2);
   const hiddenMiddle = shouldCollapse ? breadcrumb.slice(1, -2) : [];
@@ -34,7 +33,9 @@ function BreadcrumbBar({ breadcrumb = [], onBreadcrumbClick }) {
       <span key={key} className="flex items-center gap-1.5">
         {isLast ? (
           <span className="flex items-center gap-1.5 font-semibold text-text px-2 py-1 rounded-md truncate max-w-[160px] sm:max-w-[240px]">
-            {isFirst && <FaHome size={13} className="text-primary flex-shrink-0" />}
+            {isFirst && (
+              <FaHome size={13} className="text-primary flex-shrink-0" />
+            )}
             <span className="truncate">{crumb.name}</span>
           </span>
         ) : (
@@ -46,13 +47,22 @@ function BreadcrumbBar({ breadcrumb = [], onBreadcrumbClick }) {
             <span className="truncate">{crumb.name}</span>
           </button>
         )}
-        {!isLast && <FaChevronRight size={9} className="text-gray-300 flex-shrink-0" />}
+        {!isLast && (
+          <FaChevronRight size={9} className="text-gray-300 flex-shrink-0" />
+        )}
       </span>
     );
   }
 
+  // overflow-x-auto forces vertical clipping, which cut off the "…" dropdown.
+  // When collapsed there's never enough content to scroll, so allow overflow.
+  // top offset on mobile keeps it below the sticky Layout top bar.
   return (
-    <nav className="flex items-center flex-nowrap overflow-x-auto gap-1 px-1 py-2.5 text-sm border-b border-border bg-surface sticky top-0 z-10">
+    <nav
+      className={`flex items-center flex-nowrap gap-1 px-1 py-2.5 text-sm border-b border-border  sticky top-[49px] md:top-0 z-10 ${
+        shouldCollapse ? 'overflow-visible' : 'overflow-x-auto'
+      }`}
+    >
       {shouldCollapse ? (
         <>
           {renderCrumb(first, false, true, first.id)}

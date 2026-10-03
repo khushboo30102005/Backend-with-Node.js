@@ -21,7 +21,7 @@ function ContextMenu({
   onRestore,
   openPermanentDeleteConfirm,
   apiBase,
-  permission = 'owner', // 'owner' | 'editor' | 'viewer' — default preserves existing behavior everywhere it isn't explicitly set
+  permission = 'owner', // 'owner' | 'editor' | 'viewer'
   onClose,
 }) {
   const menuRef = useRef(null);
@@ -38,7 +38,7 @@ function ContextMenu({
 
   const menuStyle = { top: contextMenuPos.y, left: contextMenuPos.x };
   const menuBoxClass =
-  'fixed bg-surface shadow-[0_4px_16px_rgba(0,0,0,0.12),0_1px_3px_rgba(0,0,0,0.08)] rounded-lg border border-border z-[999] py-1.5 animate-menu-pop';
+    'fixed bg-surface shadow-[0_4px_16px_rgba(0,0,0,0.12),0_1px_3px_rgba(0,0,0,0.08)] rounded-lg border border-border z-[999] py-1.5 animate-menu-pop';
 
   const canRename = permission === 'owner' || permission === 'editor';
   const canMove = permission === 'owner';
@@ -46,13 +46,10 @@ function ContextMenu({
   const canShare = permission === 'owner';
   const isViewOnly = permission === 'viewer';
 
-  // Trashed items get an entirely separate, simpler menu regardless of
-  // permission — an item in Trash is always something the current user
-  // owns (only owners see their own Trash), so no permission branching
-  // is needed here.
-
   let content;
   if (item.isTrashed) {
+    // Trashed items get a separate, simpler menu (files in Trash can't be
+    // downloaded - the server treats them as not found).
     content = (
       <div className={menuBoxClass} style={menuStyle} ref={menuRef}>
         <div
@@ -64,17 +61,6 @@ function ContextMenu({
         >
           Details
         </div>
-        {!item.isDirectory && (
-          <div
-            className={menuItemClass}
-            onClick={() => {
-              window.location.href = `${BASE_URL}${getFileDownloadUrl(item.id, apiBase)}`;
-              onClose();
-            }}
-          >
-            Download
-          </div>
-        )}
         <div
           className={menuItemClass}
           onClick={() => {
@@ -95,9 +81,7 @@ function ContextMenu({
         </div>
       </div>
     );
-  }
-
-  if (item.isDirectory) {
+  } else if (item.isDirectory) {
     content = (
       <div className={menuBoxClass} style={menuStyle} ref={menuRef}>
         <div
@@ -149,89 +133,88 @@ function ContextMenu({
         )}
       </div>
     );
+  } else if (isUploadingItem) {
+    // Any queued or in-progress upload (temp- id) only offers Cancel
+    content = (
+      <div className={menuBoxClass} style={menuStyle} ref={menuRef}>
+        <div
+          className={menuItemClass}
+          onClick={() => {
+            handleCancelUpload(item.id);
+            onClose();
+          }}
+        >
+          Cancel
+        </div>
+      </div>
+    );
   } else {
-    if (isUploadingItem && item.isUploading) {
-      content = (
-        <div className={menuBoxClass} style={menuStyle} ref={menuRef}>
-          <div
-            className={menuItemClass}
-            onClick={() => {
-              handleCancelUpload(item.id);
-              onClose();
-            }}
-          >
-            Cancel
-          </div>
+    content = (
+      <div className={menuBoxClass} style={menuStyle} ref={menuRef}>
+        <div
+          className={menuItemClass}
+          onClick={() => {
+            window.location.href = `${BASE_URL}${getFileDownloadUrl(item.id, apiBase)}`;
+            onClose();
+          }}
+        >
+          Download
         </div>
-      );
-    } else {
-      content = (
-        <div className={menuBoxClass} style={menuStyle} ref={menuRef}>
-          <div
-            className={menuItemClass}
-            onClick={() => {
-              window.location.href = `${BASE_URL}${getFileDownloadUrl(item.id, apiBase)}`;
-              onClose();
-            }}
-          >
-            Download
-          </div>
-          <div
-            className={menuItemClass}
-            onClick={() => {
-              openDetailsPopup(item);
-              onClose();
-            }}
-          >
-            Details
-          </div>
-          {canShare && (
-            <div
-              className={menuItemClass}
-              onClick={() => {
-                openShareModal(item);
-                onClose();
-              }}
-            >
-              Share
-            </div>
-          )}
-          {canRename && (
-            <div
-              className={menuItemClass}
-              onClick={() => {
-                openRenameModal('file', item.id, item.name);
-                onClose();
-              }}
-            >
-              Rename
-            </div>
-          )}
-          {canMove && (
-            <div
-              className={menuItemClass}
-              onClick={() => {
-                openMoveModal([item]);
-                onClose();
-              }}
-            >
-              Move
-            </div>
-          )}
-          {canDelete && (
-            <div
-              className={menuItemClass}
-              onClick={() => {
-                openDeleteConfirm(item);
-                onClose();
-              }}
-            >
-              Move to trash
-            </div>
-          )}
+        <div
+          className={menuItemClass}
+          onClick={() => {
+            openDetailsPopup(item);
+            onClose();
+          }}
+        >
+          Details
         </div>
-      );
-    }
+        {canShare && (
+          <div
+            className={menuItemClass}
+            onClick={() => {
+              openShareModal(item);
+              onClose();
+            }}
+          >
+            Share
+          </div>
+        )}
+        {canRename && (
+          <div
+            className={menuItemClass}
+            onClick={() => {
+              openRenameModal('file', item.id, item.name);
+              onClose();
+            }}
+          >
+            Rename
+          </div>
+        )}
+        {canMove && (
+          <div
+            className={menuItemClass}
+            onClick={() => {
+              openMoveModal([item]);
+              onClose();
+            }}
+          >
+            Move
+          </div>
+        )}
+        {canDelete && (
+          <div
+            className={menuItemClass}
+            onClick={() => {
+              openDeleteConfirm(item);
+              onClose();
+            }}
+          >
+            Move to trash
+          </div>
+        )}
+      </div>
+    );
   }
   return createPortal(content, document.body);
 }

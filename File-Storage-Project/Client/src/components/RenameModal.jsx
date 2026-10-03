@@ -58,12 +58,14 @@ function RenameModal({
           <input
             ref={inputRef}
             type="text"
-            className="px-3 py-2.5 border border-border rounded-lg text-sm transition-colors duration-150 focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/12"
+            className="px-3 py-2.5 border border-border rounded-lg text-sm bg-surface text-text transition-colors duration-150 focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/12"
             placeholder="Enter new name"
             value={renameValue}
             onChange={(e) => setRenameValue(e.target.value)}
           />
-          {error && <p className="text-danger text-[13px] -mt-1 mb-0">{error}</p>}
+          {error && (
+            <p className="text-danger text-[13px] -mt-1 mb-0">{error}</p>
+          )}
           <div className="flex justify-end gap-2.5 mt-2">
             <button
               className="px-4 py-2.5 rounded-lg border-none bg-primary text-white font-semibold text-sm cursor-pointer hover:bg-primary-hover transition-colors"

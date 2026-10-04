@@ -21,8 +21,6 @@ function BreadcrumbBar({ breadcrumb = [], onBreadcrumbClick }) {
 
   const shouldCollapse = breadcrumb.length > MAX_VISIBLE;
 
-  // When collapsing: show first (home), an ellipsis for the middle chunk,
-  // then the last 2 segments.
   const first = breadcrumb[0];
   const lastTwo = breadcrumb.slice(-2);
   const hiddenMiddle = shouldCollapse ? breadcrumb.slice(1, -2) : [];
@@ -32,79 +30,131 @@ function BreadcrumbBar({ breadcrumb = [], onBreadcrumbClick }) {
     return (
       <span key={key} className="flex items-center gap-1.5">
         {isLast ? (
-          <span className="flex items-center gap-1.5 font-semibold text-text px-2 py-1 rounded-md truncate max-w-[160px] sm:max-w-[240px]">
+          <span className="flex items-center gap-1.5 font-semibold text-text px-2 py-1 rounded-md truncate max-w-[240px]">
             {isFirst && (
-              <FaHome size={13} className="text-primary flex-shrink-0" />
+              <FaHome size={14} className="text-primary flex-shrink-0" />
             )}
             <span className="truncate">{crumb.name}</span>
           </span>
         ) : (
           <button
             onClick={() => onBreadcrumbClick(crumb.id)}
-            className="flex items-center gap-1.5 text-text-muted px-2 py-1 rounded-md hover:bg-gray-100 hover:text-primary transition-colors truncate max-w-[120px] sm:max-w-[180px]"
+            className="flex items-center gap-1.5 text-text-muted px-2 py-1 rounded-md hover:bg-surface-muted hover:text-primary transition-colors truncate max-w-[180px]"
           >
-            {isFirst && <FaHome size={13} className="flex-shrink-0" />}
+            {isFirst && <FaHome size={14} className="flex-shrink-0" />}
             <span className="truncate">{crumb.name}</span>
           </button>
         )}
         {!isLast && (
-          <FaChevronRight size={9} className="text-gray-300 flex-shrink-0" />
+          <FaChevronRight size={9} className="text-text-muted/60 flex-shrink-0" />
         )}
       </span>
     );
   }
 
-  // overflow-x-auto forces vertical clipping, which cut off the "…" dropdown.
-  // When collapsed there's never enough content to scroll, so allow overflow.
-  // top offset on mobile keeps it below the sticky Layout top bar.
+  // Mobile: a simplified trail — Home › … › Parent › Current — that never overflows.
+  const last = breadcrumb[breadcrumb.length - 1];
+  const parent = breadcrumb.length > 2 ? breadcrumb[breadcrumb.length - 2] : null;
+  const hasHiddenLevels = breadcrumb.length > 3;
+  const chevron = (
+    <FaChevronRight size={9} className="text-text-muted/60 flex-shrink-0" />
+  );
+
   return (
-    <nav
-      className={`flex items-center flex-nowrap gap-1 px-1 py-2.5 text-sm border-b border-border  sticky top-[49px] md:top-0 z-10 ${
-        shouldCollapse ? 'overflow-visible' : 'overflow-x-auto'
-      }`}
-    >
-      {shouldCollapse ? (
-        <>
-          {renderCrumb(first, false, true, first.id)}
-
-          <div className="relative flex-shrink-0" ref={hiddenMenuRef}>
+    <>
+      <nav
+        aria-label="Breadcrumb"
+        className="sm:hidden flex items-center gap-1 pt-4 text-sm min-w-0"
+      >
+        {breadcrumb.length === 1 ? (
+          <span className="flex items-center gap-2 min-w-0 font-semibold text-text">
+            <FaHome size={14} className="text-primary flex-shrink-0" />
+            <span className="truncate">{last.name}</span>
+          </span>
+        ) : (
+          <>
             <button
-              onClick={() => setShowHidden((prev) => !prev)}
-              className="flex items-center justify-center text-text-muted px-2 py-1 rounded-md hover:bg-gray-100 hover:text-primary transition-colors"
-              title="Show hidden folders"
+              onClick={() => onBreadcrumbClick(first.id)}
+              aria-label={first.name}
+              className="flex items-center justify-center w-10 h-10 -ml-2 rounded-xl text-primary hover:bg-surface-muted transition-colors flex-shrink-0"
             >
-              <FaEllipsisH size={12} />
+              <FaHome size={15} />
             </button>
-
-            {showHidden && (
-              <div className="absolute top-8 left-0 bg-surface border border-border rounded-lg shadow-[0_4px_16px_rgba(0,0,0,0.12),0_1px_3px_rgba(0,0,0,0.08)] z-[999] min-w-[160px] max-h-[240px] overflow-y-auto py-1">
-                {hiddenMiddle.map((crumb) => (
-                  <button
-                    key={crumb.id}
-                    onClick={() => {
-                      onBreadcrumbClick(crumb.id);
-                      setShowHidden(false);
-                    }}
-                    className="block w-full text-left px-3.5 py-2 text-sm text-gray-700 truncate hover:bg-gray-100 transition-colors"
-                  >
-                    {crumb.name}
-                  </button>
-                ))}
-              </div>
+            {chevron}
+            {hasHiddenLevels && (
+              <>
+                <span className="text-text-muted px-0.5">…</span>
+                {chevron}
+              </>
             )}
-          </div>
-          <FaChevronRight size={9} className="text-gray-300 flex-shrink-0" />
+            {parent && (
+              <>
+                <button
+                  onClick={() => onBreadcrumbClick(parent.id)}
+                  className="min-h-10 px-2 rounded-lg text-text-muted hover:bg-surface-muted hover:text-primary transition-colors truncate max-w-[30vw]"
+                >
+                  {parent.name}
+                </button>
+                {chevron}
+              </>
+            )}
+            <span className="font-semibold text-text truncate min-w-0 px-1">
+              {last.name}
+            </span>
+          </>
+        )}
+      </nav>
 
-          {lastTwo.map((crumb, i) =>
-            renderCrumb(crumb, i === lastTwo.length - 1, false, crumb.id),
-          )}
-        </>
-      ) : (
-        visible.map((crumb, i) =>
-          renderCrumb(crumb, i === visible.length - 1, i === 0, crumb.id),
-        )
-      )}
-    </nav>
+      {/* ≥ 640px: full trail with collapsing middle */}
+      <nav
+        aria-label="Breadcrumb"
+        className={`hidden sm:flex items-center flex-nowrap gap-1 pt-5 text-sm ${
+          shouldCollapse ? 'overflow-visible' : 'overflow-x-auto'
+        }`}
+      >
+        {shouldCollapse ? (
+          <>
+            {renderCrumb(first, false, true, first.id)}
+
+            <div className="relative flex-shrink-0" ref={hiddenMenuRef}>
+              <button
+                onClick={() => setShowHidden((prev) => !prev)}
+                className="flex items-center justify-center text-text-muted px-2 py-1 rounded-md hover:bg-surface-muted hover:text-primary transition-colors"
+                title="Show hidden folders"
+              >
+                <FaEllipsisH size={12} />
+              </button>
+
+              {showHidden && (
+                <div className="absolute top-9 left-0 bg-surface border border-border rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.2)] z-[999] min-w-[180px] max-h-[240px] overflow-y-auto p-1">
+                  {hiddenMiddle.map((crumb) => (
+                    <button
+                      key={crumb.id}
+                      onClick={() => {
+                        onBreadcrumbClick(crumb.id);
+                        setShowHidden(false);
+                      }}
+                      className="block w-full text-left px-3 py-2 text-sm text-text rounded-lg truncate hover:bg-surface-muted transition-colors"
+                    >
+                      {crumb.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <FaChevronRight size={9} className="text-text-muted/60 flex-shrink-0" />
+
+            {lastTwo.map((crumb, i) =>
+              renderCrumb(crumb, i === lastTwo.length - 1, false, crumb.id),
+            )}
+          </>
+        ) : (
+          visible.map((crumb, i) =>
+            renderCrumb(crumb, i === visible.length - 1, i === 0, crumb.id),
+          )
+        )}
+      </nav>
+    </>
   );
 }
 

@@ -11,13 +11,22 @@ import { BsThreeDotsVertical } from 'react-icons/bs';
 import ContextMenu from '../components/ContextMenu';
 import { formatSize } from './DetailsPopup';
 
-const FILE_ICON_STYLES = {
-  pdf: { icon: FaFilePdf, color: 'text-red-500', bg: 'bg-red-50' },
-  image: { icon: FaFileImage, color: 'text-emerald-500', bg: 'bg-emerald-50' },
-  video: { icon: FaFileVideo, color: 'text-purple-500', bg: 'bg-purple-50' },
-  archive: { icon: FaFileArchive, color: 'text-amber-600', bg: 'bg-amber-50' },
-  code: { icon: FaFileCode, color: 'text-blue-500', bg: 'bg-blue-50' },
-  alt: { icon: FaFileAlt, color: 'text-gray-500', bg: 'bg-gray-100' },
+const FILE_STYLES = {
+  pdf: { icon: FaFilePdf, gradient: 'from-rose-400 to-red-600' },
+  image: { icon: FaFileImage, gradient: 'from-emerald-400 to-emerald-600' },
+  video: { icon: FaFileVideo, gradient: 'from-orange-400 to-orange-600' },
+  archive: { icon: FaFileArchive, gradient: 'from-violet-400 to-purple-600' },
+  code: { icon: FaFileCode, gradient: 'from-cyan-400 to-blue-600' },
+  alt: { icon: FaFileAlt, gradient: 'from-sky-400 to-blue-500' },
+};
+
+const TYPE_LABELS = {
+  pdf: 'Document',
+  image: 'Image',
+  video: 'Video',
+  archive: 'Archive',
+  code: 'Code',
+  alt: 'File',
 };
 
 function formatModified(dateStr) {
@@ -30,6 +39,14 @@ function formatModified(dateStr) {
   });
 }
 
+function getExtension(name = '') {
+  const i = name.lastIndexOf('.');
+  return i > 0 && i < name.length - 1 ? name.slice(i + 1).toUpperCase() : '';
+}
+
+// One file row. On phones it reads as a card-style list item
+// (name + "EXT • size • date" + big 3-dot target); from 640px up the
+// size / modified columns appear and line up with the table header.
 function DirectoryItem({
   item,
   handleRowClick,
@@ -53,13 +70,30 @@ function DirectoryItem({
   selectionMode = false,
 }) {
   const isUploadingItem = item.id.startsWith('temp-');
+  const iconKey = !item.isDirectory ? getFileIcon(item.name) : null;
   const fileStyle = !item.isDirectory
-    ? FILE_ICON_STYLES[getFileIcon(item.name)] || FILE_ICON_STYLES.alt
+    ? FILE_STYLES[iconKey] || FILE_STYLES.alt
     : null;
   const FileIconComponent = fileStyle?.icon;
 
   const permission = item.permission || 'owner';
-  const canSelect = permission === 'owner';
+  const selectable = Boolean(onToggleSelect);
+  const canSelect = permission === 'owner' && selectable;
+
+  const ext = item.isDirectory ? '' : getExtension(item.name);
+  const hasSize = typeof item.size === 'number';
+  const modified = item.updatedAt ? formatModified(item.updatedAt) : '';
+
+  const desktopSub = item.isDirectory
+    ? 'Folder'
+    : [TYPE_LABELS[iconKey] || TYPE_LABELS.alt, ext].filter(Boolean).join(' • ');
+  const mobileSub = [
+    ext,
+    !isUploadingItem && hasSize ? formatSize(item.size) : null,
+    !isUploadingItem ? modified : null,
+  ]
+    .filter(Boolean)
+    .join(' • ');
 
   function handleClick() {
     // Only this row's own upload state matters, not whether *any* upload runs
@@ -73,68 +107,102 @@ function DirectoryItem({
 
   return (
     <div
-      className={`flex flex-col relative gap-1 border rounded-[10px] bg-surface cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:bg-surface-hover hover:border-gray-300 hover:shadow-[0_4px_12px_rgba(0,0,0,0.06)] active:scale-[0.99] ${
-        isSelected ? 'border-primary bg-primary/5' : 'border-border'
+      className={`relative flex flex-col cursor-pointer transition-colors duration-150 ${
+        isSelected
+          ? 'bg-primary/10 hover:bg-primary/15 shadow-[inset_3px_0_0_var(--color-primary)]'
+          : 'hover:bg-surface-hover'
       }`}
       onClick={handleClick}
       onContextMenu={(e) => handleContextMenu(e, item.id)}
     >
-      <div className="flex items-center gap-3 px-3.5 py-2.5">
-        {canSelect && !isUploadingItem && selectionMode && (
-          <input
-            type="checkbox"
-            checked={isSelected}
-            onChange={() => onToggleSelect(item)}
-            onClick={(e) => e.stopPropagation()}
-            className="w-4 h-4 shrink-0 cursor-pointer accent-primary"
-            aria-label={`Select ${item.name}`}
-          />
+      <div className="flex items-center gap-3 pl-2 pr-1 sm:px-4 py-2.5 sm:py-3 min-h-[68px]">
+        {/* Checkbox slot — kept (empty) on uploading rows so columns stay aligned */}
+        {selectable && (
+          <span
+            className="flex items-center justify-center flex-shrink-0 w-11 h-11 sm:w-8 sm:h-8 cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (canSelect && !isUploadingItem) onToggleSelect(item);
+            }}
+          >
+            {canSelect && !isUploadingItem && (
+              <input
+                type="checkbox"
+                checked={isSelected}
+                onChange={() => {}}
+                className="app-checkbox"
+                aria-label={`Select ${item.name}`}
+              />
+            )}
+          </span>
         )}
+
         {/* Icon */}
         {item.isDirectory ? (
-          <span className="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
-            <FaFolder className="text-amber-500 text-base" />
+          <span className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center flex-shrink-0">
+            <FaFolder className="text-amber-400 text-lg" />
           </span>
         ) : (
           <span
-            className={`w-9 h-9 rounded-lg ${fileStyle.bg} flex items-center justify-center flex-shrink-0`}
+            className={`w-10 h-10 rounded-xl bg-linear-to-br ${fileStyle.gradient} flex flex-col items-center justify-center flex-shrink-0 shadow-sm`}
           >
-            <FileIconComponent className={`${fileStyle.color} text-base`} />
+            <FileIconComponent className="text-white" size={14} />
+            {ext && (
+              <span className="mt-0.5 text-[7px] leading-none font-extrabold tracking-wide text-white/95">
+                {ext.slice(0, 4)}
+              </span>
+            )}
           </span>
         )}
 
-        {/* Name */}
-        <span
-          className="text-sm font-medium text-text truncate min-w-0 flex-shrink"
-          title={item.name}
-        >
-          {item.name}
-        </span>
+        {/* Name + meta */}
+        <div className="min-w-0 flex-1">
+          <p
+            className="text-[15px] sm:text-sm font-semibold text-text truncate"
+            title={item.name}
+          >
+            {item.name}
+          </p>
+          <p className="text-xs text-text-muted mt-0.5 truncate">
+            <span className="sm:hidden">{mobileSub}</span>
+            <span className="hidden sm:inline">{desktopSub}</span>
+          </p>
+        </div>
 
-        {/* Metadata — hidden on very small screens to avoid crowding */}
+        {/* Size / modified columns (≥ 640px) */}
         {!isUploadingItem && (
-          <div className="hidden sm:flex items-center gap-4 ml-auto flex-shrink-0 text-xs text-text-muted">
-            {typeof item.size === 'number' && (
-              <span>{formatSize(item.size)}</span>
-            )}
-            {item.updatedAt && <span>{formatModified(item.updatedAt)}</span>}
-          </div>
+          <>
+            <span className="hidden sm:block w-24 flex-shrink-0 text-sm text-text-muted">
+              {hasSize ? formatSize(item.size) : ''}
+            </span>
+            <span className="hidden sm:block w-28 flex-shrink-0 text-sm text-text-muted">
+              {modified}
+            </span>
+          </>
+        )}
+        {isUploadingItem && (
+          <>
+            <span className="hidden sm:block w-24 flex-shrink-0" aria-hidden="true" />
+            <span className="hidden sm:block w-28 flex-shrink-0" aria-hidden="true" />
+          </>
         )}
 
-        {/* Three dots for context menu */}
+        {/* Actions: 44px touch target on phones */}
         <div
-          className={`flex items-center justify-center text-[1.2em] cursor-pointer flex-shrink-0 text-text-muted rounded-full p-2 transition-colors duration-150 hover:bg-gray-100 hover:text-text ${isUploadingItem ? '' : 'sm:ml-0 ml-auto'}`}
+          className="flex items-center justify-center flex-shrink-0 w-11 h-11 sm:w-16 sm:h-10 rounded-full sm:rounded-xl text-text-muted transition-colors duration-150 hover:bg-surface-muted hover:text-text"
           onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => handleContextMenu(e, item.id)}
+          role="button"
+          aria-label={`Actions for ${item.name}`}
         >
-          <BsThreeDotsVertical />
+          <BsThreeDotsVertical size={17} />
         </div>
       </div>
 
       {/* PROGRESS BAR: shown if an item is in queue or actively uploading */}
       {isUploadingItem && (
-        <div className="relative bg-gray-100 rounded-full mt-1 mb-2.5 mx-3.5 overflow-hidden">
-          <span className="absolute text-[11px] font-semibold left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white [text-shadow:0_1px_1px_rgba(0,0,0,0.2)]">
+        <div className="relative bg-surface-muted rounded-full mb-3 mx-3 sm:mx-4 overflow-hidden">
+          <span className="absolute text-[11px] font-semibold left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white [text-shadow:0_1px_1px_rgba(0,0,0,0.25)]">
             {Math.floor(uploadProgress)}%
           </span>
           <div
@@ -150,7 +218,7 @@ function DirectoryItem({
         </div>
       )}
 
-      {/* Context menu, if active */}
+      {/* Context menu (popover on desktop, bottom sheet on phones) */}
       {activeContextMenu === item.id && (
         <ContextMenu
           item={item}

@@ -1,48 +1,200 @@
 @import "tailwindcss";
 
+/* `dark:` follows the app's own data-theme switch (set by SidebarFooter),
+   not the OS setting. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 @theme {
   --color-primary: #0c3a77;
   --color-primary-hover: #1565c0;
   --color-border: #e5e7eb;
+  --color-border-strong: #d1d5db;
   --color-text: #1a1a1a;
   --color-text-muted: #6b7280;
   --color-danger: #dc2626;
   --color-success: #059669;
   --color-surface: #ffffff;
   --color-surface-hover: #f8f9fb;
+  --color-surface-muted: #f3f5f9;
   --color-page: #fafbf7;
+  --color-sidebar: #0c3a77;
+  --color-sidebar-deep: #082a58;
+
+  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06);
+  --shadow-card-hover: 0 6px 16px rgba(16, 24, 40, 0.09);
 }
 
+/* ---------- Dark theme: deep navy / blue-black with a bright blue accent ---------- */
 :root[data-theme="dark"] {
-  --color-border: #333844;
-  --color-text: #e6e8ec;
-  --color-text-muted: #9aa1ad;
-  --color-surface: #1c2029;
-  --color-surface-hover: #262b36;
-  --color-page: #12151b;
+  color-scheme: dark;
+
+  --color-primary: #4f6df5;
+  --color-primary-hover: #6a85ff;
+  --color-border: #1f2a42;
+  --color-border-strong: #33425f;
+  --color-text: #e8ecf5;
+  --color-text-muted: #8f9bb3;
+  --color-danger: #f0656d;
+  --color-success: #34d399;
+  --color-surface: #111a2e;
+  --color-surface-hover: #172239;
+  --color-surface-muted: #0d1527;
+  --color-page: #0a1020;
+  --color-sidebar: #0d1527;
+  --color-sidebar-deep: #080e1c;
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.25);
+  --shadow-card-hover: 0 8px 20px rgba(0, 0, 0, 0.4);
 }
 
+html, body { overflow-x: clip; }
+
+/* Sidebar / drawer surface (glow at the bottom-left, like the reference) */
+.sidebar-surface {
+  --sidebar-glow: rgba(255, 255, 255, 0.1);
+  background:
+    radial-gradient(130% 55% at 0% 100%, var(--sidebar-glow), transparent 65%),
+    linear-gradient(180deg, var(--color-sidebar), var(--color-sidebar-deep));
+}
+:root[data-theme="dark"] .sidebar-surface { --sidebar-glow: rgba(79, 109, 245, 0.3); }
+
+/* Custom checkbox used across lists/toolbars */
+.app-checkbox {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-grid;
+  place-content: center;
+  width: 1.125rem;
+  height: 1.125rem;
+  flex-shrink: 0;
+  border: 1.5px solid var(--color-border-strong);
+  border-radius: 0.375rem;
+  background-color: transparent;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+.app-checkbox:hover { border-color: var(--color-primary); }
+.app-checkbox:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 30%, transparent);
+}
+.app-checkbox:checked,
+.app-checkbox:indeterminate {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+.app-checkbox:checked::after {
+  content: '';
+  width: 0.6rem;
+  height: 0.32rem;
+  border-left: 2px solid #fff;
+  border-bottom: 2px solid #fff;
+  transform: translateY(-1px) rotate(-45deg);
+}
+.app-checkbox:indeterminate::after {
+  content: '';
+  width: 0.55rem;
+  height: 2px;
+  background: #fff;
+  border-radius: 1px;
+}
+.app-checkbox:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ---------- Dark compatibility for components that still use fixed
+   light utilities (Login, Register, Users page, modals, etc.). ---------- */
+:root[data-theme="dark"] .bg-white,
+:root[data-theme="dark"] .bg-gray-50 { background-color: var(--color-surface); }
+:root[data-theme="dark"] .bg-gray-50\/50,
+:root[data-theme="dark"] .bg-gray-100 { background-color: var(--color-surface-muted); }
+:root[data-theme="dark"] .bg-gray-200 { background-color: var(--color-border); }
+:root[data-theme="dark"] .hover\:bg-gray-50:hover,
+:root[data-theme="dark"] .hover\:bg-gray-100:hover { background-color: var(--color-surface-hover); }
+:root[data-theme="dark"] .hover\:bg-gray-300:hover,
+:root[data-theme="dark"] .hover\:bg-gray-400:hover { background-color: var(--color-border-strong); }
+
+:root[data-theme="dark"] .text-gray-700,
+:root[data-theme="dark"] .text-gray-600,
+:root[data-theme="dark"] .text-gray-500 { color: var(--color-text); }
+:root[data-theme="dark"] .text-gray-400,
+:root[data-theme="dark"] .text-gray-300,
+:root[data-theme="dark"] .hover\:text-gray-600:hover { color: var(--color-text-muted); }
+
+:root[data-theme="dark"] .border-gray-100 { border-color: var(--color-border); }
+:root[data-theme="dark"] .border-gray-300,
+:root[data-theme="dark"] .hover\:border-gray-300:hover { border-color: var(--color-border-strong); }
+
+:root[data-theme="dark"] .bg-red-50 { background-color: rgba(240, 101, 109, 0.12); }
+:root[data-theme="dark"] .border-red-200,
+:root[data-theme="dark"] .border-red-300 { border-color: rgba(240, 101, 109, 0.35); }
+:root[data-theme="dark"] .bg-indigo-50 { background-color: rgba(79, 109, 245, 0.14); }
+:root[data-theme="dark"] .bg-amber-50 { background-color: rgba(245, 158, 11, 0.14); }
+
+:root[data-theme="dark"] .from-gray-50 { --tw-gradient-from: var(--color-surface-muted); }
+:root[data-theme="dark"] .to-gray-100 { --tw-gradient-to: var(--color-surface); }
+
+:root[data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]),
+:root[data-theme="dark"] select,
+:root[data-theme="dark"] textarea {
+  background-color: var(--color-surface-muted);
+  color: var(--color-text);
+}
+:root[data-theme="dark"] input::placeholder { color: var(--color-text-muted); }
+
+/* ---------- Keyframes ---------- */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
 }
-.animate-fade-in {
-  animation: fadeIn 0.25s ease-out;
-}
+.animate-fade-in { animation: fadeIn 0.25s ease-out; }
+
+@keyframes fadeOnly { from { opacity: 0; } to { opacity: 1; } }
+.animate-backdrop { animation: fadeOnly 0.18s ease-out; }
 
 @keyframes menuPop {
   from { opacity: 0; transform: scale(0.96); }
   to { opacity: 1; transform: scale(1); }
 }
-.animate-menu-pop {
-  animation: menuPop 0.12s ease-out;
-  transform-origin: top left;
-}
+.animate-menu-pop { animation: menuPop 0.12s ease-out; transform-origin: top left; }
 
 @keyframes slideInLeft {
   from { transform: translateX(-100%); }
   to { transform: translateX(0); }
 }
-.animate-slide-in {
-  animation: slideInLeft 0.2s ease-out;
+.animate-slide-in { animation: slideInLeft 0.2s ease-out; }
+
+@keyframes sheetUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+.animate-sheet-up { animation: sheetUp 0.22s cubic-bezier(0.2, 0.8, 0.2, 1); }
+
+/* ---------- Phones (< 640px) ---------- */
+@media (max-width: 639px) {
+  /* 16px inputs stop iOS from zooming on focus; 44px = comfortable touch target */
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: 16px;
+    min-height: 44px;
+  }
+
+  /* Every modal overlay in the app (Create/Rename/Move/Share/Details/Delete
+     dialogs) shares `fixed inset-0 ... z-[999]`. On phones they become
+     bottom sheets without touching each modal file. */
+  div[class~="inset-0"][class~="z-[999]"] {
+    align-items: flex-end;
+    padding: 0;
+  }
+  div[class~="inset-0"][class~="z-[999]"] > div {
+    width: 100%;
+    max-width: 100%;
+    max-height: 90dvh;
+    overflow-y: auto;
+    border-radius: 1.5rem 1.5rem 0 0;
+    padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+    animation: sheetUp 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  div[class~="inset-0"][class~="z-[999]"] > div button {
+    min-height: 44px;
+  }
 }

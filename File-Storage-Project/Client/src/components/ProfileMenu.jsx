@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
-  FaUser,
   FaSignOutAlt,
+  FaLaptop,
   FaUserShield,
   FaUserTie,
   FaChevronDown,
@@ -11,7 +11,25 @@ import { fetchUser, logoutUser, logoutAllSessions } from '../apis/userApi';
 
 const DASHBOARD_ROLES = ['Owner', 'Admin', 'Manager'];
 
-function ProfileMenu({ onNavigate }) {
+function Avatar({ user, className }) {
+  return user?.picture ? (
+    <img
+      src={user.picture}
+      alt={user.name}
+      className={`${className} rounded-full object-cover flex-shrink-0`}
+    />
+  ) : (
+    <span
+      className={`${className} rounded-full flex items-center justify-center flex-shrink-0 bg-linear-to-br from-primary to-violet-500 text-white font-bold`}
+    >
+      {user?.name?.[0]?.toUpperCase() || '·'}
+    </span>
+  );
+}
+
+// variant="sidebar": profile card on the navy sidebar / drawer
+// variant="topbar":  compact avatar chip in the top bar
+function ProfileMenu({ onNavigate, variant = 'sidebar' }) {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [open, setOpen] = useState(false);
@@ -74,46 +92,69 @@ function ProfileMenu({ onNavigate }) {
   }
 
   const rowClass =
-    'flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-text text-left cursor-pointer hover:bg-surface-hover transition-colors';
+    'flex items-center gap-3 w-full min-h-11 px-4 py-2.5 text-sm text-text text-left cursor-pointer hover:bg-surface-muted transition-colors focus-visible:outline-none focus-visible:bg-surface-muted';
+
+  const isTopbar = variant === 'topbar';
 
   return (
-    <div className="relative mb-4" ref={menuRef}>
-      <button
-        type="button"
-        onClick={() => setOpen((prev) => !prev)}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        className="flex items-center gap-3 w-full px-2 py-3 rounded-xl hover:bg-white/10 transition-colors text-left"
-      >
-        {user?.picture ? (
-          <img
-            src={user.picture}
-            alt={user.name}
-            className="w-10 h-10 rounded-full object-cover flex-shrink-0"
-          />
-        ) : (
-          <span className="w-10 h-10 rounded-full bg-white/25 flex items-center justify-center flex-shrink-0">
-            <FaUser className="text-white" size={16} />
-          </span>
-        )}
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-white truncate">
+    <div className={`relative ${isTopbar ? '' : 'mb-5'}`} ref={menuRef}>
+      {isTopbar ? (
+        <button
+          type="button"
+          onClick={() => setOpen((prev) => !prev)}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          aria-label="Account menu"
+          className="flex items-center gap-2.5 h-11 pl-1 pr-1 sm:pr-3 rounded-full hover:bg-surface-hover transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/30"
+        >
+          <Avatar user={user} className="w-9 h-9 text-sm" />
+          <span className="hidden sm:block text-sm font-semibold text-text max-w-[140px] truncate">
             {user?.name || 'Loading...'}
-          </p>
-          <p className="text-[11px] text-white/70">{role || 'Account'}</p>
-        </div>
-        <FaChevronDown
-          size={11}
-          className={`text-white/70 flex-shrink-0 transition-transform duration-150 ${
-            open ? 'rotate-180' : ''
-          }`}
-        />
-      </button>
+          </span>
+          <FaChevronDown
+            size={10}
+            className={`hidden sm:block text-text-muted transition-transform duration-150 ${
+              open ? 'rotate-180' : ''
+            }`}
+          />
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setOpen((prev) => !prev)}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          className="flex items-center gap-3 w-full p-3 rounded-2xl bg-white/[0.07] ring-1 ring-white/10 hover:bg-white/[0.12] transition-colors text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+        >
+          <Avatar
+            user={user}
+            className="w-11 h-11 text-base ring-2 ring-white/20"
+          />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-white truncate">
+              {user?.name || 'Loading...'}
+            </p>
+            <p className="text-xs text-white/60 truncate">
+              {role || 'Account'}
+            </p>
+          </div>
+          <FaChevronDown
+            size={11}
+            className={`text-white/70 flex-shrink-0 transition-transform duration-150 ${
+              open ? 'rotate-180' : ''
+            }`}
+          />
+        </button>
+      )}
 
       {open && (
         <div
           role="menu"
-          className="absolute left-0 right-0 top-full mt-2 z-50 bg-surface border border-border rounded-xl shadow-[0_4px_16px_rgba(0,0,0,0.12),0_1px_3px_rgba(0,0,0,0.08)] overflow-hidden animate-menu-pop"
+          className={`absolute z-50 mt-2 bg-surface border border-border rounded-2xl shadow-[0_12px_32px_rgba(0,0,0,0.25)] overflow-hidden animate-menu-pop ${
+            isTopbar
+              ? 'right-0 top-full w-64 max-w-[calc(100vw-1.5rem)]'
+              : 'left-0 right-0 top-full'
+          }`}
         >
           {user && (
             <div className="px-4 py-3 border-b border-border">
@@ -121,7 +162,7 @@ function ProfileMenu({ onNavigate }) {
                 {user.name}
               </p>
               <p className="text-xs text-text-muted truncate">{user.email}</p>
-              <span className="inline-block mt-1.5 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-wide">
+              <span className="inline-block mt-1.5 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[11px] font-semibold">
                 {user.role}
               </span>
             </div>
@@ -157,7 +198,7 @@ function ProfileMenu({ onNavigate }) {
             className={rowClass}
             onClick={handleLogoutAll}
           >
-            <FaSignOutAlt size={14} className="text-primary" />
+            <FaLaptop size={14} className="text-primary" />
             Logout all devices
           </button>
         </div>

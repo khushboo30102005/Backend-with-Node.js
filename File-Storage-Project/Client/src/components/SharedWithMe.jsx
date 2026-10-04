@@ -138,8 +138,12 @@ function SharedWithMe() {
   }));
 
   return (
-    <div className="max-w-[1000px] mx-auto px-4 font-sans text-text">
-      <DirectoryHeader directoryName="Shared with me" readOnly />
+    <div className="max-w-[1100px] mx-auto px-4 sm:px-6 pb-12 font-sans text-text">
+      <DirectoryHeader
+        directoryName="Shared with me"
+        subtitle="Files other people have shared with you."
+        readOnly
+      />
 
       {errorMessage && (
         <div className="bg-red-50 text-danger border border-red-200 rounded-lg px-4 py-2.5 text-sm mt-4">

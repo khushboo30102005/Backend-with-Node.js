@@ -1,12 +1,17 @@
 import { createPortal } from 'react-dom';
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import {
+  FaDownload,
+  FaInfoCircle,
+  FaShareAlt,
+  FaPen,
+  FaArrowsAlt,
+  FaTrash,
+  FaUndo,
+  FaTimes,
+} from 'react-icons/fa';
 import { BASE_URL } from '../Register';
 import { getFileDownloadUrl } from '../apis/fileApi';
-
-const menuItemClass =
-  'px-5 py-2 cursor-pointer whitespace-nowrap text-gray-700 text-sm transition-colors duration-150 hover:bg-gray-100';
-const dangerMenuItemClass =
-  'px-5 py-2 cursor-pointer whitespace-nowrap text-danger text-sm transition-colors duration-150 hover:bg-red-50';
 
 function ContextMenu({
   item,
@@ -25,6 +30,11 @@ function ContextMenu({
   onClose,
 }) {
   const menuRef = useRef(null);
+  // Phones get a bottom sheet instead of a floating popover
+  const [isMobile] = useState(
+    () => window.matchMedia('(max-width: 639px)').matches,
+  );
+  const [pos, setPos] = useState(contextMenuPos);
 
   useEffect(() => {
     function handleOutsideClick(e) {
@@ -36,9 +46,22 @@ function ContextMenu({
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, [onClose]);
 
-  const menuStyle = { top: contextMenuPos.y, left: contextMenuPos.x };
-  const menuBoxClass =
-    'fixed bg-surface shadow-[0_4px_16px_rgba(0,0,0,0.12),0_1px_3px_rgba(0,0,0,0.08)] rounded-lg border border-border z-[999] py-1.5 animate-menu-pop';
+  // Keep the desktop popover fully inside the viewport
+  useLayoutEffect(() => {
+    if (isMobile || !menuRef.current) return;
+    const rect = menuRef.current.getBoundingClientRect();
+    const margin = 8;
+    setPos({
+      x: Math.max(
+        margin,
+        Math.min(contextMenuPos.x, window.innerWidth - rect.width - margin),
+      ),
+      y: Math.max(
+        margin,
+        Math.min(contextMenuPos.y, window.innerHeight - rect.height - margin),
+      ),
+    });
+  }, [contextMenuPos, isMobile]);
 
   const canRename = permission === 'owner' || permission === 'editor';
   const canMove = permission === 'owner';
@@ -46,176 +69,128 @@ function ContextMenu({
   const canShare = permission === 'owner';
   const isViewOnly = permission === 'viewer';
 
-  let content;
+  const entry = (key, icon, label, action, danger = false) => ({
+    key,
+    icon,
+    label,
+    danger,
+    action: () => {
+      action();
+      onClose();
+    },
+  });
+
+  let entries = [];
+  let viewOnlyNote = false;
+
   if (item.isTrashed) {
     // Trashed items get a separate, simpler menu (files in Trash can't be
     // downloaded - the server treats them as not found).
-    content = (
-      <div className={menuBoxClass} style={menuStyle} ref={menuRef}>
-        <div
-          className={menuItemClass}
-          onClick={() => {
-            openDetailsPopup(item);
-            onClose();
-          }}
-        >
-          Details
-        </div>
-        <div
-          className={menuItemClass}
-          onClick={() => {
-            onRestore(item);
-            onClose();
-          }}
-        >
-          Restore
-        </div>
-        <div
-          className={dangerMenuItemClass}
-          onClick={() => {
-            openPermanentDeleteConfirm(item);
-            onClose();
-          }}
-        >
-          Delete forever
-        </div>
-      </div>
-    );
+    entries = [
+      entry('details', FaInfoCircle, 'Details', () => openDetailsPopup(item)),
+      entry('restore', FaUndo, 'Restore', () => onRestore(item)),
+      entry(
+        'forever',
+        FaTrash,
+        'Delete forever',
+        () => openPermanentDeleteConfirm(item),
+        true,
+      ),
+    ];
   } else if (item.isDirectory) {
-    content = (
-      <div className={menuBoxClass} style={menuStyle} ref={menuRef}>
-        <div
-          className={menuItemClass}
-          onClick={() => {
-            openDetailsPopup(item);
-            onClose();
-          }}
-        >
-          Details
-        </div>
-        {canRename && (
-          <div
-            className={menuItemClass}
-            onClick={() => {
-              openRenameModal('directory', item.id, item.name);
-              onClose();
-            }}
-          >
-            Rename
-          </div>
-        )}
-        {canMove && (
-          <div
-            className={menuItemClass}
-            onClick={() => {
-              openMoveModal([item]);
-              onClose();
-            }}
-          >
-            Move
-          </div>
-        )}
-        {canDelete && (
-          <div
-            className={menuItemClass}
-            onClick={() => {
-              openDeleteConfirm(item);
-              onClose();
-            }}
-          >
-            Move to trash
-          </div>
-        )}
-        {isViewOnly && (
-          <div className="px-5 py-2 whitespace-nowrap text-sm text-gray-400 cursor-default">
-            View only
-          </div>
-        )}
-      </div>
-    );
+    entries = [
+      entry('details', FaInfoCircle, 'Details', () => openDetailsPopup(item)),
+      canRename &&
+        entry('rename', FaPen, 'Rename', () =>
+          openRenameModal('directory', item.id, item.name),
+        ),
+      canMove &&
+        entry('move', FaArrowsAlt, 'Move', () => openMoveModal([item])),
+      canDelete &&
+        entry('trash', FaTrash, 'Move to trash', () => openDeleteConfirm(item)),
+    ].filter(Boolean);
+    viewOnlyNote = isViewOnly;
   } else if (isUploadingItem) {
     // Any queued or in-progress upload (temp- id) only offers Cancel
-    content = (
-      <div className={menuBoxClass} style={menuStyle} ref={menuRef}>
-        <div
-          className={menuItemClass}
-          onClick={() => {
-            handleCancelUpload(item.id);
-            onClose();
-          }}
-        >
-          Cancel
-        </div>
-      </div>
-    );
+    entries = [
+      entry('cancel', FaTimes, 'Cancel upload', () =>
+        handleCancelUpload(item.id),
+      ),
+    ];
   } else {
-    content = (
-      <div className={menuBoxClass} style={menuStyle} ref={menuRef}>
-        <div
-          className={menuItemClass}
-          onClick={() => {
-            window.location.href = `${BASE_URL}${getFileDownloadUrl(item.id, apiBase)}`;
-            onClose();
-          }}
-        >
-          Download
-        </div>
-        <div
-          className={menuItemClass}
-          onClick={() => {
-            openDetailsPopup(item);
-            onClose();
-          }}
-        >
-          Details
-        </div>
-        {canShare && (
-          <div
-            className={menuItemClass}
-            onClick={() => {
-              openShareModal(item);
-              onClose();
-            }}
-          >
-            Share
-          </div>
-        )}
-        {canRename && (
-          <div
-            className={menuItemClass}
-            onClick={() => {
-              openRenameModal('file', item.id, item.name);
-              onClose();
-            }}
-          >
-            Rename
-          </div>
-        )}
-        {canMove && (
-          <div
-            className={menuItemClass}
-            onClick={() => {
-              openMoveModal([item]);
-              onClose();
-            }}
-          >
-            Move
-          </div>
-        )}
-        {canDelete && (
-          <div
-            className={menuItemClass}
-            onClick={() => {
-              openDeleteConfirm(item);
-              onClose();
-            }}
-          >
-            Move to trash
-          </div>
-        )}
-      </div>
-    );
+    entries = [
+      entry('download', FaDownload, 'Download', () => {
+        window.location.href = `${BASE_URL}${getFileDownloadUrl(item.id, apiBase)}`;
+      }),
+      entry('details', FaInfoCircle, 'Details', () => openDetailsPopup(item)),
+      canShare &&
+        entry('share', FaShareAlt, 'Share', () => openShareModal(item)),
+      canRename &&
+        entry('rename', FaPen, 'Rename', () =>
+          openRenameModal('file', item.id, item.name),
+        ),
+      canMove &&
+        entry('move', FaArrowsAlt, 'Move', () => openMoveModal([item])),
+      canDelete &&
+        entry('trash', FaTrash, 'Move to trash', () => openDeleteConfirm(item)),
+    ].filter(Boolean);
   }
+
+  const rows = (
+    <>
+      {entries.map(({ key, icon: Icon, label, danger, action }) => (
+        <button
+          key={key}
+          type="button"
+          role="menuitem"
+          onClick={action}
+          className={`flex items-center gap-3.5 w-full min-h-12 sm:min-h-0 px-3.5 py-2.5 sm:py-2 rounded-xl sm:rounded-lg text-[15px] sm:text-sm text-left whitespace-nowrap transition-colors duration-150 cursor-pointer focus-visible:outline-none focus-visible:bg-surface-muted ${
+            danger
+              ? 'text-danger hover:bg-danger/10'
+              : 'text-text hover:bg-surface-muted'
+          }`}
+        >
+          <Icon size={15} className={danger ? '' : 'text-text-muted'} />
+          {label}
+        </button>
+      ))}
+      {viewOnlyNote && (
+        <div className="px-3.5 py-2.5 sm:py-2 text-sm text-text-muted cursor-default">
+          View only
+        </div>
+      )}
+    </>
+  );
+
+  const content = isMobile ? (
+    <>
+      <div
+        className="fixed inset-0 z-[990] bg-black/55 animate-backdrop"
+        onClick={onClose}
+      />
+      <div
+        ref={menuRef}
+        role="menu"
+        className="fixed inset-x-0 bottom-0 z-[991] rounded-t-3xl border-t border-border bg-surface px-3 pt-2.5 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-[0_-12px_32px_rgba(0,0,0,0.3)] animate-sheet-up"
+      >
+        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border-strong" />
+        <p className="px-3.5 pb-2 text-sm font-semibold text-text-muted truncate">
+          {item.name}
+        </p>
+        {rows}
+      </div>
+    </>
+  ) : (
+    <div
+      ref={menuRef}
+      role="menu"
+      className="fixed bg-surface shadow-[0_8px_24px_rgba(0,0,0,0.2),0_1px_3px_rgba(0,0,0,0.1)] rounded-xl border border-border z-[999] p-1.5 min-w-[180px] animate-menu-pop"
+      style={{ top: pos.y, left: pos.x }}
+    >
+      {rows}
+    </div>
+  );
+
   return createPortal(content, document.body);
 }
 

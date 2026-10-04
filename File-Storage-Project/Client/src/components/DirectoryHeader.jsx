@@ -1,73 +1,63 @@
-import { FaPlus, FaUpload, FaSearch } from 'react-icons/fa';
+import { FaPlus, FaUpload } from 'react-icons/fa';
 
+// Search now lives in the top bar (see TopBar + SearchContext), so this
+// header only handles the title, subtitle and primary actions.
 function DirectoryHeader({
   directoryName,
+  subtitle,
   onCreateFolderClick,
   onUploadFilesClick,
   fileInputRef,
   handleFileSelect,
   disabled = false,
   readOnly = false,
-  searchValue = '',
-  onSearchChange,
 }) {
-  const actionButtonClass =
-    'flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-semibold  border border-border text-text cursor-pointer transition-all duration-150 hover:enabled:bg-surface-hover hover:enabled:border-gray-300 hover:enabled:scale-[1.03] active:enabled:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed';
+  const baseButton =
+    'flex items-center justify-center gap-2 h-12 sm:h-11 px-5 rounded-xl text-sm font-semibold cursor-pointer transition-all duration-150 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/30 active:enabled:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed';
+  const secondaryButton = `${baseButton} bg-surface border border-border text-text shadow-card hover:enabled:bg-surface-hover hover:enabled:border-border-strong`;
+  const primaryButton = `${baseButton} bg-linear-to-b from-primary-hover to-primary text-white shadow-[0_6px_18px_-6px_var(--color-primary)] hover:enabled:brightness-110`;
 
   return (
-    <header className="flex flex-col gap-3 border-b border-border py-4 ">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="m-0 text-[1.5rem] font-bold tracking-tight text-text truncate max-w-[45vw]">
+    <header className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 sm:gap-6 border-b border-border pt-4 sm:pt-5 pb-5 sm:pb-6">
+      <div className="min-w-0">
+        <h1 className="m-0 text-[1.75rem] sm:text-4xl leading-tight font-bold tracking-tight text-text truncate">
           {directoryName}
         </h1>
-
-        {!readOnly && (
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              className={actionButtonClass}
-              title="New folder"
-              onClick={onCreateFolderClick}
-              disabled={disabled}
-            >
-              <FaPlus size={12} />
-              <span>New</span>
-            </button>
-
-            <button
-              className={actionButtonClass}
-              title="Upload files"
-              onClick={onUploadFilesClick}
-              disabled={disabled}
-            >
-              <FaUpload size={12} />
-              <span className="hidden sm:inline">Upload</span>
-            </button>
-
-            {/* Hidden file input */}
-            <input
-              ref={fileInputRef}
-              id="file-upload"
-              type="file"
-              className="hidden"
-              multiple
-              onChange={handleFileSelect}
-            />
-          </div>
+        {subtitle && (
+          <p className="mt-1 text-sm sm:text-base text-text-muted">{subtitle}</p>
         )}
       </div>
 
-      {onSearchChange && (
-        <div className="relative w-full sm:max-w-[320px]">
-          <FaSearch
-            size={13}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-          />
+      {!readOnly && (
+        <div className="grid grid-cols-2 sm:flex gap-2.5 w-full sm:w-auto flex-shrink-0">
+          <button
+            className={secondaryButton}
+            title="New folder"
+            onClick={onCreateFolderClick}
+            disabled={disabled}
+          >
+            <FaPlus size={12} />
+            <span>New</span>
+          </button>
+
+          <button
+            className={primaryButton}
+            title="Upload files"
+            onClick={onUploadFilesClick}
+            disabled={disabled}
+          >
+            <FaUpload size={12} />
+            <span>Upload</span>
+          </button>
+
+          {/* Hidden file input */}
           <input
-            type="text"
-            value={searchValue}
-            onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Search files and folders..."
-            className="w-full pl-9 pr-3 py-2 rounded-lg border border-border text-sm  text-text transition-colors duration-150 focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/12"
+            ref={fileInputRef}
+            id="file-upload"
+            type="file"
+            className="hidden"
+            multiple
+            onChange={handleFileSelect}
           />
         </div>
       )}

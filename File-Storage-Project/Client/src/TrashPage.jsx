@@ -167,8 +167,12 @@ function TrashPage() {
   ];
 
   return (
-    <div className="max-w-[1000px] mx-auto px-4 font-sans text-text">
-      <DirectoryHeader directoryName="Trash" readOnly />
+    <div className="max-w-[1100px] mx-auto px-4 sm:px-6 pb-12 font-sans text-text">
+      <DirectoryHeader
+        directoryName="Trash"
+        subtitle="Items stay here until you delete them forever."
+        readOnly
+      />
 
       {errorMessage && (
         <div className="bg-red-50 text-danger border border-red-200 rounded-lg px-4 py-2.5 text-sm mt-4">
@@ -181,7 +185,7 @@ function TrashPage() {
           <button
             type="button"
             onClick={handleEmptyTrash}
-            className="text-xs font-semibold text-danger hover:underline transition-colors cursor-pointer"
+            className="min-h-11 px-3 text-sm font-semibold text-danger hover:underline transition-colors cursor-pointer"
           >
             Empty Trash
           </button>

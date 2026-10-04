@@ -13,6 +13,7 @@ import { useAutoDismissError } from './hooks/useAutoDismissError';
 import SelectionToolbar from './components/SelectionToolbar';
 import BulkDeleteConfirmModal from './components/BulkDeleteConfirmModal';
 import { getItemKey } from './utils/itemKey';
+import { useSearch } from './context/SearchContext';
 
 import MoveModal from './components/MoveModal';
 import { moveDirectory as moveDirectoryApi } from './apis/directoryApi';
@@ -105,8 +106,17 @@ function DirectoryView() {
   const [activeContextMenu, setActiveContextMenu] = useState(null);
   const [contextMenuPos, setContextMenuPos] = useState({ x: 0, y: 0 });
 
-  // Search UI (client-side filter only)
-  const [searchQuery, setSearchQuery] = useState('');
+  // Search field lives in the top bar; filtering is still client-side only.
+  const {
+    query: searchQuery,
+    setQuery: setSearchQuery,
+    setEnabled: setSearchEnabled,
+  } = useSearch();
+
+  useEffect(() => {
+    setSearchEnabled(true);
+    return () => setSearchEnabled(false);
+  }, []);
 
   async function getDirectoryItems() {
     setErrorMessage('');
@@ -431,53 +441,44 @@ function DirectoryView() {
   );
 
   function handleToggleSelect(item) {
-    if (!selectionMode || item.id.startsWith('temp-')) return;
+    if (item.id.startsWith('temp-')) return;
 
     const key = getItemKey(item);
+    setSelectionMode(true);
 
     setSelectedKeys((prev) => {
       const next = new Set(prev);
-
-      if (next.has(key)) {
-        next.delete(key);
-      } else {
-        next.add(key);
-      }
-
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
-    });
-  }
-
-  function toggleSelectionMode() {
-    setSelectionMode((prev) => {
-      if (prev) setSelectedKeys(new Set()); // exiting clears any selection
-      return !prev;
     });
   }
 
   function handleSelectAll() {
-    if (!selectionMode || selectableItems.length === 0) return;
+    if (selectableItems.length === 0) return;
+    setSelectionMode(true);
 
     setSelectedKeys((prev) => {
       const next = new Set(prev);
-
-      const allSelected = selectableItems.every((item) =>
+      const everySelected = selectableItems.every((item) =>
         next.has(getItemKey(item)),
       );
-
-      if (allSelected) {
-        selectableItems.forEach((item) => {
-          next.delete(getItemKey(item));
-        });
-      } else {
-        selectableItems.forEach((item) => {
-          next.add(getItemKey(item));
-        });
-      }
-
+      selectableItems.forEach((item) => {
+        if (everySelected) next.delete(getItemKey(item));
+        else next.add(getItemKey(item));
+      });
       return next;
     });
   }
+
+  function handleClearSelection() {
+    setSelectedKeys(new Set());
+  }
+
+  // Leave selection mode automatically once nothing is selected
+  useEffect(() => {
+    if (selectedKeys.size === 0) setSelectionMode(false);
+  }, [selectedKeys]);
 
   const allSelected =
     selectableItems.length > 0 &&
@@ -554,7 +555,7 @@ function DirectoryView() {
     setShareModalItem(item);
   }
   return (
-    <div className="max-w-[1000px] mx-auto px-4 font-sans text-text">
+    <div className="max-w-[1100px] mx-auto px-4 sm:px-6 pb-28 sm:pb-12 font-sans text-text">
       <BreadcrumbBar
         breadcrumb={breadcrumb}
         onBreadcrumbClick={handleBreadcrumbClick}
@@ -566,13 +567,14 @@ function DirectoryView() {
       )}
       <DirectoryHeader
         directoryName={directoryName}
+        subtitle={
+          dirId ? undefined : 'Your files and folders, all in one place.'
+        }
         onCreateFolderClick={() => setShowCreateDirModal(true)}
         onUploadFilesClick={() => fileInputRef.current.click()}
         fileInputRef={fileInputRef}
         handleFileSelect={handleFileSelect}
         disabled={isDirNotFoundError}
-        searchValue={searchQuery}
-        onSearchChange={setSearchQuery}
       />
       {showCreateDirModal && (
         <CreateDirectoryModal
@@ -657,7 +659,7 @@ function DirectoryView() {
             </button>
             <button
               onClick={() => fileInputRef.current.click()}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-semibold bg-white border border-border text-gray-700 cursor-pointer hover:bg-gray-50 transition-colors"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-semibold bg-surface border border-border text-text cursor-pointer hover:bg-surface-hover transition-colors"
             >
               <FaUpload size={11} />
               Upload
@@ -674,8 +676,12 @@ function DirectoryView() {
             <div className="flex justify-end mt-3">
               <button
                 type="button"
-                onClick={toggleSelectionMode}
-                className="px-3 py-1.5 rounded-full text-xs font-semibold text-primary border border-primary/30 hover:bg-primary/5 transition-colors cursor-pointer"
+                onClick={handleToggleSelect}
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold border transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/30 ${
+                  selectionMode
+                    ? 'bg-primary/10 text-primary border-primary/40'
+                    : 'bg-surface text-text border-border hover:bg-surface-hover hover:border-border-strong'
+                }`}
               >
                 {selectionMode ? 'Cancel selection' : 'Select'}
               </button>
@@ -709,6 +715,20 @@ function DirectoryView() {
             selectedKeys={selectedKeys}
             onToggleSelect={handleToggleSelect}
             selectionMode={selectionMode}
+            selectedCount={selectedItems.length}
+            allSelected={allSelected}
+            onSelectAll={handleSelectAll}
+            toolbar={
+              <SelectionToolbar
+                selectedCount={selectedItems.length}
+                totalCount={selectableItems.length}
+                allSelected={allSelected}
+                onSelectAll={handleSelectAll}
+                onClearSelection={handleClearSelection}
+                onDelete={openBulkDeleteConfirm}
+                onMove={() => openMoveModal(selectedItems)}
+              />
+            }
           />
         </>
       )}

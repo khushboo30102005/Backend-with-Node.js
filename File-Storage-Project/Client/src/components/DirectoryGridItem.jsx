@@ -1,6 +1,7 @@
 import { FaFolder } from 'react-icons/fa';
 import { BsThreeDotsVertical } from 'react-icons/bs';
 import ContextMenu from '../components/ContextMenu';
+import { formatSize } from './DetailsPopup';
 
 function DirectoryGridItem({
   item,
@@ -22,7 +23,8 @@ function DirectoryGridItem({
   selectionMode = false,
 }) {
   const permission = item.permission || 'owner';
-  const canSelect = permission === 'owner';
+  const canSelect = permission === 'owner' && Boolean(onToggleSelect);
+  const hasSize = typeof item.size === 'number';
 
   function handleClick() {
     if (activeContextMenu) return;
@@ -35,42 +37,61 @@ function DirectoryGridItem({
 
   return (
     <div
-      className={`group relative flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border bg-surface cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(0,0,0,0.06)] hover:border-gray-300 active:scale-[0.97] ${
-        isSelected ? 'border-primary bg-primary/5' : 'border-border'
+      className={`group relative flex items-center gap-3.5 pl-3.5 pr-2 py-3.5 sm:p-4 min-h-[72px] rounded-2xl border bg-surface shadow-card cursor-pointer transition-all duration-150 hover:-translate-y-px hover:shadow-card-hover hover:border-border-strong active:scale-[0.99] ${
+        isSelected
+          ? 'border-primary bg-primary/10 ring-1 ring-primary/30'
+          : 'border-border'
       }`}
       onClick={handleClick}
       onContextMenu={(e) => handleContextMenu(e, item.id)}
     >
-      {canSelect && selectionMode && (
-        <input
-          type="checkbox"
-          checked={isSelected}
-          onChange={() => onToggleSelect(item)}
-          onClick={(e) => e.stopPropagation()}
-          className="absolute top-2 left-2 w-4 h-4 cursor-pointer accent-primary z-10"
-          aria-label={`Select ${item.name}`}
-        />
+      {canSelect && (
+        <span
+          className={`absolute top-0 left-0 z-10 p-2.5 transition-opacity duration-150 focus-within:opacity-100 pointer-coarse:opacity-100 ${
+            selectionMode || isSelected
+              ? 'opacity-100'
+              : 'opacity-0 group-hover:opacity-100'
+          }`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleSelect(item);
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={() => {}}
+            className="app-checkbox bg-surface"
+            aria-label={`Select ${item.name}`}
+          />
+        </span>
       )}
 
-      {/* Always visible on touch screens, hover-only on larger screens */}
+      <span className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-linear-to-br from-amber-400/25 to-amber-500/10 ring-1 ring-amber-400/20 flex items-center justify-center flex-shrink-0">
+        <FaFolder className="text-amber-400 text-2xl" />
+      </span>
+
+      <div className="min-w-0 flex-1">
+        <p
+          className="text-[15px] font-semibold text-text truncate"
+          title={item.name}
+        >
+          {item.name}
+        </p>
+        <p className="text-xs text-text-muted mt-0.5 truncate">
+          Folder{hasSize ? ` • ${formatSize(item.size)}` : ''}
+        </p>
+      </div>
+
       <div
-        className="absolute top-1.5 right-1.5 flex items-center justify-center text-text-muted rounded-full p-1.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-150 hover:bg-gray-100 hover:text-text"
+        className="flex items-center justify-center flex-shrink-0 w-11 h-11 rounded-full text-text-muted transition-colors duration-150 hover:bg-surface-muted hover:text-text"
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => handleContextMenu(e, item.id)}
+        role="button"
+        aria-label={`Actions for ${item.name}`}
       >
-        <BsThreeDotsVertical size={14} />
+        <BsThreeDotsVertical size={17} />
       </div>
-
-      <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center">
-        <FaFolder className="text-amber-500 text-xl" />
-      </div>
-
-      <span
-        className="text-xs font-medium text-text text-center truncate w-full"
-        title={item.name}
-      >
-        {item.name}
-      </span>
 
       {activeContextMenu === item.id && (
         <ContextMenu

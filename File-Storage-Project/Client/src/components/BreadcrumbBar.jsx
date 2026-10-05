@@ -3,6 +3,8 @@ import { FaHome, FaChevronRight, FaEllipsisH } from 'react-icons/fa';
 
 const MAX_VISIBLE = 4;
 
+// Vertical padding is owned by the parent row now (it shares a line with the
+// Select control), so this component adds none of its own.
 function BreadcrumbBar({ breadcrumb = [], onBreadcrumbClick }) {
   const [showHidden, setShowHidden] = useState(false);
   const hiddenMenuRef = useRef(null);
@@ -64,7 +66,7 @@ function BreadcrumbBar({ breadcrumb = [], onBreadcrumbClick }) {
     <>
       <nav
         aria-label="Breadcrumb"
-        className="sm:hidden flex items-center gap-1 pt-4 text-sm min-w-0"
+        className="sm:hidden flex items-center gap-1 text-sm min-w-0"
       >
         {breadcrumb.length === 1 ? (
           <span className="flex items-center gap-2 min-w-0 font-semibold text-text">
@@ -76,7 +78,7 @@ function BreadcrumbBar({ breadcrumb = [], onBreadcrumbClick }) {
             <button
               onClick={() => onBreadcrumbClick(first.id)}
               aria-label={first.name}
-              className="flex items-center justify-center w-10 h-10 -ml-2 rounded-xl text-primary hover:bg-surface-muted transition-colors flex-shrink-0"
+              className="flex items-center justify-center w-9 h-9 -ml-2 rounded-lg text-primary hover:bg-surface-muted transition-colors flex-shrink-0"
             >
               <FaHome size={15} />
             </button>
@@ -91,7 +93,7 @@ function BreadcrumbBar({ breadcrumb = [], onBreadcrumbClick }) {
               <>
                 <button
                   onClick={() => onBreadcrumbClick(parent.id)}
-                  className="min-h-10 px-2 rounded-lg text-text-muted hover:bg-surface-muted hover:text-primary transition-colors truncate max-w-[30vw]"
+                  className="min-h-9 px-2 rounded-lg text-text-muted hover:bg-surface-muted hover:text-primary transition-colors truncate max-w-[30vw]"
                 >
                   {parent.name}
                 </button>
@@ -108,7 +110,7 @@ function BreadcrumbBar({ breadcrumb = [], onBreadcrumbClick }) {
       {/* ≥ 640px: full trail with collapsing middle */}
       <nav
         aria-label="Breadcrumb"
-        className={`hidden sm:flex items-center flex-nowrap gap-1 pt-5 text-sm ${
+        className={`hidden sm:flex items-center flex-nowrap gap-1 text-[13px] ${
           shouldCollapse ? 'overflow-visible' : 'overflow-x-auto'
         }`}
       >

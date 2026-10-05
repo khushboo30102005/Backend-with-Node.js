@@ -6,21 +6,30 @@ import {
   FaCog,
   FaArrowRight,
 } from 'react-icons/fa';
-import { fetchUser } from '../apis/userApi';
+import { useUser } from '../context/UserContext';
 import { formatSize } from './DetailsPopup';
 
-function SoonPill() {
+function Ring({ deg, label, size, text }) {
   return (
-    <span className="ml-auto px-2 py-0.5 rounded-full bg-white/10 text-[10px] font-semibold text-white/60">
-      Soon
-    </span>
+    <div
+      className={`relative ${size} rounded-full flex-shrink-0 [--storage-ring:#5b8cff]`}
+      style={{
+        background: `conic-gradient(var(--storage-ring) ${deg}deg, rgba(255,255,255,0.12) 0deg)`,
+      }}
+    >
+      <div className="absolute inset-[5px] rounded-full bg-sidebar-deep flex items-center justify-center">
+        <span className={`${text} font-bold text-white`}>{label}</span>
+      </div>
+    </div>
   );
 }
 
-// Storage card + dark-mode switch + settings. Data flow is unchanged:
-// fetchUser() on mount and on `storage-changed`; theme saved in localStorage.
-function SidebarFooter() {
-  const [usage, setUsage] = useState({ used: 0, max: 0 });
+// Storage card + dark-mode switch + settings, pinned to the bottom.
+// Storage numbers come from the shared user (refreshed on `storage-changed`).
+function SidebarFooter({ collapsed = false }) {
+  const { user } = useUser();
+  const used = user?.usedStorageInBytes || 0;
+  const max = user?.maxStorageInBytes || 0;
 
   const [theme, setTheme] = useState(
     () =>
@@ -31,68 +40,65 @@ function SidebarFooter() {
   );
 
   useEffect(() => {
-    async function loadStorage() {
-      try {
-        const data = await fetchUser();
-        setUsage({
-          used: data.usedStorageInBytes || 0,
-          max: data.maxStorageInBytes || 0,
-        });
-      } catch (err) {
-        // Non-critical — pages redirect to /login on real auth failures.
-      }
-    }
-    loadStorage();
-
-    window.addEventListener('storage-changed', loadStorage);
-    return () => window.removeEventListener('storage-changed', loadStorage);
-  }, []);
-
-  useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('theme', theme);
   }, [theme]);
 
-  function toggleTheme() {
-    setTheme((t) => (t === 'dark' ? 'light' : 'dark'));
+  const isDark = theme === 'dark';
+  const usedPercent = max > 0 ? Math.min((used / max) * 100, 100) : 0;
+  const percentLabel =
+    used > 0 && usedPercent < 1 ? '<1%' : `${Math.round(usedPercent)}%`;
+  const ringDeg = used > 0 ? Math.max((usedPercent / 100) * 360, 8) : 0;
+  const barWidth = used > 0 ? Math.max(usedPercent, 2) : 0;
+
+  const rowClass =
+    'flex items-center rounded-lg text-sm font-medium text-white/75 hover:bg-white/10 hover:text-white transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60';
+
+  if (collapsed) {
+    return (
+      <div className="mt-auto pt-4 flex flex-col items-center gap-1">
+        <div title={`${formatSize(used)} of ${formatSize(max)} used`}>
+          <Ring deg={ringDeg} label={percentLabel} size="w-11 h-11" text="text-[10px]" />
+        </div>
+        <button
+          type="button"
+          onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+          title="Dark mode"
+          aria-label="Toggle dark mode"
+          className={`${rowClass} justify-center w-11 h-11 mt-2`}
+        >
+          {isDark ? <FaSun size={16} /> : <FaMoon size={16} />}
+        </button>
+        <button
+          type="button"
+          title="Settings"
+          aria-label="Settings"
+          className={`${rowClass} justify-center w-11 h-11`}
+        >
+          <FaCog size={16} />
+        </button>
+      </div>
+    );
   }
 
-  const total = usage.max || 1;
-  const usedPercent = Math.min((usage.used / total) * 100, 100);
-  const ringDeg = (usedPercent / 100) * 360;
-  const barWidth = usage.used > 0 ? Math.max(usedPercent, 2) : 0;
-  const isDark = theme === 'dark';
-
   return (
-    <div className="mt-auto pt-6">
-      <div className="rounded-2xl bg-white/[0.07] ring-1 ring-white/10 p-4">
-        <div className="flex items-center gap-2.5 text-white">
-          <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-white/10">
+    <div className="mt-auto pt-4">
+      <div className="rounded-2xl bg-sidebar-deep border border-white/10 p-3.5 shadow-[0_10px_28px_-10px_rgba(0,0,0,0.6)]">
+        <div className="flex items-center gap-2.5">
+          <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-white/10 ring-1 ring-white/10 text-white">
             <FaDatabase size={13} />
           </span>
-          <p className="text-sm font-semibold">Storage</p>
+          <p className="text-sm font-semibold text-white">Storage</p>
         </div>
 
-        <div className="flex items-center gap-3.5 mt-4">
-          <div
-            className="relative w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0 [--storage-ring:white] dark:[--storage-ring:var(--color-primary)]"
-            style={{
-              background: `conic-gradient(var(--storage-ring) ${ringDeg}deg, rgba(255,255,255,0.16) ${ringDeg}deg)`,
-            }}
-          >
-            <div className="w-[2.6rem] h-[2.6rem] rounded-full bg-sidebar-deep flex items-center justify-center">
-              <span className="text-xs font-bold text-white">
-                {Math.round(usedPercent)}%
-              </span>
-            </div>
-          </div>
-
+        <div className="flex items-center gap-3 mt-3.5">
+          <Ring deg={ringDeg} label={percentLabel} size="w-14 h-14" text="text-[13px]" />
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium text-white truncate">
-              {formatSize(usage.used)} of {formatSize(usage.max)}
+            <p className="text-[13px] text-white/85 truncate">
+              {formatSize(used)} of {formatSize(max)}
             </p>
             <div
-              className="mt-2.5 h-1.5 rounded-full bg-white/15 overflow-hidden"
+              className="mt-2 h-1.5 rounded-full bg-white/15 overflow-hidden"
               role="progressbar"
               aria-label="Storage used"
               aria-valuemin={0}
@@ -100,61 +106,48 @@ function SidebarFooter() {
               aria-valuenow={Math.round(usedPercent)}
             >
               <div
-                className="h-full rounded-full bg-white dark:bg-primary transition-[width] duration-500"
+                className="h-full rounded-full bg-[#5b8cff] transition-[width] duration-500"
                 style={{ width: `${barWidth}%` }}
               />
             </div>
+            <button
+              type="button"
+              className="mt-2.5 inline-flex items-center gap-1.5 text-[13px] font-medium text-[#7da2ff] hover:text-[#a3bdff] transition-colors"
+            >
+              Manage storage <FaArrowRight size={10} />
+            </button>
           </div>
         </div>
-
-        {/* Prepared UI — plan management isn't built yet */}
-        <button
-          type="button"
-          disabled
-          aria-disabled="true"
-          title="Storage management is coming soon"
-          className="mt-3.5 inline-flex items-center gap-1.5 text-xs font-semibold text-white/50 cursor-not-allowed"
-        >
-          Manage storage <FaArrowRight size={10} />
-        </button>
       </div>
 
-      <div className="mt-3 pt-3 border-t border-white/10 flex flex-col gap-1">
+      <div className="mt-3 flex flex-col gap-0.5">
         <button
           type="button"
           role="switch"
           aria-checked={isDark}
-          onClick={toggleTheme}
-          className="flex items-center justify-between w-full min-h-12 px-3.5 rounded-xl text-[15px] font-medium text-white/80 hover:bg-white/10 hover:text-white transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+          onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+          className={`${rowClass} justify-between w-full h-10 px-3`}
         >
           <span className="flex items-center gap-3.5">
-            {isDark ? <FaSun size={16} /> : <FaMoon size={16} />}
+            {isDark ? <FaSun size={15} /> : <FaMoon size={15} />}
             Dark mode
           </span>
           <span
-            className={`relative w-10 h-6 rounded-full transition-colors duration-200 ${
+            className={`relative w-9 h-5 rounded-full transition-colors duration-200 ${
               isDark ? 'bg-primary' : 'bg-white/25'
             }`}
           >
             <span
-              className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${
+              className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${
                 isDark ? 'translate-x-4' : ''
               }`}
             />
           </span>
         </button>
 
-        {/* Prepared UI — settings page isn't built yet */}
-        <button
-          type="button"
-          disabled
-          aria-disabled="true"
-          title="Settings are coming soon"
-          className="flex items-center gap-3.5 w-full min-h-12 px-3.5 rounded-xl text-[15px] font-medium text-white/45 cursor-not-allowed"
-        >
-          <FaCog size={16} />
+        <button type="button" className={`${rowClass} gap-3.5 w-full h-10 px-3`}>
+          <FaCog size={15} />
           Settings
-          <SoonPill />
         </button>
       </div>
     </div>

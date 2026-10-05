@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router';
 import { loginWithGoogle, verifyLoginOtp } from './apis/authApi.js';
 import { FaGithub } from 'react-icons/fa';
 import { loginUser } from './apis/userApi.js';
+import AuthBackground from './components/AuthBackground';
 
 const Login = () => {
   const [formData, setFormData] = useState({
@@ -119,7 +120,8 @@ const Login = () => {
     }`;
 
   return (
-    <div className="max-w-[400px] mx-auto my-[60px] p-8 bg-surface rounded-2xl shadow-[0_1px_3px_rgba(0,0,0,0.04),0_12px_32px_rgba(0,0,0,0.08)] border border-border font-sans">
+    <AuthBackground>
+    <div className="max-w-[400px] mx-auto my-[60px] p-8 bg-surface/85 backdrop-blur-xl rounded-2xl shadow-[0_1px_3px_rgba(0,0,0,0.04),0_12px_32px_rgba(0,0,0,0.08)] border border-border font-sans">
       <h2 className="text-center mb-6 text-2xl font-bold tracking-tight text-text">
         Login
       </h2>
@@ -287,6 +289,7 @@ const Login = () => {
         </button>
       </div>
     </div>
+    </AuthBackground>
   );
 };
 

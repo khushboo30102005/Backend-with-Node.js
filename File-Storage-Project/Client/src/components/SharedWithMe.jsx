@@ -9,9 +9,11 @@ import { BASE_URL } from '../Register';
 import { getSharedWithMe } from '../apis/shareApi';
 import { getFileUrl, renameFile } from '../apis/fileApi';
 import { useAutoDismissError } from '../hooks/useAutoDismissError';
+import { useNotifications } from '../context/NotificationsContext';
 
 function SharedWithMe() {
   const navigate = useNavigate();
+  const { markSeen } = useNotifications();
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useAutoDismissError();
@@ -34,6 +36,10 @@ function SharedWithMe() {
     try {
       const data = await getSharedWithMe();
       setEntries(data);
+      // The user is now looking at these shares → their notifications are seen.
+      // Only the shares actually displayed are marked, so one that arrives
+      // mid-load stays unread.
+      markSeen(data.map((entry) => entry.shareId));
     } catch (err) {
       if (err.response?.status === 401) {
         navigate('/login');
@@ -138,7 +144,7 @@ function SharedWithMe() {
   }));
 
   return (
-    <div className="max-w-[1100px] mx-auto px-4 sm:px-6 pb-12 font-sans text-text">
+    <div className="w-full max-w-[1280px] mx-auto px-4 sm:px-7 pt-3 pb-8 font-sans text-text">
       <DirectoryHeader
         directoryName="Shared with me"
         subtitle="Files other people have shared with you."

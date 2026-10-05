@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router';
+import { useParams, useNavigate, Navigate } from 'react-router';
 import { FaFolderOpen, FaPlus, FaUpload } from 'react-icons/fa';
 import DirectoryHeader from './components/DirectoryHeader';
 import CreateDirectoryModal from './components/CreateDirectoryModal';
@@ -14,6 +14,7 @@ import SelectionToolbar from './components/SelectionToolbar';
 import BulkDeleteConfirmModal from './components/BulkDeleteConfirmModal';
 import { getItemKey } from './utils/itemKey';
 import { useSearch } from './context/SearchContext';
+import { useUser } from './context/UserContext';
 
 import MoveModal from './components/MoveModal';
 import { moveDirectory as moveDirectoryApi } from './apis/directoryApi';
@@ -30,38 +31,58 @@ import {
   renameFile as renameFileApi,
   uploadFileWithProgress,
   getFileUrl,
+  getFileDownloadUrl,
 } from './apis/fileApi';
-import { fetchUser } from './apis/userApi';
 import ShareModal from './components/ShareModal';
-function DirectoryView() {
-  const { dirId } = useParams();
-  const navigate = useNavigate();
+import BulkShareModal from './components/BulkShareModal';
 
-  const [maxStorageInBytes, setMaxStorageInBytes] = useState(0);
-  const [usedStorageInBytes, setUsedStorageInBytes] = useState(0);
+export const MY_DRIVE_PATH = '/mydrive';
+export const folderPath = (id) => `${MY_DRIVE_PATH}/folder/${id}`;
+
+function ListingSkeleton() {
+  return (
+    <div className="mt-4 flex flex-col gap-5 animate-pulse" aria-hidden="true">
+      <div className="grid grid-cols-1 min-[480px]:grid-cols-2 xl:grid-cols-3 gap-3">
+        {[0, 1].map((i) => (
+          <div key={i} className="h-16 rounded-xl border border-border bg-surface-muted/60" />
+        ))}
+      </div>
+      <div className="rounded-xl border border-border bg-surface overflow-hidden divide-y divide-border">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="h-14 bg-surface-muted/30" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DirectoryView({ dirId }) {
+  const navigate = useNavigate();
+  const { user, dirCache } = useUser();
+
+  // Storage numbers come from the shared user; the shell refreshes them
+  // whenever 'storage-changed' fires (see storageRefreshKey effect below).
+  const maxStorageInBytes = user?.maxStorageInBytes || 0;
+  const usedStorageInBytes = user?.usedStorageInBytes || 0;
   const availableStorageBytes = maxStorageInBytes - usedStorageInBytes;
+
+  const cacheKey = dirId || 'root';
+  const cached = dirCache.get(cacheKey);
+
+  // Always-current dir id for async work that outlives a render
+  const dirIdRef = useRef(dirId);
+  dirIdRef.current = dirId;
+  const requestRef = useRef(0);
 
   const [storageRefreshKey, setStorageRefreshKey] = useState(0);
 
   const [selectedKeys, setSelectedKeys] = useState(new Set());
-  const [bulkDeleteItems, setBulkDeleteItems] = useState([]);
   const [selectionMode, setSelectionMode] = useState(false);
+  const [bulkDeleteItems, setBulkDeleteItems] = useState([]);
   const [moveItems, setMoveItems] = useState([]);
+  const [bulkShareItems, setBulkShareItems] = useState([]);
 
-  useEffect(() => {
-    async function loadStorageInfo() {
-      try {
-        const data = await fetchUser();
-        setMaxStorageInBytes(data.maxStorageInBytes);
-        setUsedStorageInBytes(data.usedStorageInBytes);
-      } catch (err) {
-        console.error('Error fetching storage info:', err);
-      }
-    }
-    loadStorageInfo();
-  }, [storageRefreshKey]);
-
-  // Tell the Sidebar to refresh its storage ring after uploads/deletes/moves
+  // Tell the shell (sidebar ring, etc.) to refresh storage after changes
   useEffect(() => {
     if (storageRefreshKey > 0) {
       window.dispatchEvent(new Event('storage-changed'));
@@ -70,18 +91,19 @@ function DirectoryView() {
 
   const [shareModalItem, setShareModalItem] = useState(null);
 
-  const [directoryName, setDirectoryName] = useState('My Drive');
-  const [breadcrumb, setBreadcrumb] = useState([]);
+  const [directoryName, setDirectoryName] = useState(cached?.name || 'My Drive');
+  const [breadcrumb, setBreadcrumb] = useState(cached?.breadcrumb || []);
+  const [directoriesList, setDirectoriesList] = useState(
+    cached ? [...cached.directories].reverse() : [],
+  );
+  const [filesList, setFilesList] = useState(
+    cached ? [...cached.files].reverse() : [],
+  );
+  // First paint of a folder we have nothing for: show a skeleton, not "Nothing here yet"
+  const [loading, setLoading] = useState(!cached);
 
-  const [directoriesList, setDirectoriesList] = useState([]);
-  const [filesList, setFilesList] = useState([]);
-
-  // Auto-dismissing error states
   const [errorMessage, setErrorMessage] = useAutoDismissError();
   const [modalError, setModalError] = useAutoDismissError();
-
-  // "Directory not found" is a persistent page state, not a toast, so it
-  // must not live in the auto-dismissing error.
   const [dirNotFound, setDirNotFound] = useState(false);
 
   const [showCreateDirModal, setShowCreateDirModal] = useState(false);
@@ -100,13 +122,11 @@ function DirectoryView() {
   const [uploadControllerMap, setUploadControllerMap] = useState({});
   const [progressMap, setProgressMap] = useState({});
   const [isUploading, setIsUploading] = useState(false);
-  // Ids of queued uploads the user cancelled before their turn came
   const cancelledRef = useRef(new Set());
 
   const [activeContextMenu, setActiveContextMenu] = useState(null);
   const [contextMenuPos, setContextMenuPos] = useState({ x: 0, y: 0 });
 
-  // Search field lives in the top bar; filtering is still client-side only.
   const {
     query: searchQuery,
     setQuery: setSearchQuery,
@@ -118,35 +138,80 @@ function DirectoryView() {
     return () => setSearchEnabled(false);
   }, []);
 
+  function applyListing(entry) {
+    setDirectoryName(entry.name);
+    setBreadcrumb(entry.breadcrumb);
+    setDirectoriesList([...entry.directories].reverse());
+    setFilesList([...entry.files].reverse());
+  }
+
+  // Always fetches the folder currently in the URL, and ignores responses
+  // that were overtaken by a newer request (fast folder → folder clicks).
   async function getDirectoryItems() {
+    const targetId = dirIdRef.current;
+    const key = targetId || 'root';
+    const requestId = ++requestRef.current;
     setErrorMessage('');
-    setDirNotFound(false);
     try {
-      const data = await fetchDirectoryItems(dirId);
-      setDirectoryName(dirId ? data.name : 'My Drive');
-      setBreadcrumb(data.breadcrumb || []);
-      setDirectoriesList([...data.directories].reverse());
-      setFilesList([...data.files].reverse());
+      const data = await fetchDirectoryItems(targetId);
+      const entry = {
+        name: targetId ? data.name : 'My Drive',
+        breadcrumb: data.breadcrumb || [],
+        directories: data.directories,
+        files: data.files,
+      };
+      dirCache.set(key, entry);
+      if (requestId !== requestRef.current) return;
+      setDirNotFound(false);
+      applyListing(entry);
     } catch (err) {
+      if (requestId !== requestRef.current) return;
       if (err.response?.status === 401) {
         navigate('/login');
         return;
       }
       if (err.response?.status === 404) {
+        dirCache.delete(key);
         setDirNotFound(true);
         return;
       }
       setErrorMessage(err.response?.data?.error || 'Request failed');
+    } finally {
+      if (requestId === requestRef.current) setLoading(false);
     }
   }
 
+  // Folder changed (or first mount): paint cached listing instantly if we
+  // have one, then revalidate in the background.
   useEffect(() => {
+    const entry = dirCache.get(cacheKey);
+    setDirNotFound(false);
+    if (entry) {
+      applyListing(entry);
+      setLoading(false);
+    } else {
+      setDirectoriesList([]);
+      setFilesList([]);
+      setDirectoryName(dirId ? '' : 'My Drive');
+      setLoading(true);
+    }
     getDirectoryItems();
     setActiveContextMenu(null);
     setSearchQuery('');
-    setSelectedKeys(new Set());
-    setSelectionMode(false);
+    cancelSelection();
   }, [dirId]);
+
+  // Escape leaves selection mode
+  useEffect(() => {
+    if (!selectionMode) return;
+    const onKey = (e) => {
+      if (e.key === 'Escape' && !document.querySelector('[class*="z-[999]"]')) {
+        cancelSelection();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [selectionMode]);
 
   function closeContextMenu() {
     setActiveContextMenu(null);
@@ -204,7 +269,7 @@ function DirectoryView() {
 
   function handleRowClick(type, id) {
     if (type === 'directory') {
-      navigate(`/directory/${id}`);
+      navigate(folderPath(id));
     } else {
       // Open in a new tab so the app (and any running upload) stays alive
       window.open(`${BASE_URL}${getFileUrl(id)}`, '_blank', 'noopener');
@@ -213,7 +278,7 @@ function DirectoryView() {
 
   function handleBreadcrumbClick(id) {
     const isRoot = breadcrumb.length > 0 && id === breadcrumb[0].id;
-    navigate(isRoot ? '/' : `/directory/${id}`);
+    navigate(isRoot ? MY_DRIVE_PATH : folderPath(id));
   }
 
   function handleFileSelect(e) {
@@ -276,7 +341,6 @@ function DirectoryView() {
 
     const [currentItem, ...restQueue] = queue;
 
-    // Skip uploads that were cancelled while waiting in the queue
     if (cancelledRef.current.has(currentItem.id)) {
       cancelledRef.current.delete(currentItem.id);
       processUploadQueue(restQueue);
@@ -434,18 +498,23 @@ function DirectoryView() {
     ? combinedItems.filter((item) => item.name.toLowerCase().includes(query))
     : combinedItems;
 
-  const isDirNotFoundError = dirNotFound;
-
   const selectableItems = visibleItems.filter(
     (item) => !item.id.startsWith('temp-'),
   );
 
+  // ---- selection mode -------------------------------------------------
+  function enterSelection() {
+    setSelectionMode(true);
+  }
+
+  function cancelSelection() {
+    setSelectionMode(false);
+    setSelectedKeys(new Set());
+  }
+
   function handleToggleSelect(item) {
     if (item.id.startsWith('temp-')) return;
-
     const key = getItemKey(item);
-    setSelectionMode(true);
-
     setSelectedKeys((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
@@ -454,16 +523,13 @@ function DirectoryView() {
     });
   }
 
-  function handleSelectAll() {
-    if (selectableItems.length === 0) return;
-    setSelectionMode(true);
-
+  // Select / deselect a group of items (everything, or just the files)
+  function toggleGroup(group) {
+    if (group.length === 0) return;
     setSelectedKeys((prev) => {
       const next = new Set(prev);
-      const everySelected = selectableItems.every((item) =>
-        next.has(getItemKey(item)),
-      );
-      selectableItems.forEach((item) => {
+      const everySelected = group.every((item) => next.has(getItemKey(item)));
+      group.forEach((item) => {
         if (everySelected) next.delete(getItemKey(item));
         else next.add(getItemKey(item));
       });
@@ -471,14 +537,17 @@ function DirectoryView() {
     });
   }
 
-  function handleClearSelection() {
-    setSelectedKeys(new Set());
+  const selectableFiles = selectableItems.filter((item) => !item.isDirectory);
+
+  // Toolbar checkbox = every folder and file
+  function handleSelectAll() {
+    toggleGroup(selectableItems);
   }
 
-  // Leave selection mode automatically once nothing is selected
-  useEffect(() => {
-    if (selectedKeys.size === 0) setSelectionMode(false);
-  }, [selectedKeys]);
+  // Files-table header checkbox = files only
+  function handleSelectAllFiles() {
+    toggleGroup(selectableFiles);
+  }
 
   const allSelected =
     selectableItems.length > 0 &&
@@ -487,9 +556,46 @@ function DirectoryView() {
   const selectedItems = combinedItems.filter((item) =>
     selectedKeys.has(getItemKey(item)),
   );
+
+  const selectedFileCount = selectedItems.filter((i) => !i.isDirectory).length;
+  const allFilesSelected =
+    selectableFiles.length > 0 &&
+    selectableFiles.every((item) => selectedKeys.has(getItemKey(item)));
+
+  const selectedRealFiles = selectedItems.filter(
+    (i) => !i.isDirectory && !i.id.startsWith('temp-'),
+  );
+  const selectedFolderCount = selectedItems.filter((i) => i.isDirectory).length;
+
+  // Downloads each selected file through the existing single-file endpoint
+  // (it redirects to a signed attachment URL). There is no zip/folder download
+  // on the server, so folders are skipped. Staggered so browsers accept it.
+  function handleBulkDownload() {
+    if (selectedRealFiles.length === 0) return;
+    selectedRealFiles.forEach((file, i) => {
+      setTimeout(() => {
+        const a = document.createElement('a');
+        a.href = `${BASE_URL}${getFileDownloadUrl(file.id)}`;
+        a.rel = 'noopener';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }, i * 700);
+    });
+    if (selectedFolderCount > 0) {
+      setErrorMessage(
+        `${selectedFolderCount} ${selectedFolderCount === 1 ? 'folder was' : 'folders were'} skipped — only files can be downloaded.`,
+      );
+    }
+  }
+
+  function handleBulkShare() {
+    if (selectedRealFiles.length === 0) return;
+    setBulkShareItems(selectedRealFiles);
+  }
+
   function openBulkDeleteConfirm() {
     if (selectedItems.length === 0) return;
-
     setBulkDeleteItems(selectedItems);
   }
 
@@ -509,7 +615,7 @@ function DirectoryView() {
     ).length;
 
     setBulkDeleteItems([]);
-    setSelectedKeys(new Set());
+    cancelSelection();
 
     await getDirectoryItems();
     setStorageRefreshKey((prev) => prev + 1);
@@ -540,7 +646,7 @@ function DirectoryView() {
     const failed = results.filter((r) => r.status === 'rejected');
 
     setMoveItems([]);
-    setSelectedKeys(new Set());
+    cancelSelection();
     await getDirectoryItems();
     setStorageRefreshKey((prev) => prev + 1);
 
@@ -554,17 +660,44 @@ function DirectoryView() {
   function openShareModal(item) {
     setShareModalItem(item);
   }
+
+  const showSkeleton = loading && combinedItems.length === 0 && !dirNotFound;
+
   return (
-    <div className="max-w-[1100px] mx-auto px-4 sm:px-6 pb-28 sm:pb-12 font-sans text-text">
-      <BreadcrumbBar
-        breadcrumb={breadcrumb}
-        onBreadcrumbClick={handleBreadcrumbClick}
-      />
+    <div className="w-full max-w-[1280px] mx-auto px-4 sm:px-7 pt-3 sm:pt-4 pb-24 sm:pb-8 font-sans text-text">
+      {/* One row: where am I (left) + the single selection control (right) */}
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 min-h-9">
+        <div className="min-w-0 flex-1 basis-56">
+          <BreadcrumbBar
+            breadcrumb={breadcrumb}
+            onBreadcrumbClick={handleBreadcrumbClick}
+          />
+        </div>
+        {!dirNotFound && !showSkeleton && (
+          <SelectionToolbar
+            selectionMode={selectionMode}
+            onEnter={enterSelection}
+            onCancel={cancelSelection}
+            selectedCount={selectedItems.length}
+            totalCount={selectableItems.length}
+            allSelected={allSelected}
+            onSelectAll={handleSelectAll}
+            onDelete={openBulkDeleteConfirm}
+            onMove={() => openMoveModal(selectedItems)}
+            onDownload={handleBulkDownload}
+            onShare={handleBulkShare}
+            canDownload={selectedRealFiles.length > 0}
+            canShare={selectedRealFiles.length > 0}
+          />
+        )}
+      </div>
+
       {errorMessage && (
-        <div className="bg-red-50 text-danger border border-red-200 rounded-lg px-4 py-2.5 text-sm mt-4">
+        <div className="bg-red-50 text-danger border border-red-200 rounded-lg px-4 py-2 text-sm mt-3">
           {errorMessage}
         </div>
       )}
+
       <DirectoryHeader
         directoryName={directoryName}
         subtitle={
@@ -574,8 +707,9 @@ function DirectoryView() {
         onUploadFilesClick={() => fileInputRef.current.click()}
         fileInputRef={fileInputRef}
         handleFileSelect={handleFileSelect}
-        disabled={isDirNotFoundError}
+        disabled={dirNotFound}
       />
+
       {showCreateDirModal && (
         <CreateDirectoryModal
           newDirname={newDirname}
@@ -607,6 +741,14 @@ function DirectoryView() {
           onClose={() => setShareModalItem(null)}
         />
       )}
+      {bulkShareItems.length > 0 && (
+        <BulkShareModal
+          files={bulkShareItems}
+          skippedFolders={selectedFolderCount}
+          onClose={() => setBulkShareItems([])}
+          onDone={cancelSelection}
+        />
+      )}
       {moveItems.length > 0 && (
         <MoveModal
           items={moveItems}
@@ -628,7 +770,6 @@ function DirectoryView() {
           onCancel={() => setDeleteConfirmItem(null)}
         />
       )}
-
       {bulkDeleteItems.length > 0 && (
         <BulkDeleteConfirmModal
           items={bulkDeleteItems}
@@ -636,12 +777,15 @@ function DirectoryView() {
           onCancel={() => setBulkDeleteItems([])}
         />
       )}
-      {isDirNotFoundError ? (
+
+      {dirNotFound ? (
         <p className="text-center italic mt-10 text-text-muted">
           Directory not found or you do not have access to it!
         </p>
+      ) : showSkeleton ? (
+        <ListingSkeleton />
       ) : combinedItems.length === 0 ? (
-        <div className="flex flex-col items-center justify-center text-center py-16 px-4">
+        <div className="flex flex-col items-center justify-center text-center py-14 px-4">
           <div className="w-14 h-14 rounded-full bg-indigo-50 flex items-center justify-center mb-4">
             <FaFolderOpen size={22} className="text-primary" />
           </div>
@@ -671,69 +815,37 @@ function DirectoryView() {
           No files or folders match "{searchQuery}".
         </p>
       ) : (
-        <>
-          {selectableItems.length > 0 && (
-            <div className="flex justify-end mt-3">
-              <button
-                type="button"
-                onClick={handleToggleSelect}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold border transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/30 ${
-                  selectionMode
-                    ? 'bg-primary/10 text-primary border-primary/40'
-                    : 'bg-surface text-text border-border hover:bg-surface-hover hover:border-border-strong'
-                }`}
-              >
-                {selectionMode ? 'Cancel selection' : 'Select'}
-              </button>
-            </div>
-          )}
-          <SelectionToolbar
-            selectedCount={selectedItems.length}
-            totalCount={selectableItems.length}
-            allSelected={allSelected}
-            onSelectAll={handleSelectAll}
-            onClearSelection={() => setSelectedKeys(new Set())}
-            onDelete={openBulkDeleteConfirm}
-            onMove={() => openMoveModal(selectedItems)}
-          />
-          <DirectoryList
-            items={visibleItems}
-            handleRowClick={handleRowClick}
-            activeContextMenu={activeContextMenu}
-            contextMenuPos={contextMenuPos}
-            handleContextMenu={handleContextMenu}
-            closeContextMenu={closeContextMenu}
-            getFileIcon={getFileIcon}
-            isUploading={isUploading}
-            progressMap={progressMap}
-            handleCancelUpload={handleCancelUpload}
-            openRenameModal={openRenameModal}
-            openDeleteConfirm={openDeleteConfirm}
-            openDetailsPopup={openDetailsPopup}
-            openMoveModal={openMoveModal}
-            openShareModal={openShareModal}
-            selectedKeys={selectedKeys}
-            onToggleSelect={handleToggleSelect}
-            selectionMode={selectionMode}
-            selectedCount={selectedItems.length}
-            allSelected={allSelected}
-            onSelectAll={handleSelectAll}
-            toolbar={
-              <SelectionToolbar
-                selectedCount={selectedItems.length}
-                totalCount={selectableItems.length}
-                allSelected={allSelected}
-                onSelectAll={handleSelectAll}
-                onClearSelection={handleClearSelection}
-                onDelete={openBulkDeleteConfirm}
-                onMove={() => openMoveModal(selectedItems)}
-              />
-            }
-          />
-        </>
+        <DirectoryList
+          items={visibleItems}
+          handleRowClick={handleRowClick}
+          activeContextMenu={activeContextMenu}
+          contextMenuPos={contextMenuPos}
+          handleContextMenu={handleContextMenu}
+          closeContextMenu={closeContextMenu}
+          getFileIcon={getFileIcon}
+          isUploading={isUploading}
+          progressMap={progressMap}
+          handleCancelUpload={handleCancelUpload}
+          openRenameModal={openRenameModal}
+          openDeleteConfirm={openDeleteConfirm}
+          openDetailsPopup={openDetailsPopup}
+          openMoveModal={openMoveModal}
+          openShareModal={openShareModal}
+          selectedKeys={selectedKeys}
+          onToggleSelect={handleToggleSelect}
+          selectionMode={selectionMode}
+          selectedCount={selectedFileCount}
+          allSelected={allFilesSelected}
+          onSelectAll={handleSelectAllFiles}
+        />
       )}
     </div>
   );
 }
 
-export default DirectoryView;
+export default function MyDrive() {
+  const splat = useParams()['*'] || '';
+  const match = splat.match(/^folder\/([^/]+)\/?$/);
+  if (splat && !match) return <Navigate to={MY_DRIVE_PATH} replace />;
+  return <DirectoryView dirId={match ? match[1] : undefined} />;
+}

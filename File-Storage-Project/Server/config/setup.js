@@ -319,6 +319,10 @@ try {
             enum: ['viewer', 'editor'],
           },
 
+          seenAt: { 
+            bsonType: ['null', 'date'] 
+          },
+
           createdAt: {
             bsonType: 'date',
           },
@@ -347,6 +351,10 @@ try {
     },
   );
 
+  await db.collection('shares').updateMany(
+  { seenAt: { $exists: false } },
+  { $set: { seenAt: new Date() } },
+);
   console.log('MongoDB validation rules applied successfully.');
 } catch (error) {
   console.error('Error occurred while setting up validation:', error);

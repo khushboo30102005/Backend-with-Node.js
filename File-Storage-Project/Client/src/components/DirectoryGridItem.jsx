@@ -24,6 +24,7 @@ function DirectoryGridItem({
 }) {
   const permission = item.permission || 'owner';
   const canSelect = permission === 'owner' && Boolean(onToggleSelect);
+  const showCheckbox = selectionMode && Boolean(onToggleSelect);
   const hasSize = typeof item.size === 'number';
 
   function handleClick() {
@@ -37,7 +38,7 @@ function DirectoryGridItem({
 
   return (
     <div
-      className={`group relative flex items-center gap-3.5 pl-3.5 pr-2 py-3.5 sm:p-4 min-h-[72px] rounded-2xl border bg-surface shadow-card cursor-pointer transition-all duration-150 hover:-translate-y-px hover:shadow-card-hover hover:border-border-strong active:scale-[0.99] ${
+      className={`group relative flex items-center gap-3 pl-3 pr-1.5 py-2.5 min-h-[64px] rounded-xl border bg-surface shadow-card cursor-pointer transition-all duration-150 hover:shadow-card-hover hover:border-border-strong active:scale-[0.99] ${
         isSelected
           ? 'border-primary bg-primary/10 ring-1 ring-primary/30'
           : 'border-border'
@@ -45,35 +46,33 @@ function DirectoryGridItem({
       onClick={handleClick}
       onContextMenu={(e) => handleContextMenu(e, item.id)}
     >
-      {canSelect && (
+      {showCheckbox && (
         <span
-          className={`absolute top-0 left-0 z-10 p-2.5 transition-opacity duration-150 focus-within:opacity-100 pointer-coarse:opacity-100 ${
-            selectionMode || isSelected
-              ? 'opacity-100'
-              : 'opacity-0 group-hover:opacity-100'
-          }`}
+          className="flex items-center justify-center flex-shrink-0 w-8 h-8 -ml-1 cursor-pointer"
           onClick={(e) => {
             e.stopPropagation();
-            onToggleSelect(item);
+            if (canSelect) onToggleSelect(item);
           }}
         >
-          <input
-            type="checkbox"
-            checked={isSelected}
-            onChange={() => {}}
-            className="app-checkbox bg-surface"
-            aria-label={`Select ${item.name}`}
-          />
+          {canSelect && (
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={() => {}}
+              className="app-checkbox bg-surface"
+              aria-label={`Select ${item.name}`}
+            />
+          )}
         </span>
       )}
 
-      <span className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-linear-to-br from-amber-400/25 to-amber-500/10 ring-1 ring-amber-400/20 flex items-center justify-center flex-shrink-0">
-        <FaFolder className="text-amber-400 text-2xl" />
+      <span className="w-11 h-11 rounded-xl bg-linear-to-br from-amber-400/25 to-amber-500/10 ring-1 ring-amber-400/20 flex items-center justify-center flex-shrink-0">
+        <FaFolder className="text-amber-400 text-xl" />
       </span>
 
       <div className="min-w-0 flex-1">
         <p
-          className="text-[15px] font-semibold text-text truncate"
+          className="text-sm font-semibold text-text truncate"
           title={item.name}
         >
           {item.name}
@@ -84,13 +83,13 @@ function DirectoryGridItem({
       </div>
 
       <div
-        className="flex items-center justify-center flex-shrink-0 w-11 h-11 rounded-full text-text-muted transition-colors duration-150 hover:bg-surface-muted hover:text-text"
+        className="flex items-center justify-center flex-shrink-0 w-10 h-10 rounded-full text-text-muted transition-colors duration-150 hover:bg-surface-muted hover:text-text"
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => handleContextMenu(e, item.id)}
         role="button"
         aria-label={`Actions for ${item.name}`}
       >
-        <BsThreeDotsVertical size={17} />
+        <BsThreeDotsVertical size={16} />
       </div>
 
       {activeContextMenu === item.id && (

@@ -1,5 +1,4 @@
 import {
-  FaFolder,
   FaFilePdf,
   FaFileImage,
   FaFileVideo,
@@ -44,9 +43,7 @@ function getExtension(name = '') {
   return i > 0 && i < name.length - 1 ? name.slice(i + 1).toUpperCase() : '';
 }
 
-// One file row. On phones it reads as a card-style list item
-// (name + "EXT • size • date" + big 3-dot target); from 640px up the
-// size / modified columns appear and line up with the table header.
+// One file row. Checkboxes only exist while selection mode is on.
 function DirectoryItem({
   item,
   handleRowClick,
@@ -79,6 +76,7 @@ function DirectoryItem({
   const permission = item.permission || 'owner';
   const selectable = Boolean(onToggleSelect);
   const canSelect = permission === 'owner' && selectable;
+  const showCheckbox = selectionMode && selectable;
 
   const ext = item.isDirectory ? '' : getExtension(item.name);
   const hasSize = typeof item.size === 'number';
@@ -96,7 +94,6 @@ function DirectoryItem({
     .join(' • ');
 
   function handleClick() {
-    // Only this row's own upload state matters, not whether *any* upload runs
     if (activeContextMenu || isUploadingItem) return;
     if (selectionMode) {
       if (canSelect) onToggleSelect(item);
@@ -115,11 +112,11 @@ function DirectoryItem({
       onClick={handleClick}
       onContextMenu={(e) => handleContextMenu(e, item.id)}
     >
-      <div className="flex items-center gap-3 pl-2 pr-1 sm:px-4 py-2.5 sm:py-3 min-h-[68px]">
-        {/* Checkbox slot — kept (empty) on uploading rows so columns stay aligned */}
-        {selectable && (
+      <div className="flex items-center gap-3 pl-3 pr-1 sm:px-4 py-2 min-h-[56px]">
+        {/* Checkbox slot — only in selection mode (kept empty on uploading rows so columns align) */}
+        {showCheckbox && (
           <span
-            className="flex items-center justify-center flex-shrink-0 w-11 h-11 sm:w-8 sm:h-8 cursor-pointer"
+            className="flex items-center justify-center flex-shrink-0 w-10 h-10 sm:w-8 sm:h-8 cursor-pointer"
             onClick={(e) => {
               e.stopPropagation();
               if (canSelect && !isUploadingItem) onToggleSelect(item);
@@ -138,15 +135,11 @@ function DirectoryItem({
         )}
 
         {/* Icon */}
-        {item.isDirectory ? (
-          <span className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center flex-shrink-0">
-            <FaFolder className="text-amber-400 text-lg" />
-          </span>
-        ) : (
+        {!item.isDirectory && (
           <span
-            className={`w-10 h-10 rounded-xl bg-linear-to-br ${fileStyle.gradient} flex flex-col items-center justify-center flex-shrink-0 shadow-sm`}
+            className={`w-9 h-9 rounded-lg bg-linear-to-br ${fileStyle.gradient} flex flex-col items-center justify-center flex-shrink-0 shadow-sm`}
           >
-            <FileIconComponent className="text-white" size={14} />
+            <FileIconComponent className="text-white" size={13} />
             {ext && (
               <span className="mt-0.5 text-[7px] leading-none font-extrabold tracking-wide text-white/95">
                 {ext.slice(0, 4)}
@@ -158,7 +151,7 @@ function DirectoryItem({
         {/* Name + meta */}
         <div className="min-w-0 flex-1">
           <p
-            className="text-[15px] sm:text-sm font-semibold text-text truncate"
+            className="text-sm font-semibold text-text truncate"
             title={item.name}
           >
             {item.name}
@@ -172,10 +165,10 @@ function DirectoryItem({
         {/* Size / modified columns (≥ 640px) */}
         {!isUploadingItem && (
           <>
-            <span className="hidden sm:block w-24 flex-shrink-0 text-sm text-text-muted">
+            <span className="hidden sm:block w-24 flex-shrink-0 text-[13px] text-text-muted">
               {hasSize ? formatSize(item.size) : ''}
             </span>
-            <span className="hidden sm:block w-28 flex-shrink-0 text-sm text-text-muted">
+            <span className="hidden sm:block w-28 flex-shrink-0 text-[13px] text-text-muted">
               {modified}
             </span>
           </>
@@ -187,21 +180,20 @@ function DirectoryItem({
           </>
         )}
 
-        {/* Actions: 44px touch target on phones */}
+        {/* Actions */}
         <div
-          className="flex items-center justify-center flex-shrink-0 w-11 h-11 sm:w-16 sm:h-10 rounded-full sm:rounded-xl text-text-muted transition-colors duration-150 hover:bg-surface-muted hover:text-text"
+          className="flex items-center justify-center flex-shrink-0 w-10 h-10 sm:w-16 sm:h-9 rounded-full sm:rounded-lg text-text-muted transition-colors duration-150 hover:bg-surface-muted hover:text-text"
           onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => handleContextMenu(e, item.id)}
           role="button"
           aria-label={`Actions for ${item.name}`}
         >
-          <BsThreeDotsVertical size={17} />
+          <BsThreeDotsVertical size={16} />
         </div>
       </div>
 
-      {/* PROGRESS BAR: shown if an item is in queue or actively uploading */}
       {isUploadingItem && (
-        <div className="relative bg-surface-muted rounded-full mb-3 mx-3 sm:mx-4 overflow-hidden">
+        <div className="relative bg-surface-muted rounded-full mb-2.5 mx-3 sm:mx-4 overflow-hidden">
           <span className="absolute text-[11px] font-semibold left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white [text-shadow:0_1px_1px_rgba(0,0,0,0.25)]">
             {Math.floor(uploadProgress)}%
           </span>
@@ -218,7 +210,6 @@ function DirectoryItem({
         </div>
       )}
 
-      {/* Context menu (popover on desktop, bottom sheet on phones) */}
       {activeContextMenu === item.id && (
         <ContextMenu
           item={item}

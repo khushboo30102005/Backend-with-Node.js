@@ -5,20 +5,22 @@
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 @theme {
-  --color-primary: #0c3a77;
-  --color-primary-hover: #1565c0;
-  --color-border: #e5e7eb;
-  --color-border-strong: #d1d5db;
-  --color-text: #1a1a1a;
-  --color-text-muted: #6b7280;
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  --color-primary: #1a5fd6;
+  --color-primary-hover: #3b82f6;
+  --color-border: #e3e8f0;
+  --color-border-strong: #cbd3e1;
+  --color-text: #101828;
+  --color-text-muted: #667085;
   --color-danger: #dc2626;
   --color-success: #059669;
   --color-surface: #ffffff;
-  --color-surface-hover: #f8f9fb;
-  --color-surface-muted: #f3f5f9;
-  --color-page: #fafbf7;
-  --color-sidebar: #0c3a77;
-  --color-sidebar-deep: #082a58;
+  --color-surface-hover: #f6f8fc;
+  --color-surface-muted: #f0f3f9;
+  --color-page: #f6f8fc;
+  --color-sidebar: #0f2556;
+  --color-sidebar-deep: #0a1b42;
 
   --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06);
   --shadow-card-hover: 0 6px 16px rgba(16, 24, 40, 0.09);
@@ -41,22 +43,29 @@
   --color-surface-muted: #0d1527;
   --color-page: #0a1020;
   --color-sidebar: #0d1527;
-  --color-sidebar-deep: #080e1c;
+  --color-sidebar-deep: #09101f;
 
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.25);
   --shadow-card-hover: 0 8px 20px rgba(0, 0, 0, 0.4);
 }
 
+/* Beats App.css's `body { font-family: Arial }` (loaded later) */
+html body {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
 html, body { overflow-x: clip; }
 
-/* Sidebar / drawer surface (glow at the bottom-left, like the reference) */
+/* Sidebar / drawer surface: flat, full height, soft glow bottom-left */
 .sidebar-surface {
-  --sidebar-glow: rgba(255, 255, 255, 0.1);
+  --sidebar-glow: rgba(255, 255, 255, 0.07);
   background:
-    radial-gradient(130% 55% at 0% 100%, var(--sidebar-glow), transparent 65%),
+    radial-gradient(120% 38% at 0% 100%, var(--sidebar-glow), transparent 70%),
     linear-gradient(180deg, var(--color-sidebar), var(--color-sidebar-deep));
 }
-:root[data-theme="dark"] .sidebar-surface { --sidebar-glow: rgba(79, 109, 245, 0.3); }
+:root[data-theme="dark"] .sidebar-surface { --sidebar-glow: rgba(79, 109, 245, 0.28); }
 
 /* Custom checkbox used across lists/toolbars */
 .app-checkbox {
@@ -145,7 +154,7 @@ html, body { overflow-x: clip; }
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
 }
-.animate-fade-in { animation: fadeIn 0.25s ease-out; }
+.animate-fade-in { animation: fadeIn 0.2s ease-out; }
 
 @keyframes fadeOnly { from { opacity: 0; } to { opacity: 1; } }
 .animate-backdrop { animation: fadeOnly 0.18s ease-out; }
@@ -167,6 +176,10 @@ html, body { overflow-x: clip; }
   to { transform: translateY(0); }
 }
 .animate-sheet-up { animation: sheetUp 0.22s cubic-bezier(0.2, 0.8, 0.2, 1); }
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-surface { transition: none !important; }
+}
 
 /* ---------- Phones (< 640px) ---------- */
 @media (max-width: 639px) {
@@ -197,4 +210,88 @@ html, body { overflow-x: clip; }
   div[class~="inset-0"][class~="z-[999]"] > div button {
     min-height: 44px;
   }
+}
+
+/* ---------- Premium backdrop (Login / Register / Users dashboard) ---------- */
+.app-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -10;
+  overflow: hidden;
+  pointer-events: none;
+  background: radial-gradient(120% 90% at 50% 0%, #eef2ff 0%, #f6f8fc 55%, #edf2fb 100%);
+}
+:root[data-theme="dark"] .app-bg {
+  background: radial-gradient(120% 90% at 50% 0%, #14203f 0%, #0a1020 60%, #070b17 100%);
+}
+
+.app-bg-orb {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(80px);
+  opacity: 0.55;
+  will-change: transform;
+}
+.app-bg-orb-a {
+  top: -12%; left: -8%;
+  width: 40vw; height: 40vw; max-width: 620px; max-height: 620px;
+  background: radial-gradient(circle at 30% 30%, #7c9cff, #4f6df5 70%);
+  animation: orbA 20s ease-in-out infinite;
+}
+.app-bg-orb-b {
+  bottom: -18%; right: -10%;
+  width: 46vw; height: 46vw; max-width: 700px; max-height: 700px;
+  background: radial-gradient(circle at 60% 40%, #b7a0ff, #7c5cf0 70%);
+  animation: orbB 24s ease-in-out infinite;
+}
+.app-bg-orb-c {
+  top: 38%; left: 58%;
+  width: 26vw; height: 26vw; max-width: 400px; max-height: 400px;
+  background: radial-gradient(circle, #5cc8ff, #3b82f6 75%);
+  opacity: 0.32;
+  animation: orbC 28s ease-in-out infinite;
+}
+:root[data-theme="dark"] .app-bg-orb { opacity: 0.38; }
+:root[data-theme="dark"] .app-bg-orb-c { opacity: 0.22; }
+
+.app-bg-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, rgba(15, 37, 86, 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15, 37, 86, 0.06) 1px, transparent 1px);
+  background-size: 44px 44px;
+  -webkit-mask-image: radial-gradient(ellipse at 50% 30%, #000 15%, transparent 72%);
+  mask-image: radial-gradient(ellipse at 50% 30%, #000 15%, transparent 72%);
+}
+:root[data-theme="dark"] .app-bg-grid {
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+}
+
+.app-bg-vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, transparent 55%, rgba(15, 37, 86, 0.09) 100%);
+}
+:root[data-theme="dark"] .app-bg-vignette {
+  background: radial-gradient(ellipse at center, transparent 50%, rgba(0, 0, 0, 0.4) 100%);
+}
+
+@keyframes orbA {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(7vw, 6vh, 0) scale(1.12); }
+}
+@keyframes orbB {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(-8vw, -7vh, 0) scale(1.1); }
+}
+@keyframes orbC {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(-6vw, 8vh, 0) scale(1.18); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-bg-orb { animation: none; }
 }

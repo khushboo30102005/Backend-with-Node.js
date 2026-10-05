@@ -1,5 +1,11 @@
-import { createBrowserRouter, RouterProvider, Link } from 'react-router';
-import DirectoryView from './DirectoryView';
+import {
+  createBrowserRouter,
+  RouterProvider,
+  Link,
+  Navigate,
+  useParams,
+} from 'react-router';
+import MyDrive from './DirectoryView';
 import Register from './Register';
 import './App.css';
 import Login from './Login';
@@ -17,7 +23,7 @@ function NotFound() {
         The page you're looking for doesn't exist.
       </p>
       <Link
-        to="/"
+        to="/mydrive"
         className="px-4 py-2 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary-hover transition-colors"
       >
         Go to My Drive
@@ -26,51 +32,33 @@ function NotFound() {
   );
 }
 
+// Old bookmarks: /directory/:id → /mydrive/folder/:id
+function LegacyFolderRedirect() {
+  const { dirId } = useParams();
+  return <Navigate to={`/mydrive/folder/${dirId}`} replace />;
+}
+
 const router = createBrowserRouter([
+  { path: '/', element: <RootRoute /> },
+  { path: '/register', element: <Register /> },
+  { path: '/login', element: <Login /> },
+  { path: '/users', element: <UsersPage /> },
+
+  // Signed-in app shell: Layout mounts once; pages swap inside its <Outlet />.
   {
-    path: '/',
-    element: <RootRoute />,
+    element: <Layout />,
+    children: [
+      { path: 'mydrive/*', element: <MyDrive /> }, // /mydrive and /mydrive/folder/:id
+      { path: 'shared', element: <SharedWithMe /> },
+      { path: 'trash', element: <TrashPage /> },
+    ],
   },
-  {
-    path: '/register',
-    element: <Register />,
-  },
-  {
-    path: '/login',
-    element: <Login />,
-  },
-  {
-    path: '/users',
-    element: <UsersPage />,
-  },
-  {
-    path: '/directory/:dirId',
-    element: (
-      <Layout>
-        <DirectoryView />
-      </Layout>
-    ),
-  },
-  {
-    path: '/shared-with-me',
-    element: (
-      <Layout>
-        <SharedWithMe />
-      </Layout>
-    ),
-  },
-  {
-    path: '/trash',
-    element: (
-      <Layout>
-        <TrashPage />
-      </Layout>
-    ),
-  },
-  {
-    path: '*',
-    element: <NotFound />,
-  },
+
+  // Legacy URLs
+  { path: '/directory/:dirId', element: <LegacyFolderRedirect /> },
+  { path: '/shared-with-me', element: <Navigate to="/shared" replace /> },
+
+  { path: '*', element: <NotFound /> },
 ]);
 
 function App() {

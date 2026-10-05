@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
+import { Navigate } from 'react-router';
 import { FaSpinner } from 'react-icons/fa';
 import LandingPage from './LandingPage';
-import DirectoryView from './DirectoryView';
 import { fetchUser } from './apis/userApi';
-import Layout from './components/Layout';
 
+// "/" is only the public entry point: guests see the landing page, signed-in
+// users are sent to /mydrive (the real, bookmarkable My Drive route).
 function RootRoute() {
   const [status, setStatus] = useState('checking'); // 'checking' | 'authed' | 'guest'
 
@@ -36,9 +37,7 @@ function RootRoute() {
   }
 
   return status === 'authed' ? (
-    <Layout>
-      <DirectoryView />
-    </Layout>
+    <Navigate to="/mydrive" replace />
   ) : (
     <LandingPage />
   );

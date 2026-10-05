@@ -7,7 +7,8 @@ import {
   FaUserTie,
   FaChevronDown,
 } from 'react-icons/fa';
-import { fetchUser, logoutUser, logoutAllSessions } from '../apis/userApi';
+import { logoutUser, logoutAllSessions } from '../apis/userApi';
+import { useUser } from '../context/UserContext';
 
 const DASHBOARD_ROLES = ['Owner', 'Admin', 'Manager'];
 
@@ -27,24 +28,13 @@ function Avatar({ user, className }) {
   );
 }
 
-// variant="sidebar": profile card on the navy sidebar / drawer
+// variant="sidebar": profile card on the navy drawer (phones)
 // variant="topbar":  compact avatar chip in the top bar
 function ProfileMenu({ onNavigate, variant = 'sidebar' }) {
   const navigate = useNavigate();
-  const [user, setUser] = useState(null);
+  const { user } = useUser(); // shared — no per-mount fetch
   const [open, setOpen] = useState(false);
   const menuRef = useRef(null);
-
-  useEffect(() => {
-    async function loadUser() {
-      try {
-        setUser(await fetchUser());
-      } catch (err) {
-        // Non-critical — pages redirect to /login on real auth failures.
-      }
-    }
-    loadUser();
-  }, []);
 
   useEffect(() => {
     function handleOutsideClick(e) {
@@ -92,12 +82,12 @@ function ProfileMenu({ onNavigate, variant = 'sidebar' }) {
   }
 
   const rowClass =
-    'flex items-center gap-3 w-full min-h-11 px-4 py-2.5 text-sm text-text text-left cursor-pointer hover:bg-surface-muted transition-colors focus-visible:outline-none focus-visible:bg-surface-muted';
+    'flex items-center gap-3 w-full min-h-10 px-4 py-2 text-sm text-text text-left cursor-pointer hover:bg-surface-muted transition-colors focus-visible:outline-none focus-visible:bg-surface-muted';
 
   const isTopbar = variant === 'topbar';
 
   return (
-    <div className={`relative ${isTopbar ? '' : 'mb-5'}`} ref={menuRef}>
+    <div className={`relative ${isTopbar ? '' : 'mb-4'}`} ref={menuRef}>
       {isTopbar ? (
         <button
           type="button"
@@ -105,11 +95,11 @@ function ProfileMenu({ onNavigate, variant = 'sidebar' }) {
           aria-haspopup="menu"
           aria-expanded={open}
           aria-label="Account menu"
-          className="flex items-center gap-2.5 h-11 pl-1 pr-1 sm:pr-3 rounded-full hover:bg-surface-hover transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/30"
+          className="flex items-center gap-2.5 h-10 pl-1 pr-1 sm:pr-3 rounded-full hover:bg-surface-hover transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/30"
         >
-          <Avatar user={user} className="w-9 h-9 text-sm" />
-          <span className="hidden sm:block text-sm font-semibold text-text max-w-[140px] truncate">
-            {user?.name || 'Loading...'}
+          <Avatar user={user} className="w-8 h-8 text-sm" />
+          <span className="hidden sm:block text-[13.5px] font-semibold text-text max-w-[160px] truncate">
+            {user?.name || ''}
           </span>
           <FaChevronDown
             size={10}
@@ -124,15 +114,15 @@ function ProfileMenu({ onNavigate, variant = 'sidebar' }) {
           onClick={() => setOpen((prev) => !prev)}
           aria-haspopup="menu"
           aria-expanded={open}
-          className="flex items-center gap-3 w-full p-3 rounded-2xl bg-white/[0.07] ring-1 ring-white/10 hover:bg-white/[0.12] transition-colors text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+          className="flex items-center gap-3 w-full p-2.5 rounded-xl bg-white/[0.07] ring-1 ring-white/10 hover:bg-white/[0.12] transition-colors text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
         >
           <Avatar
             user={user}
-            className="w-11 h-11 text-base ring-2 ring-white/20"
+            className="w-10 h-10 text-base ring-2 ring-white/20"
           />
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold text-white truncate">
-              {user?.name || 'Loading...'}
+              {user?.name || ''}
             </p>
             <p className="text-xs text-white/60 truncate">
               {role || 'Account'}

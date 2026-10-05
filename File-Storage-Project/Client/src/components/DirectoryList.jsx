@@ -1,4 +1,4 @@
-import { FaFolderOpen, FaRegFileAlt, FaSort } from 'react-icons/fa';
+import { FaFolderOpen, FaRegFileAlt, FaChevronDown } from 'react-icons/fa';
 import DirectoryItem from './DirectoryItem';
 import DirectoryGridItem from './DirectoryGridItem';
 import SelectAllCheckbox from './SelectAllCheckbox';
@@ -6,12 +6,12 @@ import { getItemKey } from '../utils/itemKey';
 
 function SectionHeader({ icon: Icon, title, count, singular, plural }) {
   return (
-    <div className="flex items-center justify-between mb-3 px-0.5">
-      <h2 className="flex items-center gap-2.5 text-base sm:text-lg font-semibold text-text">
-        <Icon size={16} className="text-text-muted" />
+    <div className="flex items-center justify-between mb-2.5 px-0.5">
+      <h2 className="flex items-center gap-2 text-[15px] font-semibold text-text">
+        <Icon size={15} className="text-text-muted" />
         {title}
       </h2>
-      <span className="text-xs sm:text-sm text-text-muted">
+      <span className="text-xs text-text-muted">
         {count} {count === 1 ? singular : plural}
       </span>
     </div>
@@ -21,8 +21,8 @@ function SectionHeader({ icon: Icon, title, count, singular, plural }) {
 // Decorative until column sorting is built
 function SortHint() {
   return (
-    <span title="Sorting is coming soon" aria-hidden="true" className="text-text-muted/50">
-      <FaSort size={10} />
+    <span aria-hidden="true" className="text-text-muted/60">
+      <FaChevronDown size={9} />
     </span>
   );
 }
@@ -49,8 +49,6 @@ function DirectoryList({
   selectedKeys,
   onToggleSelect,
   selectionMode = false,
-  // Optional (My Drive only): bulk-action bar, rendered inside the Files card
-  toolbar = null,
   selectedCount = 0,
   allSelected = false,
   onSelectAll,
@@ -58,20 +56,14 @@ function DirectoryList({
   const folders = items.filter((item) => item.isDirectory);
   const files = items.filter((item) => !item.isDirectory);
   const selectable = Boolean(onToggleSelect);
+  const showSelectColumn = selectable && selectionMode;
 
   function isSelected(item) {
     return selectedKeys ? selectedKeys.has(getItemKey(item)) : false;
   }
 
   return (
-    <div className="flex flex-col gap-8 mt-6">
-      {/* Folders-only view: the bulk bar still needs a home */}
-      {toolbar && files.length === 0 && (
-        <div className="rounded-2xl border border-border bg-surface shadow-card overflow-hidden">
-          {toolbar}
-        </div>
-      )}
-
+    <div className="flex flex-col gap-5 mt-4">
       {folders.length > 0 && (
         <section>
           <SectionHeader
@@ -117,12 +109,10 @@ function DirectoryList({
             singular="file"
             plural="files"
           />
-          <div className="rounded-2xl border border-border bg-surface shadow-card overflow-hidden">
-            {toolbar}
-
+          <div className="rounded-xl border border-border bg-surface shadow-card overflow-hidden">
             {/* Column header (≥ 640px) */}
-            <div className="hidden sm:flex items-center gap-3 px-4 py-3 bg-surface-muted/60 border-b border-border text-xs font-semibold text-text-muted">
-              {selectable && (
+            <div className="hidden sm:flex items-center gap-3 px-4 py-2.5 bg-surface-muted/60 border-b border-border text-xs font-semibold text-text-muted">
+              {showSelectColumn && (
                 <span className="flex items-center justify-center w-8 flex-shrink-0">
                   <SelectAllCheckbox
                     checked={allSelected}
@@ -132,7 +122,7 @@ function DirectoryList({
                   />
                 </span>
               )}
-              <span className="w-10 flex-shrink-0" aria-hidden="true" />
+              <span className="w-9 flex-shrink-0" aria-hidden="true" />
               <span className="flex-1 min-w-0 flex items-center gap-1.5">
                 Name <SortHint />
               </span>

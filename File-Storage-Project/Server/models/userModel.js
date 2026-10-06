@@ -22,7 +22,7 @@ const userSchema = new Schema(
 
     password: {
       type: String,
-      minlength: [3, 'Password must be at least 3 characters long'],
+      minlength: [4, 'Password must be at least 4 characters long'],
     },
 
     picture: {
@@ -58,6 +58,7 @@ userSchema.pre('save', async function () {
 });
 
 userSchema.methods.comparePassword = async function (candidatePassword) {
+  if (!this.password) return false;
   return bcrypt.compare(candidatePassword, this.password);
 };
 const User = model('User', userSchema);

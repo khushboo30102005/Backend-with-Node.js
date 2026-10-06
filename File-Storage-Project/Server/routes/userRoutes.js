@@ -17,6 +17,7 @@ import {
   getDeletedUsers,
   recoverUser,
   changeUserRole,
+  setPassword,
 } from '../controllers/userController.js';
 import { authLimiter } from '../middlewares/rateLimitMiddleware.js';
 import { searchUsers } from '../controllers/shareController.js';
@@ -59,5 +60,7 @@ router.patch('/users/:userId/role', checkAuth, checkNotRegularUser, changeUserRo
 
 
 router.get('/users/search', checkAuth, searchUsers);
+
+router.post('/user/set-password', checkAuth, authLimiter, setPassword);
 
 export default router;

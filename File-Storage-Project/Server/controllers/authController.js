@@ -5,7 +5,9 @@ import User from '../models/userModel.js';
 import { verifyIdToken } from '../services/googleAuthService.js';
 import { sendOtpService } from '../services/sendOtpService.js';
 import redisClient from '../config/redis.js';
-import { emailSchema, otpSchema } from '../validator/authSchema.js';
+import { emailSchema, otpSchema, setPasswordWithOtpSchema} from '../validator/authSchema.js';
+import * as z from 'zod';
+import { setInitialPassword } from '../services/setPasswordService.js';
 
 export const sendOTP = async (req, res, next) => {
   const { success, data } = emailSchema.safeParse(req.body);
@@ -178,8 +180,8 @@ export const loginWithGoogle = async (req, res, next) => {
       await redisClient.json.set(redisKey, '$', {
         userId: userId.toString(),
         rootDirId: rootDirId.toString(),
-        role: user.role,
-        maxStorageInBytes: user.maxStorageInBytes,
+        role: 'User',
+        maxStorageInBytes: 1 * 1024 ** 3,
       });
 
       // Redis uses seconds
@@ -211,3 +213,33 @@ export const loginWithGoogle = async (req, res, next) => {
     next(error);
   }
 };
+
+
+export const setPasswordWithOtp = async (req, res, next) => {
+  const { success, data, error } = setPasswordWithOtpSchema.safeParse(req.body);
+  if (!success) {
+    return res.status(400).json({
+      error: Object.values(z.flattenError(error).fieldErrors).flat()[0],
+    });
+  }
+  const { email, otp, newPassword } = data;
+  try {
+    // 1. Prove ownership of the email first
+    const otpRecord = await OTP.findOne({ email, otp });
+    if (!otpRecord) {
+      return res.status(400).json({ error: 'Invalid or expired OTP.' });
+    }
+    // 2. Same rules as the logged-in flow (never overwrites)
+    const user = await User.findOne({ email }).select('_id');
+    if (!user) return res.status(404).json({ error: 'User not found.' });
+
+    const result = await setInitialPassword(user._id, newPassword);
+    if (result.error) {
+      return res.status(result.status).json({ error: result.error });
+    }
+    await otpRecord.deleteOne(); // single use
+    return res.status(200).json({ message: result.message });
+  } catch (err) {
+    next(err);
+  }
+}

@@ -26,3 +26,10 @@ export const loginWithGoogle = async (idToken) => {
   const { data } = await axiosWithCreds.post('/auth/google', { idToken });
   return data;
 };
+
+export const setPasswordWithOtp = async ({ email, otp, newPassword, confirmPassword }) => {
+  const { data } = await axiosWithoutCreds.post('/auth/set-password', {
+    email, otp, newPassword, confirmPassword,
+  });
+  return data;
+};

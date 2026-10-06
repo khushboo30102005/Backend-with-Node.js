@@ -2,6 +2,7 @@ import express from 'express';
 import {
   loginWithGoogle,
   sendOTP,
+  setPasswordWithOtp,
   verifyLoginOTP,
   verifyOTP,
 } from '../controllers/authController.js';
@@ -15,5 +16,7 @@ router.post('/verify-otp', authLimiter, verifyOTP);
 router.post('/google', authLimiter, loginWithGoogle);
 
 router.post('/verify-login-otp', authLimiter, verifyLoginOTP);
+
+router.post('/set-password', authLimiter, setPasswordWithOtp);
 
 export default router;

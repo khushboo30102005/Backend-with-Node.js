@@ -68,3 +68,11 @@ export const searchUsers = async (q) => {
   });
   return data;
 };
+
+export const setPassword = async (newPassword, confirmPassword) => {
+  const { data } = await axiosWithCreds.post('/user/set-password', {
+    newPassword,
+    confirmPassword,
+  });
+  return data;
+};

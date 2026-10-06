@@ -6,7 +6,9 @@ import {
   FaUserShield,
   FaUserTie,
   FaChevronDown,
+  FaKey,
 } from 'react-icons/fa';
+import SetPasswordModal from './SetPasswordModal';
 import { logoutUser, logoutAllSessions } from '../apis/userApi';
 import { useUser } from '../context/UserContext';
 
@@ -32,9 +34,11 @@ function Avatar({ user, className }) {
 // variant="topbar":  compact avatar chip in the top bar
 function ProfileMenu({ onNavigate, variant = 'sidebar' }) {
   const navigate = useNavigate();
-  const { user } = useUser(); // shared — no per-mount fetch
+  const { user, refreshUser } = useUser();
   const [open, setOpen] = useState(false);
   const menuRef = useRef(null);
+
+  const [showSetPassword, setShowSetPassword] = useState(false);
 
   useEffect(() => {
     function handleOutsideClick(e) {
@@ -172,6 +176,20 @@ function ProfileMenu({ onNavigate, variant = 'sidebar' }) {
               <div className="border-t border-border" />
             </>
           )}
+          {user && user.hasPassword === false && (
+            <button
+              type="button"
+              role="menuitem"
+              className={rowClass}
+              onClick={() => {
+                setOpen(false);
+                setShowSetPassword(true);
+              }}
+            >
+              <FaKey size={14} className="text-primary" />
+              Set password
+            </button>
+          )}
 
           <button
             type="button"
@@ -192,6 +210,13 @@ function ProfileMenu({ onNavigate, variant = 'sidebar' }) {
             Logout all devices
           </button>
         </div>
+      )}
+
+      {showSetPassword && (
+        <SetPasswordModal
+          onClose={() => setShowSetPassword(false)}
+          onSuccess={refreshUser}
+        />
       )}
     </div>
   );

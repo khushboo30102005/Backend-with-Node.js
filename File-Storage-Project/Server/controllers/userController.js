@@ -7,8 +7,13 @@ import File from '../models/fileModel.js';
 import OTP from '../models/otpModel.js';
 import { sendOtpService } from '../services/sendOtpService.js';
 import redisClient from '../config/redis.js';
+import { setInitialPassword } from '../services/setPasswordService.js';
 import { deleteAllSessionsForUser } from '../services/delRedisSessionsService.js';
-import { loginSchema, registerSchema } from '../validator/authSchema.js';
+import {
+  loginSchema,
+  registerSchema,
+  setPasswordSchema,
+} from '../validator/authSchema.js';
 import { JSDOM } from 'jsdom';
 import DOMPurify from 'dompurify';
 
@@ -52,7 +57,7 @@ export const register = async (req, res, next) => {
         ALLOWED_ATTR: [],
       }),
       email: purify.sanitize(email),
-      password, 
+      password,
       rootDirId,
     };
     await User.insertOne(userData, { session });
@@ -105,6 +110,12 @@ export const login = async (req, res, next) => {
         error: 'Your account has been deleted. Contact app owner to recover.',
       });
     }
+    if (!user.password) {
+      return res.status(409).json({
+        error: 'This account was created with Google and has no password yet.',
+        code: 'PASSWORD_NOT_SET',
+      });
+    }
     const isPasswordValid = await user.comparePassword(password);
     if (!isPasswordValid) {
       return res.status(404).json({ error: 'Invalid Credentials' });
@@ -147,6 +158,7 @@ export const getCurrentUser = async (req, res, next) => {
       email: user.email,
       role: user.role,
       picture: user.picture,
+      hasPassword: Boolean(user.password),
       maxStorageInBytes: user.maxStorageInBytes,
       usedStorageInBytes: rootDir ? rootDir.size : 0,
     });
@@ -359,6 +371,25 @@ export const changeUserRole = async (req, res, next) => {
     await deleteAllSessionsForUser(userId);
 
     res.status(204).end();
+  } catch (err) {
+    next(err);
+  }
+};
+
+export const setPassword = async (req, res, next) => {
+  const { success, data, error } = setPasswordSchema.safeParse(req.body);
+  if (!success) {
+    return res.status(400).json({
+      error: Object.values(z.flattenError(error).fieldErrors).flat()[0],
+    });
+  }
+
+  try {
+    const result = await setInitialPassword(req.user._id, data.newPassword);
+    if (result.error) {
+      return res.status(result.status).json({ error: result.error });
+    }
+    return res.status(200).json({ message: result.message });
   } catch (err) {
     next(err);
   }

@@ -44,3 +44,30 @@ export const renameDirectorySchema = z.object({
     .max(100, 'Directory name cannot exceed 100 characters')
     .regex(/^[^<>]*$/, 'Directory name cannot contain HTML tags'),
 });
+
+const passwordFields = {
+  newPassword: z
+    .string('Please enter a valid password.')
+    .min(4, 'Password must be at least 4 characters long.')
+    .max(72, 'Password cannot exceed 72 characters.'),
+  confirmPassword: z.string('Please confirm your password.'),
+};
+const passwordsMatch = (d) => d.newPassword === d.confirmPassword;
+const mismatch = {
+  message: 'Passwords do not match.',
+  path: ['confirmPassword'],
+};
+
+export const setPasswordSchema = z
+  .object(passwordFields)
+  .refine(passwordsMatch, mismatch);
+
+export const setPasswordWithOtpSchema = z
+  .object({
+    email: z.email('Please enter a valid email.'),
+    otp: z
+      .string('please enter a valid 4 digit otp String.')
+      .regex(/^\d{4}$/, 'please enter a valid 4 digit otp.'),
+    ...passwordFields,
+  })
+  .refine(passwordsMatch, mismatch);

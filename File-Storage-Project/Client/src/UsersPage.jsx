@@ -13,6 +13,7 @@ import {
   recoverUser as recoverUserApi,
   changeUserRole as changeUserRoleApi,
 } from './apis/userApi';
+import { ViewablePhoto } from './components/PhotoViewer';
 
 const ROLE_RANKS = {
   User: 0,
@@ -70,11 +71,13 @@ function rowClassFor(isSelf) {
 
 function Avatar({ user }) {
   return user.picture ? (
-    <img
-      src={user.picture}
-      alt={user.name}
-      className="w-8 h-8 rounded-full object-cover flex-shrink-0"
-    />
+    <ViewablePhoto src={user.picture} name={user.name}>
+      <img
+        src={user.picture}
+        alt={user.name}
+        className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+      />
+    </ViewablePhoto>
   ) : (
     <span className="w-8 h-8 rounded-full flex items-center justify-center bg-gradient-to-br from-indigo-500 to-purple-500 text-white text-xs font-bold flex-shrink-0">
       {user.name?.[0]?.toUpperCase()}

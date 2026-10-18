@@ -7,8 +7,10 @@ import {
   FaUserTie,
   FaChevronDown,
   FaKey,
+  FaCog,
 } from 'react-icons/fa';
 import SetPasswordModal from './SetPasswordModal';
+import { PhotoViewer } from './PhotoViewer';
 import { logoutUser, logoutAllSessions } from '../apis/userApi';
 import { useUser } from '../context/UserContext';
 
@@ -39,6 +41,7 @@ function ProfileMenu({ onNavigate, variant = 'sidebar' }) {
   const menuRef = useRef(null);
 
   const [showSetPassword, setShowSetPassword] = useState(false);
+  const [viewPhoto, setViewPhoto] = useState(false);
 
   useEffect(() => {
     function handleOutsideClick(e) {
@@ -151,16 +154,44 @@ function ProfileMenu({ onNavigate, variant = 'sidebar' }) {
           }`}
         >
           {user && (
-            <div className="px-4 py-3 border-b border-border">
-              <p className="text-sm font-semibold text-text truncate">
-                {user.name}
-              </p>
-              <p className="text-xs text-text-muted truncate">{user.email}</p>
-              <span className="inline-block mt-1.5 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[11px] font-semibold">
-                {user.role}
-              </span>
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
+              {user.picture ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpen(false);
+                    setViewPhoto(true);
+                  }}
+                  aria-label="View your photo"
+                  title="View photo"
+                  className="rounded-full cursor-zoom-in flex-shrink-0 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/40"
+                >
+                  <Avatar user={user} className="w-11 h-11 text-base" />
+                </button>
+              ) : (
+                <Avatar user={user} className="w-11 h-11 text-base" />
+              )}
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-text truncate">
+                  {user.name}
+                </p>
+                <p className="text-xs text-text-muted truncate">{user.email}</p>
+                <span className="inline-block mt-1.5 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[11px] font-semibold">
+                  {user.role}
+                </span>
+              </div>
             </div>
           )}
+
+          <button
+            type="button"
+            role="menuitem"
+            className={rowClass}
+            onClick={() => goTo('/settings/profile')}
+          >
+            <FaCog size={14} className="text-primary" />
+            Settings
+          </button>
 
           {hasDashboard && (
             <>
@@ -210,6 +241,14 @@ function ProfileMenu({ onNavigate, variant = 'sidebar' }) {
             Logout all devices
           </button>
         </div>
+      )}
+
+      {viewPhoto && (
+        <PhotoViewer
+          src={user?.picture}
+          name={user?.name}
+          onClose={() => setViewPhoto(false)}
+        />
       )}
 
       {showSetPassword && (

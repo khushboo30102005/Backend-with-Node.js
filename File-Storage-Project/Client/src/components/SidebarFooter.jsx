@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Link } from 'react-router';
 import {
   FaDatabase,
   FaMoon,
@@ -7,6 +7,7 @@ import {
   FaArrowRight,
 } from 'react-icons/fa';
 import { useUser } from '../context/UserContext';
+import { useTheme } from '../hooks/useTheme';
 import { formatSize } from './DetailsPopup';
 
 function Ring({ deg, label, size, text }) {
@@ -26,25 +27,15 @@ function Ring({ deg, label, size, text }) {
 
 // Storage card + dark-mode switch + settings, pinned to the bottom.
 // Storage numbers come from the shared user (refreshed on `storage-changed`).
+// Theme comes from the shared useTheme hook (also used by Settings → Preferences).
 function SidebarFooter({ collapsed = false }) {
   const { user } = useUser();
+  const { resolved, setPreference } = useTheme();
   const used = user?.usedStorageInBytes || 0;
   const max = user?.maxStorageInBytes || 0;
 
-  const [theme, setTheme] = useState(
-    () =>
-      localStorage.getItem('theme') ||
-      (window.matchMedia('(prefers-color-scheme: dark)').matches
-        ? 'dark'
-        : 'light'),
-  );
-
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('theme', theme);
-  }, [theme]);
-
-  const isDark = theme === 'dark';
+  const isDark = resolved === 'dark';
+  const toggleTheme = () => setPreference(isDark ? 'light' : 'dark');
   const usedPercent = max > 0 ? Math.min((used / max) * 100, 100) : 0;
   const percentLabel =
     used > 0 && usedPercent < 1 ? '<1%' : `${Math.round(usedPercent)}%`;
@@ -57,26 +48,31 @@ function SidebarFooter({ collapsed = false }) {
   if (collapsed) {
     return (
       <div className="mt-auto pt-4 flex flex-col items-center gap-1">
-        <div title={`${formatSize(used)} of ${formatSize(max)} used`}>
+        <Link
+          to="/settings/storage"
+          title={`${formatSize(used)} of ${formatSize(max)} used — Manage storage`}
+          aria-label="Manage storage"
+          className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+        >
           <Ring deg={ringDeg} label={percentLabel} size="w-11 h-11" text="text-[10px]" />
-        </div>
+        </Link>
         <button
           type="button"
-          onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+          onClick={toggleTheme}
           title="Dark mode"
           aria-label="Toggle dark mode"
           className={`${rowClass} justify-center w-11 h-11 mt-2`}
         >
           {isDark ? <FaSun size={16} /> : <FaMoon size={16} />}
         </button>
-        <button
-          type="button"
+        <Link
+          to="/settings/profile"
           title="Settings"
           aria-label="Settings"
           className={`${rowClass} justify-center w-11 h-11`}
         >
           <FaCog size={16} />
-        </button>
+        </Link>
       </div>
     );
   }
@@ -110,12 +106,12 @@ function SidebarFooter({ collapsed = false }) {
                 style={{ width: `${barWidth}%` }}
               />
             </div>
-            <button
-              type="button"
-              className="mt-2.5 inline-flex items-center gap-1.5 text-[13px] font-medium text-[#7da2ff] hover:text-[#a3bdff] transition-colors"
+            <Link
+              to="/settings/storage"
+              className="mt-2.5 inline-flex items-center gap-1.5 text-[13px] font-medium text-[#7da2ff] hover:text-[#a3bdff] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 rounded"
             >
               Manage storage <FaArrowRight size={10} />
-            </button>
+            </Link>
           </div>
         </div>
       </div>
@@ -125,7 +121,7 @@ function SidebarFooter({ collapsed = false }) {
           type="button"
           role="switch"
           aria-checked={isDark}
-          onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+          onClick={toggleTheme}
           className={`${rowClass} justify-between w-full h-10 px-3`}
         >
           <span className="flex items-center gap-3.5">
@@ -145,10 +141,10 @@ function SidebarFooter({ collapsed = false }) {
           </span>
         </button>
 
-        <button type="button" className={`${rowClass} gap-3.5 w-full h-10 px-3`}>
+        <Link to="/settings/profile" className={`${rowClass} gap-3.5 w-full h-10 px-3`}>
           <FaCog size={15} />
           Settings
-        </button>
+        </Link>
       </div>
     </div>
   );

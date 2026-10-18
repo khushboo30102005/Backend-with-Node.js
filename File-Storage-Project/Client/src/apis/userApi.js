@@ -76,3 +76,31 @@ export const setPassword = async (newPassword, confirmPassword) => {
   });
   return data;
 };
+
+export const updateProfile = async (name) => {
+  const { data } = await axiosWithCreds.patch('/user', { name });
+  return data;
+};
+
+// The image is sent as the raw request body (no multipart); the server
+// verifies, crops, resizes and stores it in B2.
+export const updatePicture = async (file) => {
+  const { data } = await axiosWithCreds.patch('/user/picture', file, {
+    headers: { 'Content-Type': file.type },
+  });
+  return data;
+};
+
+export const removePicture = async () => {
+  const { data } = await axiosWithCreds.delete('/user/picture');
+  return data;
+};
+
+export const changePassword = async ({ otp, newPassword, confirmPassword }) => {
+  const { data } = await axiosWithCreds.post('/user/change-password', {
+    otp,
+    newPassword,
+    confirmPassword,
+  });
+  return data;
+};

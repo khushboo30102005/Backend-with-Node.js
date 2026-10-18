@@ -7,11 +7,14 @@
 
     <script>
       try {
+        // Stored value is 'light' | 'dark' | (absent = follow system).
+        var p = localStorage.getItem('theme');
         var t =
-          localStorage.getItem('theme') ||
-          (matchMedia('(prefers-color-scheme: dark)').matches
-            ? 'dark'
-            : 'light');
+          p === 'light' || p === 'dark'
+            ? p
+            : matchMedia('(prefers-color-scheme: dark)').matches
+              ? 'dark'
+              : 'light';
         document.documentElement.setAttribute('data-theme', t);
       } catch (e) {}
     </script>

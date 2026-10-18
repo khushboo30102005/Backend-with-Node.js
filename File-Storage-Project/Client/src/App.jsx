@@ -14,6 +14,12 @@ import RootRoute from './RootRoute';
 import SharedWithMe from './components/SharedWithMe';
 import Layout from './components/Layout';
 import TrashPage from './TrashPage';
+import SettingsLayout from './settings/SettingsLayout';
+import ProfileSettings from './settings/ProfileSettings';
+import SecuritySettings from './settings/SecuritySettings';
+import StorageSettings from './settings/StorageSettings';
+import NotificationSettings from './settings/NotificationSettings';
+import PreferencesSettings from './settings/PreferencesSettings';
 
 function NotFound() {
   return (
@@ -51,6 +57,18 @@ const router = createBrowserRouter([
       { path: 'mydrive/*', element: <MyDrive /> }, // /mydrive and /mydrive/folder/:id
       { path: 'shared', element: <SharedWithMe /> },
       { path: 'trash', element: <TrashPage /> },
+      {
+        path: 'settings',
+        element: <SettingsLayout />,
+        children: [
+          { index: true, element: <Navigate to="profile" replace /> },
+          { path: 'profile', element: <ProfileSettings /> },
+          { path: 'security', element: <SecuritySettings /> },
+          { path: 'storage', element: <StorageSettings /> },
+          { path: 'notifications', element: <NotificationSettings /> },
+          { path: 'preferences', element: <PreferencesSettings /> },
+        ],
+      },
     ],
   },
 

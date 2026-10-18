@@ -13,7 +13,17 @@ import {
   loginSchema,
   registerSchema,
   setPasswordSchema,
+  updateProfileSchema,
+  changePasswordSchema,
 } from '../validator/authSchema.js';
+import {
+  AvatarError,
+  isStoredAvatar,
+  processAvatar,
+  uploadAvatar,
+  deleteAvatar,
+  resolvePicture,
+} from '../utils/avatar.js';
 import { JSDOM } from 'jsdom';
 import DOMPurify from 'dompurify';
 
@@ -157,13 +167,147 @@ export const getCurrentUser = async (req, res, next) => {
       name: user.name,
       email: user.email,
       role: user.role,
-      picture: user.picture,
+      picture: await resolvePicture(user.picture),
+      hasCustomPicture: isStoredAvatar(user.picture),
       hasPassword: Boolean(user.password),
+      // The ObjectId embeds its creation time, so no schema change is needed.
+      createdAt: user._id.getTimestamp(),
       maxStorageInBytes: user.maxStorageInBytes,
       usedStorageInBytes: rootDir ? rootDir.size : 0,
     });
   } catch (error) {
     next(error);
+  }
+};
+
+// PATCH /user — the signed-in user's own display name only.
+export const updateProfile = async (req, res, next) => {
+  const { success, data, error } = updateProfileSchema.safeParse(req.body);
+  if (!success) {
+    return res.status(400).json({
+      error: Object.values(z.flattenError(error).fieldErrors).flat()[0],
+    });
+  }
+  const name = purify
+    .sanitize(data.name, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] })
+    .trim();
+  if (name.length < 3) {
+    return res
+      .status(400)
+      .json({ error: 'Name should be at least 3 character long.' });
+  }
+  try {
+    await User.findByIdAndUpdate(
+      req.user._id,
+      { name },
+      { runValidators: true },
+    );
+    return res.status(200).json({ name });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// PATCH /user/picture — body is the raw image (Content-Type image/jpeg|png|webp,
+// parsed by the route). Only ever changes the signed-in user's own picture.
+export const updatePicture = async (req, res, next) => {
+  if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+    return res
+      .status(415)
+      .json({ error: 'Choose a JPEG, PNG or WebP image.' });
+  }
+  let key;
+  try {
+    const processed = await processAvatar(req.body);
+    key = await uploadAvatar(req.user._id, processed);
+    const previous = await User.findByIdAndUpdate(
+      req.user._id,
+      { picture: key },
+      { returnDocument: 'before', projection: 'picture' },
+    ).lean();
+    if (!previous) {
+      await deleteAvatar(key);
+      return res.status(404).json({ error: 'User not found.' });
+    }
+    await deleteAvatar(previous.picture); // no-op for Google/default URLs
+    return res
+      .status(200)
+      .json({ picture: await resolvePicture(key), hasCustomPicture: true });
+  } catch (err) {
+    if (err instanceof AvatarError) {
+      return res.status(400).json({ error: err.message });
+    }
+    if (key) await deleteAvatar(key); // don't leave an orphan in B2
+    next(err);
+  }
+};
+
+// DELETE /user/picture — back to the default placeholder (a Google user's
+// photo is synced again the next time they sign in with Google).
+export const removePicture = async (req, res, next) => {
+  try {
+    const fallback = User.schema.path('picture').options.default;
+    const previous = await User.findByIdAndUpdate(
+      req.user._id,
+      { picture: fallback },
+      { returnDocument: 'before', projection: 'picture' },
+    ).lean();
+    if (previous) await deleteAvatar(previous.picture);
+    return res
+      .status(200)
+      .json({ picture: fallback, hasCustomPicture: false });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// POST /user/change-password — requires an emailed OTP instead of the
+// current password, then signs out every other device.
+export const changePassword = async (req, res, next) => {
+  const { success, data, error } = changePasswordSchema.safeParse(req.body);
+  if (!success) {
+    return res.status(400).json({
+      error: Object.values(z.flattenError(error).fieldErrors).flat()[0],
+    });
+  }
+  const { otp, newPassword } = data;
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user || user.isDeleted) {
+      return res
+        .status(401)
+        .json({ error: 'User not found or account is unavailable.' });
+    }
+    if (!user.password) {
+      return res.status(409).json({
+        error: 'No password is set yet. Use "Set password" instead.',
+      });
+    }
+    const otpRecord = await OTP.findOne({ email: user.email, otp });
+    if (!otpRecord) {
+      return res.status(400).json({ error: 'Invalid or expired OTP.' });
+    }
+    user.password = newPassword; // pre('save') hashes it
+    await user.save();
+    await otpRecord.deleteOne(); // single use
+
+    const keep = `session:${req.signedCookies.sid}`;
+    const all = await redisClient.ft.search(
+      'userIdIdx',
+      `@userId:{${user.id}}`,
+      { RETURN: [] },
+    );
+    await Promise.all(
+      all.documents
+        .filter((d) => d.id !== keep)
+        .map((d) => redisClient.del(d.id)),
+    );
+
+    return res
+      .status(200)
+      .json({ message: 'Password changed. Other devices were signed out.' });
+  } catch (err) {
+    next(err);
   }
 };
 
@@ -245,7 +389,7 @@ export const permanentlyDeleteUser = async (req, res, next) => {
     return res.status(403).json({ error: 'You can not delete yourself.' });
   }
   try {
-    const targetUser = await User.findById(userId).select('role');
+    const targetUser = await User.findById(userId).select('role picture');
     if (!targetUser) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -253,6 +397,7 @@ export const permanentlyDeleteUser = async (req, res, next) => {
       return res.status(403).json({ error: 'You cannot delete this user.' });
     }
     await deleteAllSessionsForUser(userId);
+    await deleteAvatar(targetUser.picture);
     await File.deleteMany({ userId });
     await Directory.deleteMany({ userId });
     await User.findByIdAndDelete(userId);
@@ -301,6 +446,11 @@ export const getAllUsers = async (req, res) => {
     user.isLoggedIn = result.total > 0;
   });
   await Promise.all(userPromises);
+  await Promise.all(
+    users.map(async (u) => {
+      u.picture = await resolvePicture(u.picture);
+    }),
+  );
   res.json(users);
 };
 
@@ -310,6 +460,11 @@ export const getDeletedUsers = async (req, res, next) => {
       .select('name email picture role')
       .lean();
 
+    await Promise.all(
+      users.map(async (u) => {
+        u.picture = await resolvePicture(u.picture);
+      }),
+    );
     return res.status(200).json(users);
   } catch (err) {
     next(err);

@@ -45,6 +45,14 @@ export const renameDirectorySchema = z.object({
     .regex(/^[^<>]*$/, 'Directory name cannot contain HTML tags'),
 });
 
+export const updateProfileSchema = z.object({
+  name: z
+    .string('Please Enter a valid string')
+    .trim()
+    .min(3, 'Name should be at least 3 character long.')
+    .max(100, 'Name can max 100 characters.'),
+});
+
 const passwordFields = {
   newPassword: z
     .string('Please enter a valid password.')
@@ -65,6 +73,15 @@ export const setPasswordSchema = z
 export const setPasswordWithOtpSchema = z
   .object({
     email: z.email('Please enter a valid email.'),
+    otp: z
+      .string('please enter a valid 4 digit otp String.')
+      .regex(/^\d{4}$/, 'please enter a valid 4 digit otp.'),
+    ...passwordFields,
+  })
+  .refine(passwordsMatch, mismatch);
+
+export const changePasswordSchema = z
+  .object({
     otp: z
       .string('please enter a valid 4 digit otp String.')
       .regex(/^\d{4}$/, 'please enter a valid 4 digit otp.'),

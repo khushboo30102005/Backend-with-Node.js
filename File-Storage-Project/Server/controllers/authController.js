@@ -8,6 +8,7 @@ import redisClient from '../config/redis.js';
 import { emailSchema, otpSchema, setPasswordWithOtpSchema} from '../validator/authSchema.js';
 import * as z from 'zod';
 import { setInitialPassword } from '../services/setPasswordService.js';
+import { isStoredAvatar } from '../utils/avatar.js';
 
 export const sendOTP = async (req, res, next) => {
   const { success, data } = emailSchema.safeParse(req.body);
@@ -102,7 +103,12 @@ export const loginWithGoogle = async (req, res, next) => {
         await redisClient.del(allSessions.documents[0].id);
       }
 
-      if (!user.picture?.includes('googleusercontent.com')) {
+      // Keep a picture the user uploaded themselves (a B2 key); otherwise
+      // keep syncing the Google photo as before.
+      if (
+        !isStoredAvatar(user.picture) &&
+        !user.picture?.includes('googleusercontent.com')
+      ) {
         user.picture = picture;
         await user.save();
       }

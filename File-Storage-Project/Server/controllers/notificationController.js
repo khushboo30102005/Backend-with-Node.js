@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import Share from '../models/shareModel.js';
+import { resolvePicture } from '../utils/avatar.js';
 
 // Notifications are derived from the Share collection itself — no second
 // source of truth to drift out of sync. A share the user has not yet seen
@@ -34,7 +35,7 @@ export const getNotifications = async (req, res, next) => {
       s.ownerId &&
       s.ownerId._id.toString() !== me;
 
-    const toDto = (s) => ({
+    const toDto = async (s) => ({
       shareId: s._id,
       resourceType: s.resourceType,
       permission: s.permission,
@@ -43,13 +44,15 @@ export const getNotifications = async (req, res, next) => {
       sharedBy: {
         id: s.ownerId._id,
         name: s.ownerId.name,
-        picture: s.ownerId.picture,
+        picture: await resolvePicture(s.ownerId.picture),
       },
       file: { id: s.resourceId._id, name: s.resourceId.name },
     });
 
-    const unreadDtos = unread.filter(valid).map(toDto);
-    const readDtos = read.filter(valid).map(toDto);
+    const [unreadDtos, readDtos] = await Promise.all([
+      Promise.all(unread.filter(valid).map(toDto)),
+      Promise.all(read.filter(valid).map(toDto)),
+    ]);
 
     return res.status(200).json({
       unreadCount: unreadDtos.length,

@@ -10,6 +10,7 @@ import fileRoutes from './routes/fileRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import shareRoutes from './routes/shareRoutes.js';
+import storageRoutes from './routes/storageRoutes.js';
 import checkAuth from './middlewares/authMiddleware.js';
 import { apiLimiter } from './middlewares/rateLimitMiddleware.js';
 import trashRoutes from './routes/trashRoutes.js';
@@ -25,7 +26,7 @@ app.use(
 );
 app.use(cookieParser(process.env.SESSION_SECRET)); // this middleware parses the cookie send by the client, because it has secretKey, it can also verify signedCookie.
 app.use(express.json());
-
+app.set('trust proxy', 1);
 
 app.use(helmet());
 
@@ -37,6 +38,7 @@ app.use('/', userRoutes);
 app.use('/auth', authRoutes);
 app.use('/share', checkAuth, shareRoutes);
 app.use('/trash', checkAuth, trashRoutes);
+app.use('/storage', checkAuth, storageRoutes);
 
 
 app.use((err, req, res, next) => {

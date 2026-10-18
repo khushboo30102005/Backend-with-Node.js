@@ -1,4 +1,8 @@
 import express from 'express';
+import {
+  AVATAR_ALLOWED_TYPES,
+  AVATAR_MAX_INPUT_BYTES,
+} from '../utils/avatar.js';
 import checkAuth, {
   checkIsAdminUser,
   checkIsOwnerUser,
@@ -18,8 +22,12 @@ import {
   recoverUser,
   changeUserRole,
   setPassword,
+  updateProfile,
+  updatePicture,
+  removePicture,
+  changePassword,
 } from '../controllers/userController.js';
-import { authLimiter } from '../middlewares/rateLimitMiddleware.js';
+import { authLimiter, avatarLimiter } from '../middlewares/rateLimitMiddleware.js';
 import { searchUsers } from '../controllers/shareController.js';
 
 const router = express.Router();
@@ -29,6 +37,35 @@ router.post('/user/register',authLimiter, register);
 router.post('/user/login',authLimiter, login);
 
 router.get('/user', checkAuth, getCurrentUser);
+
+router.patch('/user', checkAuth, updateProfile);
+
+// Raw image body (no multipart). Size is enforced here before anything is
+// read; the real format is verified again by the image processor.
+const readAvatarBody = (req, res, next) =>
+  express.raw({ type: AVATAR_ALLOWED_TYPES, limit: AVATAR_MAX_INPUT_BYTES })(
+    req,
+    res,
+    (err) => {
+      if (!err) return next();
+      if (err.type === 'entity.too.large') {
+        return res
+          .status(413)
+          .json({ error: 'Image is too large. Maximum size is 5 MB.' });
+      }
+      return res.status(400).json({ error: 'Could not read the upload.' });
+    },
+  );
+
+router.patch(
+  '/user/picture',
+  checkAuth,
+  avatarLimiter,
+  readAvatarBody,
+  updatePicture,
+);
+
+router.delete('/user/picture', checkAuth, avatarLimiter, removePicture);
 
 router.post('/user/logout', logout);
 
@@ -62,5 +99,7 @@ router.patch('/users/:userId/role', checkAuth, checkNotRegularUser, changeUserRo
 router.get('/users/search', checkAuth, searchUsers);
 
 router.post('/user/set-password', checkAuth, authLimiter, setPassword);
+
+router.post('/user/change-password', checkAuth, authLimiter, changePassword);
 
 export default router;

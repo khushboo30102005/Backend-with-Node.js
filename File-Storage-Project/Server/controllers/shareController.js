@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import Share from '../models/shareModel.js';
 import File from '../models/fileModel.js';
 import User from '../models/userModel.js';
+import { resolvePicture } from '../utils/avatar.js';
 
 const VALID_PERMISSIONS = ['viewer', 'editor'];
 
@@ -93,11 +94,16 @@ export const getSharesForFile = async (req, res, next) => {
       .lean();
 
     return res.status(200).json(
-      shares.map((s) => ({
-        shareId: s._id,
-        permission: s.permission,
-        user: s.sharedWithUserId,
-      })),
+      await Promise.all(
+        shares.map(async (s) => ({
+          shareId: s._id,
+          permission: s.permission,
+          user: s.sharedWithUserId && {
+            ...s.sharedWithUserId,
+            picture: await resolvePicture(s.sharedWithUserId.picture),
+          },
+        })),
+      ),
     );
   } catch (err) {
     next(err);
@@ -207,6 +213,11 @@ export const searchUsers = async (req, res, next) => {
       .limit(8)
       .lean();
 
+    await Promise.all(
+      users.map(async (u) => {
+        u.picture = await resolvePicture(u.picture);
+      }),
+    );
     return res.status(200).json(users);
   } catch (err) {
     next(err);

@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node app.js",
     "dev": "node --watch --env-file=.env app.js",
     "debug": "node --inspect --env-file=.env app.js",
     "setup": "node --env-file=.env config/setup.js"
@@ -26,8 +27,11 @@
     "google-auth-library": "^11.0.0",
     "helmet": "^8.3.0",
     "jsdom": "^30.0.1",
+    "mongodb": "^7.7.0",
     "mongoose": "^9.6.3",
     "nodemailer": "^9.0.3",
-    "redis": "^6.2.0"
+    "redis": "^6.2.0",
+    "sharp": "^0.35.5",
+    "zod": "^4.6.7"
   }
 }

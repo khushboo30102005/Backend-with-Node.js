@@ -1,10 +1,11 @@
 import redisClient from '../config/redis.js';
+import { clearSessionCookieOptions } from '../config/cookie.js';
 import User from '../models/userModel.js';
 
 export default async function checkAuth(req, res, next) {
   const { sid } = req.signedCookies;
   if (!sid) {
-    res.clearCookie('sid');
+    res.clearCookie('sid', clearSessionCookieOptions);
     return res.status(401).json({ error: 'Not logged in!' });
   }
   const session = await redisClient.json.get(`session:${sid}`);

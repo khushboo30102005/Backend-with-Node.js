@@ -22,4 +22,16 @@ redisClient.on('error', (err) => {
 
 await redisClient.connect();
 
+// Create the session index if it doesn't exist (idempotent). Needs RediSearch + JSON (Redis Cloud / Redis Stack).
+try {
+  await redisClient.ft.create(
+    'userIdIdx',
+    { '$.userId': { type: 'TAG', AS: 'userId' } },
+    { ON: 'JSON', PREFIX: 'session:' },
+  );
+  console.log('Created Redis index userIdIdx');
+} catch (err) {
+  if (!String(err.message).includes('Index already exists')) throw err;
+}
+
 export default redisClient;

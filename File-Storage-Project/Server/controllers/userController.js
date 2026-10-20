@@ -25,6 +25,7 @@ import {
   resolvePicture,
 } from '../utils/avatar.js';
 import { JSDOM } from 'jsdom';
+import { clearSessionCookieOptions } from '../config/cookie.js';
 import DOMPurify from 'dompurify';
 
 const window = new JSDOM('').window;
@@ -318,7 +319,7 @@ export const logout = async (req, res) => {
     if (sid) {
       await redisClient.del(`session:${sid}`);
     }
-    res.clearCookie('sid');
+    res.clearCookie('sid', clearSessionCookieOptions);
     res.status(204).end();
   } catch (error) {
     res.status(204).json({ message: 'Not logged out' });
@@ -411,7 +412,7 @@ export const logoutAll = async (req, res) => {
   try {
     const sid = req.signedCookies.sid;
     if (!sid) {
-      res.clearCookie('sid');
+      res.clearCookie('sid', clearSessionCookieOptions);
       return res.status(204).end();
     }
     const result = await redisClient.json.get(`session:${sid}`, {
@@ -419,13 +420,13 @@ export const logoutAll = async (req, res) => {
     });
 
     if (!result) {
-      res.clearCookie('sid');
+      res.clearCookie('sid', clearSessionCookieOptions);
       return res.status(204).end();
     }
 
     const userId = result[0];
     await deleteAllSessionsForUser(userId);
-    res.clearCookie('sid');
+    res.clearCookie('sid', clearSessionCookieOptions);
     res.status(204).end();
   } catch (error) {
     console.log(error);

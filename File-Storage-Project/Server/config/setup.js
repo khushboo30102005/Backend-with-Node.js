@@ -10,6 +10,15 @@ console.log('Database Connected');
 
 const command = 'collMod';
 
+// collMod fails on collections that don't exist yet (fresh database), so create them first
+for (const name of ['users', 'directories', 'files', 'otps', 'shares']) {
+  const exists = await db.listCollections({ name }).hasNext();
+  if (!exists) {
+    await db.createCollection(name);
+    console.log(`Created collection: ${name}`);
+  }
+}
+
 try {
   // =========================
   // Users Collection

@@ -8,6 +8,7 @@ import redisClient from '../config/redis.js';
 import { emailSchema, otpSchema, setPasswordWithOtpSchema} from '../validator/authSchema.js';
 import * as z from 'zod';
 import { setInitialPassword } from '../services/setPasswordService.js';
+import { sessionCookieOptions } from '../config/cookie.js';
 import { isStoredAvatar } from '../utils/avatar.js';
 
 export const sendOTP = async (req, res, next) => {
@@ -62,12 +63,7 @@ export const verifyLoginOTP = async (req, res, next) => {
 
     const sessionExpiryTime = 60 * 1000 * 60 * 24 * 7;
     await redisClient.expire(redisKey, sessionExpiryTime / 1000);
-    res.cookie('sid', sessionId, {
-      httpOnly: true,
-      signed: true,
-      sameSite: 'lax',
-      maxAge: sessionExpiryTime,
-    });
+    res.cookie('sid', sessionId, sessionCookieOptions(sessionExpiryTime));
     await otpRecord.deleteOne();
     return res.json({ message: 'Logged in' });
   } catch (error) {
@@ -130,12 +126,7 @@ export const loginWithGoogle = async (req, res, next) => {
       await redisClient.expire(redisKey, sessionExpiryTime);
 
       // Cookie maxAge uses milliseconds
-      res.cookie('sid', sessionId, {
-        httpOnly: true,
-        signed: true,
-        sameSite: 'lax',
-        maxAge: sessionExpiryTime * 1000,
-      });
+      res.cookie('sid', sessionId, sessionCookieOptions(sessionExpiryTime * 1000));
 
       return res.json({
         message: 'logged in',
@@ -196,12 +187,7 @@ export const loginWithGoogle = async (req, res, next) => {
       await redisClient.expire(redisKey, sessionExpiryTime);
 
       // Cookie uses milliseconds
-      res.cookie('sid', sessionId, {
-        httpOnly: true,
-        signed: true,
-        sameSite: 'lax',
-        maxAge: sessionExpiryTime * 1000,
-      });
+      res.cookie('sid', sessionId, sessionCookieOptions(sessionExpiryTime * 1000));
 
       return res.status(201).json({
         message: 'account created and logged in',

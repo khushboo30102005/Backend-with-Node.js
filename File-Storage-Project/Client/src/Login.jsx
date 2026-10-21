@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import { Link, useNavigate } from 'react-router';
 import { loginWithGoogle, verifyLoginOtp } from './apis/authApi.js';
-import { FaGithub } from 'react-icons/fa';
 import { loginUser } from './apis/userApi.js';
 import AuthBackground from './components/AuthBackground';
 import SetPasswordModal from './components/SetPasswordModal';
@@ -115,16 +114,6 @@ const Login = () => {
     } else if (!isSending) {
       handleLogin();
     }
-  };
-
-  const loginWithGitHub = () => {
-    const params = new URLSearchParams({
-      client_id: import.meta.env.VITE_GITHUB_CLIENT_ID,
-      redirect_uri: 'http://localhost:4000/auth/github/callback',
-      scope: 'read:user user:email',
-    });
-
-    window.location.href = `https://github.com/login/oauth/authorize?${params}`;
   };
 
   const inputClass = (hasError) =>
@@ -312,16 +301,6 @@ const Login = () => {
           />
         </div>
 
-        <div>
-          <button
-            type="button"
-            className="w-full max-w-[260px] h-10 mx-auto mt-2.5 flex items-center justify-center gap-2.5 bg-[#1a73e8] text-white border-none rounded-full text-sm font-medium cursor-pointer transition-colors duration-200 hover:bg-[#1765cc] active:bg-[#1557b0] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#1a73e8] focus-visible:outline-offset-2"
-            onClick={loginWithGitHub}
-          >
-            <FaGithub size={18} />
-            Continue with GitHub
-          </button>
-        </div>
         {showSetPassword && (
           <SetPasswordModal
             email={formData.email}

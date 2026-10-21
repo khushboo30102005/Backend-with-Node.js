@@ -3,6 +3,7 @@ import { createClient } from 'redis';
 const redisClient = createClient({
   url: process.env.REDIS_URL,
   socket: {
+    connectTimeout: 15000,
     // retry quickly at first, then back off to at most 2s; give up after ~30s
     reconnectStrategy: (retries) => {
       if (retries > 30) return new Error('Redis unreachable');

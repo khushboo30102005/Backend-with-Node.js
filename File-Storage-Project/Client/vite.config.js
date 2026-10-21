@@ -14,6 +14,7 @@ export default defineConfig({
         "img-src 'self' data: blob: https://*.googleusercontent.com https://cdn.pixabay.com https://*.backblazeb2.com; " +
         "style-src 'self' 'unsafe-inline' https://accounts.google.com; " +
         "frame-src 'self' https://accounts.google.com; " +
+        "worker-src 'self' blob:; " +
         "object-src 'none'; " +
         "base-uri 'self'; " +
         "frame-ancestors 'none';",

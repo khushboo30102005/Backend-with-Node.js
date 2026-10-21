@@ -1,7 +1,7 @@
 import { FaFolderOpen, FaRegFileAlt, FaChevronDown } from 'react-icons/fa';
 import DirectoryItem from './DirectoryItem';
 import DirectoryGridItem from './DirectoryGridItem';
-import SelectAllCheckbox from './SelectAllCheckbox';
+import SelectAllCheckbox from './Selectallcheckbox';
 import { getItemKey } from '../utils/itemKey';
 
 function SectionHeader({ icon: Icon, title, count, singular, plural }) {

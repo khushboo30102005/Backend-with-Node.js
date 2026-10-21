@@ -7,7 +7,7 @@ import {
   FaShareAlt,
   FaRegCheckSquare,
 } from 'react-icons/fa';
-import SelectAllCheckbox from './SelectAllCheckbox';
+import SelectAllCheckbox from './Selectallcheckbox';
 
 const baseBtn =
   'inline-flex items-center justify-center gap-2 h-9 px-3 rounded-lg border text-[13px] font-semibold transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/30 disabled:opacity-40 disabled:cursor-not-allowed';

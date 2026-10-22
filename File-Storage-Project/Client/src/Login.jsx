@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import { Link, useNavigate } from 'react-router';
 import { loginWithGoogle, verifyLoginOtp } from './apis/authApi.js';
-import { loginUser } from './apis/userApi.js';
+import { loginUser, fetchUser } from './apis/userApi.js';
 import AuthBackground from './components/AuthBackground';
 import SetPasswordModal from './components/SetPasswordModal';
+import CookieBlockedModal from './components/CookieBlockedModal';
 
 const Login = () => {
   const [formData, setFormData] = useState({
@@ -28,6 +29,7 @@ const Login = () => {
   const [needsPassword, setNeedsPassword] = useState(false);
   const [showSetPassword, setShowSetPassword] = useState(false);
   const [notice, setNotice] = useState('');
+  const [cookieBlocked, setCookieBlocked] = useState(false);
 
   const navigate = useNavigate();
 
@@ -66,6 +68,22 @@ const Login = () => {
     }));
   };
 
+  // After a successful login, confirm the browser actually kept the session
+  // cookie. If it was blocked (third-party cookies off), the next request is a
+  // 401, so show the "allow cookies" popup instead of bouncing back to login.
+  const finishLogin = async () => {
+    try {
+      await fetchUser();
+      navigate('/');
+    } catch (err) {
+      if (err.response?.status === 401) {
+        setCookieBlocked(true);
+      } else {
+        navigate('/');
+      }
+    }
+  };
+
   // Step 1
   const handleLogin = async () => {
     setServerError('');
@@ -98,7 +116,7 @@ const Login = () => {
       setIsVerifying(true);
       await verifyLoginOtp(formData.email, otp);
       setOtpVerified(true);
-      navigate('/');
+      await finishLogin();
     } catch (err) {
       setOtpError(err.response?.data?.error || 'Invalid OTP.');
     } finally {
@@ -284,7 +302,7 @@ const Login = () => {
             onSuccess={async (credentialResponse) => {
               try {
                 await loginWithGoogle(credentialResponse.credential);
-                navigate('/');
+                await finishLogin();
               } catch (err) {
                 setServerError(
                   err.response?.data?.error || 'Google login failed.',
@@ -301,6 +319,9 @@ const Login = () => {
           />
         </div>
 
+        {cookieBlocked && (
+          <CookieBlockedModal onClose={() => setCookieBlocked(false)} />
+        )}
         {showSetPassword && (
           <SetPasswordModal
             email={formData.email}

@@ -4,7 +4,7 @@ import { FaTrash } from 'react-icons/fa';
 import { getStorageSummary } from '../apis/storageApi';
 import { formatSize } from '../components/DetailsPopup';
 import { BASE_URL } from '../Register';
-import { getFileUrl } from '../apis/fileApi';
+import { getFileUrl, openFileInNewTab } from '../apis/fileApi';
 import { SettingsSection, SettingsRow, Notice, secondaryBtn } from './SettingsUI';
 
 function Skeleton() {
@@ -105,6 +105,10 @@ function StorageSettings() {
               <li key={f._id} className="flex items-center gap-3 py-3">
                 <a
                   href={`${BASE_URL}${getFileUrl(f._id)}`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    openFileInNewTab(f._id);
+                  }}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="min-w-0 flex-1 truncate text-sm font-medium text-text hover:text-primary"

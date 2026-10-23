@@ -8,7 +8,6 @@ import DirectoryList from './components/DirectoryList';
 import DetailsPopup from './components/DetailsPopup';
 import ConfirmDeleteModal from './components/ConfirmDeleteModal';
 import BreadcrumbBar from './components/BreadcrumbBar';
-import { BASE_URL } from './Register';
 import { useAutoDismissError } from './hooks/useAutoDismissError';
 import SelectionToolbar from './components/SelectionToolbar';
 import BulkDeleteConfirmModal from './components/BulkDeleteConfirmModal';
@@ -30,8 +29,8 @@ import {
   deleteFile as deleteFileApi,
   renameFile as renameFileApi,
   uploadFileWithProgress,
-  getFileUrl,
-  getFileDownloadUrl,
+  openFileInNewTab,
+  downloadFile,
 } from './apis/fileApi';
 import ShareModal from './components/ShareModal';
 import BulkShareModal from './components/BulkShareModal';
@@ -272,7 +271,7 @@ function DirectoryView({ dirId }) {
       navigate(folderPath(id));
     } else {
       // Open in a new tab so the app (and any running upload) stays alive
-      window.open(`${BASE_URL}${getFileUrl(id)}`, '_blank', 'noopener');
+      openFileInNewTab(id);
     }
   }
 
@@ -574,12 +573,7 @@ function DirectoryView({ dirId }) {
     if (selectedRealFiles.length === 0) return;
     selectedRealFiles.forEach((file, i) => {
       setTimeout(() => {
-        const a = document.createElement('a');
-        a.href = `${BASE_URL}${getFileDownloadUrl(file.id)}`;
-        a.rel = 'noopener';
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
+        downloadFile(file.id);
       }, i * 700);
     });
     if (selectedFolderCount > 0) {

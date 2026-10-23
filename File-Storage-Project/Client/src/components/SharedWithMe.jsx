@@ -5,9 +5,8 @@ import DirectoryHeader from './DirectoryHeader';
 import DirectoryList from './DirectoryList';
 import DetailsPopup from './DetailsPopup';
 import RenameModal from './RenameModal';
-import { BASE_URL } from '../Register';
 import { getSharedWithMe } from '../apis/shareApi';
-import { getFileUrl, renameFile } from '../apis/fileApi';
+import { openFileInNewTab, renameFile } from '../apis/fileApi';
 import { useAutoDismissError } from '../hooks/useAutoDismissError';
 import { useNotifications } from '../context/NotificationsContext';
 
@@ -89,7 +88,7 @@ function SharedWithMe() {
   // Shared files never support navigation into a folder (folder sharing
   // isn't implemented) — a click always opens the file in a new tab.
   function handleRowClick(type, id) {
-    window.open(`${BASE_URL}${getFileUrl(id)}`, '_blank', 'noopener');
+    openFileInNewTab(id);
   }
 
   function handleContextMenu(e, id) {

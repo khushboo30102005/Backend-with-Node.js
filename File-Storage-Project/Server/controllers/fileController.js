@@ -141,6 +141,12 @@ export const getFile = async (req, res, next) => {
       }),
       { expiresIn: 60 },
     );
+    // ?format=json lets the SPA fetch the signed URL with its session cookie
+    // (a normal XHR) and open the storage URL itself, instead of navigating to
+    // this API in a new tab where cross-site cookies may not be sent.
+    if (req.query.format === 'json') {
+      return res.json({ url: signedUrl });
+    }
     return res.redirect(signedUrl);
   } catch (err) {
     return res.status(404).json({ error: 'File not found!' });

@@ -46,6 +46,50 @@ export const getFileDownloadUrl = (id, base = '') => {
   return `${base}/file/${id}?action=download`;
 };
 
+// Asks the API (with the session cookie, as a normal request) for a short-lived
+// signed storage URL, so opening/downloading never depends on the cookie being
+// sent on a top-level navigation to the API domain.
+export const fetchFileSignedUrl = async (id, { download = false, base = '' } = {}) => {
+  const { data } = await axiosWithCreds.get(`${base}/file/${id}`, {
+    params: { format: 'json', ...(download && { action: 'download' }) },
+  });
+  return data.url;
+};
+
+// Opens a file in a new tab. The tab is opened synchronously inside the click
+// (so pop-up blockers allow it) and pointed at the signed URL once it arrives.
+// If the signed URL can't be fetched, the tab falls back to the plain API URL,
+// which shows the server's error.
+export const openFileInNewTab = async (id, base = '') => {
+  const tab = window.open('', '_blank');
+  if (tab) tab.opener = null;
+  const fallback = `${import.meta.env.VITE_BACKEND_BASE_URL}${getFileUrl(id, base)}`;
+  try {
+    const url = await fetchFileSignedUrl(id, { base });
+    if (tab) tab.location.href = url;
+    else window.location.assign(url);
+  } catch {
+    if (tab) tab.location.href = fallback;
+    else window.location.assign(fallback);
+  }
+};
+
+// Starts a download through the signed attachment URL without leaving the app.
+export const downloadFile = async (id, base = '') => {
+  let url;
+  try {
+    url = await fetchFileSignedUrl(id, { download: true, base });
+  } catch {
+    url = `${import.meta.env.VITE_BACKEND_BASE_URL}${getFileDownloadUrl(id, base)}`;
+  }
+  const a = document.createElement('a');
+  a.href = url;
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+};
+
 export const moveFile = async (id, newParentId, base = '') => {
   const { data } = await axiosWithCreds.patch(`${base}/file/${id}/move`, {
     newParentId,

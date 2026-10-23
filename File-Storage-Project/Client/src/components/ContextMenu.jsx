@@ -10,8 +10,7 @@ import {
   FaUndo,
   FaTimes,
 } from 'react-icons/fa';
-import { BASE_URL } from '../Register';
-import { getFileDownloadUrl } from '../apis/fileApi';
+import { downloadFile } from '../apis/fileApi';
 
 function ContextMenu({
   item,
@@ -120,7 +119,7 @@ function ContextMenu({
   } else {
     entries = [
       entry('download', FaDownload, 'Download', () => {
-        window.location.href = `${BASE_URL}${getFileDownloadUrl(item.id, apiBase)}`;
+        downloadFile(item.id, apiBase);
       }),
       entry('details', FaInfoCircle, 'Details', () => openDetailsPopup(item)),
       canShare &&

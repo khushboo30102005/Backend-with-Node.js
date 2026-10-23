@@ -271,7 +271,11 @@ function DirectoryView({ dirId }) {
       navigate(folderPath(id));
     } else {
       // Open in a new tab so the app (and any running upload) stays alive
-      openFileInNewTab(id);
+      openFileInNewTab(id).then((result) => {
+        if (result === 'blocked') setErrorMessage(
+          'Your browser blocked the new tab. Allow pop-ups for this site to open files.',
+        );
+      });
     }
   }
 

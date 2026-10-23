@@ -88,7 +88,11 @@ function SharedWithMe() {
   // Shared files never support navigation into a folder (folder sharing
   // isn't implemented) — a click always opens the file in a new tab.
   function handleRowClick(type, id) {
-    openFileInNewTab(id);
+    openFileInNewTab(id).then((result) => {
+      if (result === 'blocked') setErrorMessage(
+        'Your browser blocked the new tab. Allow pop-ups for this site to open files.',
+      );
+    });
   }
 
   function handleContextMenu(e, id) {

@@ -58,20 +58,20 @@ export const fetchFileSignedUrl = async (id, { download = false, base = '' } = {
 
 // Opens a file in a new tab. The tab is opened synchronously inside the click
 // (so pop-up blockers allow it) and pointed at the signed URL once it arrives.
-// If the signed URL can't be fetched, the tab falls back to the plain API URL,
-// which shows the server's error.
+// Returns 'blocked' when the browser refuses the new tab; it never navigates
+// the app tab away (that would also interrupt running uploads). If the signed
+// URL can't be fetched, the new tab falls back to the plain API URL, which
+// shows the server's error.
 export const openFileInNewTab = async (id, base = '') => {
   const tab = window.open('', '_blank');
-  if (tab) tab.opener = null;
-  const fallback = `${import.meta.env.VITE_BACKEND_BASE_URL}${getFileUrl(id, base)}`;
+  if (!tab) return 'blocked';
+  tab.opener = null;
   try {
-    const url = await fetchFileSignedUrl(id, { base });
-    if (tab) tab.location.href = url;
-    else window.location.assign(url);
+    tab.location.href = await fetchFileSignedUrl(id, { base });
   } catch {
-    if (tab) tab.location.href = fallback;
-    else window.location.assign(fallback);
+    tab.location.href = `${import.meta.env.VITE_BACKEND_BASE_URL}${getFileUrl(id, base)}`;
   }
+  return 'opened';
 };
 
 // Starts a download through the signed attachment URL without leaving the app.

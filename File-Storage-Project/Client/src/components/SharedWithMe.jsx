@@ -5,6 +5,7 @@ import DirectoryHeader from './DirectoryHeader';
 import DirectoryList from './DirectoryList';
 import DetailsPopup from './DetailsPopup';
 import RenameModal from './RenameModal';
+import FileViewer, { isImageName } from './FileViewer';
 import { getSharedWithMe } from '../apis/shareApi';
 import { openFileInNewTab, renameFile } from '../apis/fileApi';
 import { useAutoDismissError } from '../hooks/useAutoDismissError';
@@ -20,6 +21,7 @@ function SharedWithMe() {
   const [activeContextMenu, setActiveContextMenu] = useState(null);
   const [contextMenuPos, setContextMenuPos] = useState({ x: 0, y: 0 });
   const [detailsItem, setDetailsItem] = useState(null);
+  const [viewerFile, setViewerFile] = useState(null);
 
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [renameId, setRenameId] = useState(null);
@@ -88,10 +90,16 @@ function SharedWithMe() {
   // Shared files never support navigation into a folder (folder sharing
   // isn't implemented) — a click always opens the file in a new tab.
   function handleRowClick(type, id) {
+    const file = entries.find((e) => e.file.id === id)?.file;
+    if (file && isImageName(file.name)) {
+      setViewerFile({ id, name: file.name });
+      return;
+    }
     openFileInNewTab(id).then((result) => {
-      if (result === 'blocked') setErrorMessage(
-        'Your browser blocked the new tab. Allow pop-ups for this site to open files.',
-      );
+      if (result === 'blocked')
+        setErrorMessage(
+          'Your browser blocked the new tab. Allow pop-ups for this site to open files.',
+        );
     });
   }
 
@@ -158,6 +166,14 @@ function SharedWithMe() {
         <div className="bg-red-50 text-danger border border-red-200 rounded-lg px-4 py-2.5 text-sm mt-4">
           {errorMessage}
         </div>
+      )}
+
+      {viewerFile && (
+        <FileViewer
+          fileId={viewerFile.id}
+          name={viewerFile.name}
+          onClose={() => setViewerFile(null)}
+        />
       )}
 
       {showRenameModal && (

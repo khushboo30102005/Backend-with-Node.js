@@ -34,6 +34,7 @@ import {
 } from './apis/fileApi';
 import ShareModal from './components/ShareModal';
 import BulkShareModal from './components/BulkShareModal';
+import FileViewer, { isImageName } from './components/FileViewer';
 
 export const MY_DRIVE_PATH = '/mydrive';
 export const folderPath = (id) => `${MY_DRIVE_PATH}/folder/${id}`;
@@ -80,6 +81,7 @@ function DirectoryView({ dirId }) {
   const [bulkDeleteItems, setBulkDeleteItems] = useState([]);
   const [moveItems, setMoveItems] = useState([]);
   const [bulkShareItems, setBulkShareItems] = useState([]);
+  const [viewerFile, setViewerFile] = useState(null);
 
   // Tell the shell (sidebar ring, etc.) to refresh storage after changes
   useEffect(() => {
@@ -270,11 +272,18 @@ function DirectoryView({ dirId }) {
     if (type === 'directory') {
       navigate(folderPath(id));
     } else {
-      // Open in a new tab so the app (and any running upload) stays alive
+      const file = combinedItems.find((i) => i.id === id);
+      if (file && isImageName(file.name)) {
+        // Images preview in-app (no new tab / pop-up needed)
+        setViewerFile({ id, name: file.name });
+        return;
+      }
+      // Other files open in a new tab so the app (and any running upload) stays alive
       openFileInNewTab(id).then((result) => {
-        if (result === 'blocked') setErrorMessage(
-          'Your browser blocked the new tab. Allow pop-ups for this site to open files.',
-        );
+        if (result === 'blocked')
+          setErrorMessage(
+            'Your browser blocked the new tab. Allow pop-ups for this site to open files.',
+          );
       });
     }
   }
@@ -731,6 +740,13 @@ function DirectoryView({ dirId }) {
           }}
           onRenameSubmit={handleRenameSubmit}
           error={modalError}
+        />
+      )}
+      {viewerFile && (
+        <FileViewer
+          fileId={viewerFile.id}
+          name={viewerFile.name}
+          onClose={() => setViewerFile(null)}
         />
       )}
       {shareModalItem && (

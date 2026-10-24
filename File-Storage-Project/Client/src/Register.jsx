@@ -2,8 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router';
 import { GoogleLogin } from '@react-oauth/google';
 import { loginWithGoogle, sendOtp, verifyOtp } from './apis/authApi';
-import { registerUser } from './apis/userApi';
+import { registerUser, fetchUser } from './apis/userApi';
 import AuthBackground from './components/AuthBackground';
+import CookieBlockedModal from './components/CookieBlockedModal';
+import CookieBanner from './components/CookieBanner';
+import { useCookieCheck } from './hooks/useCookieCheck';
 export const BASE_URL = import.meta.env.VITE_BACKEND_BASE_URL;
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -24,7 +27,23 @@ const Register = () => {
   const [isVerifying, setIsVerifying] = useState(false);
   const [countdown, setCountdown] = useState(0);
 
+  const [cookieBlocked, setCookieBlocked] = useState(false);
+  const { status: cookieStatus, recheck } = useCookieCheck();
+  const [cookieHelpOpen, setCookieHelpOpen] = useState(true);
+  const cookiesOff = cookieStatus === 'blocked';
+
   const navigate = useNavigate();
+
+  // Google sign-up also logs the user in, so confirm the session cookie stuck.
+  const finishGoogleLogin = async () => {
+    try {
+      await fetchUser();
+      navigate('/');
+    } catch (err) {
+      if (err.response?.status === 401) setCookieBlocked(true);
+      else navigate('/');
+    }
+  };
 
   // Handle input changes
   const handleChange = (e) => {
@@ -113,6 +132,13 @@ const Register = () => {
       <h2 className="text-center mb-6 text-2xl font-bold tracking-tight text-text">
         Register
       </h2>
+      {cookiesOff && (
+        <CookieBanner
+          checking={cookieStatus === 'checking'}
+          onHelp={() => setCookieHelpOpen(true)}
+          onRecheck={recheck}
+        />
+      )}
       <form className="flex flex-col" onSubmit={handleSubmit}>
         {/* Name */}
         <div className="relative mb-5">
@@ -270,12 +296,15 @@ const Register = () => {
         <span className="px-3.5">or</span>
       </div>
 
-      <div className="flex justify-center">
+      <div
+        className={`flex justify-center ${cookiesOff ? 'opacity-50 pointer-events-none' : ''}`}
+        aria-disabled={cookiesOff}
+      >
         <GoogleLogin
           onSuccess={async (credentialResponse) => {
             try {
               await loginWithGoogle(credentialResponse.credential);
-              navigate('/');
+              await finishGoogleLogin();
             } catch (err) {
               setServerError(
                 err.response?.data?.error || 'Google sign-in failed.',
@@ -287,9 +316,24 @@ const Register = () => {
           onError={() => {
             setServerError('Google sign-in failed.');
           }}
-          useOneTap
+          useOneTap={!cookiesOff}
         />
       </div>
+
+      {cookieBlocked && (
+        <CookieBlockedModal
+          variant="postlogin"
+          onClose={() => setCookieBlocked(false)}
+        />
+      )}
+      {cookiesOff && cookieHelpOpen && !cookieBlocked && (
+        <CookieBlockedModal
+          variant="precheck"
+          checking={cookieStatus === 'checking'}
+          onRecheck={recheck}
+          onClose={() => setCookieHelpOpen(false)}
+        />
+      )}
     </div>
    </AuthBackground>
   );

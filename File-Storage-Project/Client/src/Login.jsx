@@ -6,6 +6,8 @@ import { loginUser, fetchUser } from './apis/userApi.js';
 import AuthBackground from './components/AuthBackground';
 import SetPasswordModal from './components/SetPasswordModal';
 import CookieBlockedModal from './components/CookieBlockedModal';
+import CookieBanner from './components/CookieBanner';
+import { useCookieCheck } from './hooks/useCookieCheck';
 
 const Login = () => {
   const [formData, setFormData] = useState({
@@ -30,6 +32,9 @@ const Login = () => {
   const [showSetPassword, setShowSetPassword] = useState(false);
   const [notice, setNotice] = useState('');
   const [cookieBlocked, setCookieBlocked] = useState(false);
+  const { status: cookieStatus, recheck } = useCookieCheck();
+  const [cookieHelpOpen, setCookieHelpOpen] = useState(true);
+  const cookiesOff = cookieStatus === 'blocked';
 
   const navigate = useNavigate();
 
@@ -145,6 +150,13 @@ const Login = () => {
         <h2 className="text-center mb-6 text-2xl font-bold tracking-tight text-text">
           Login
         </h2>
+        {cookiesOff && (
+          <CookieBanner
+            checking={cookieStatus === 'checking'}
+            onHelp={() => setCookieHelpOpen(true)}
+            onRecheck={recheck}
+          />
+        )}
         <form className="flex flex-col" onSubmit={handleSubmit}>
           {/* Email */}
           <div className="relative mb-5">
@@ -220,7 +232,7 @@ const Login = () => {
             <button
               type="submit"
               className="w-full mt-1 px-4 py-[11px] rounded-lg text-white text-sm font-semibold cursor-pointer transition-[background-color,transform] duration-150 bg-primary hover:bg-primary-hover hover:-translate-y-px disabled:bg-indigo-200 disabled:cursor-not-allowed disabled:translate-y-0"
-              disabled={isSending}
+              disabled={isSending || cookiesOff}
             >
               {isSending ? 'Checking...' : 'Login'}
             </button>
@@ -269,7 +281,7 @@ const Login = () => {
                     ? 'bg-success cursor-default'
                     : 'bg-primary cursor-pointer hover:bg-primary-hover hover:-translate-y-px disabled:bg-indigo-200 disabled:cursor-not-allowed disabled:translate-y-0'
                 }`}
-                disabled={isVerifying || otpVerified || countdown === 0}
+                disabled={isVerifying || otpVerified || countdown === 0 || cookiesOff}
               >
                 {isVerifying
                   ? 'Verifying...'
@@ -297,7 +309,10 @@ const Login = () => {
           <span className="px-3.5">or</span>
         </div>
 
-        <div className="flex justify-center">
+        <div
+          className={`flex justify-center ${cookiesOff ? 'opacity-50 pointer-events-none' : ''}`}
+          aria-disabled={cookiesOff}
+        >
           <GoogleLogin
             onSuccess={async (credentialResponse) => {
               try {
@@ -315,12 +330,23 @@ const Login = () => {
             onError={() => {
               setServerError('Google login failed.');
             }}
-            useOneTap
+            useOneTap={!cookiesOff}
           />
         </div>
 
         {cookieBlocked && (
-          <CookieBlockedModal onClose={() => setCookieBlocked(false)} />
+          <CookieBlockedModal
+            variant="postlogin"
+            onClose={() => setCookieBlocked(false)}
+          />
+        )}
+        {cookiesOff && cookieHelpOpen && !cookieBlocked && (
+          <CookieBlockedModal
+            variant="precheck"
+            checking={cookieStatus === 'checking'}
+            onRecheck={recheck}
+            onClose={() => setCookieHelpOpen(false)}
+          />
         )}
         {showSetPassword && (
           <SetPasswordModal

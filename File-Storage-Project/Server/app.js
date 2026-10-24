@@ -26,7 +26,9 @@ app.use(
 );
 app.use(cookieParser(process.env.SESSION_SECRET)); // this middleware parses the cookie send by the client, because it has secretKey, it can also verify signedCookie.
 app.use(express.json());
-app.set('trust proxy', 1);
+// Requests pass through two proxies in production (Vercel rewrite, then Render),
+// so trust 2 hops. With 1, every user would share Vercel's IP in the rate limiters.
+app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS) || 1);
 
 app.use(helmet());
 

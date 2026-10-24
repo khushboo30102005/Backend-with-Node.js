@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { FaDownload, FaSpinner, FaTimes } from 'react-icons/fa';
+import { FaCode, FaDownload, FaEye, FaSpinner, FaTimes } from 'react-icons/fa';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
@@ -15,12 +15,14 @@ const KINDS = {
   office: ['docx', 'doc', 'pptx', 'ppt', 'xlsx', 'xls'],
   markdown: ['md', 'markdown'],
   // Source files: shown with syntax highlighting (language keyed by extension)
-  code: ['json', 'xml', 'yml', 'yaml', 'js', 'jsx', 'ts', 'tsx', 'css', 'html', 'py', 'java'],
+  code: ['json', 'xml', 'yml', 'yaml', 'js', 'jsx', 'ts', 'tsx', 'css', 'py', 'java'],
+  // Web pages: rendered in a sandboxed frame, with a Source toggle
+  html: ['html', 'htm'],
   // Plain text: no structure worth rendering
   text: ['txt', 'csv', 'log'],
 };
 
-const CODE_LANG = { jsx: 'javascript', js: 'javascript', ts: 'typescript', tsx: 'typescript', py: 'python', yml: 'yaml', html: 'xml' };
+const CODE_LANG = { jsx: 'javascript', js: 'javascript', ts: 'typescript', tsx: 'typescript', py: 'python', yml: 'yaml', htm: 'xml', html: 'xml' };
 
 // Wraps source text in a markdown code fence (longer than any backtick run
 // inside it) so it goes through the same highlighted renderer as .md blocks.
@@ -31,7 +33,7 @@ function toFencedBlock(text, name) {
   return `${fence}${CODE_LANG[ext] || ext}\n${text}\n${fence}`;
 }
 
-// Returns 'image' | 'video' | 'audio' | 'pdf' | 'office' | 'markdown' | 'code' | 'text', or null when the file
+// Returns 'image' | 'video' | 'audio' | 'pdf' | 'office' | 'markdown' | 'code' | 'html' | 'text', or null when the file
 // can't be previewed in the browser (docx, zip, ...) and should be downloaded.
 export function getPreviewKind(name = '') {
   const ext = name.includes('.') ? name.split('.').pop().toLowerCase() : '';
@@ -49,12 +51,13 @@ function FileViewer({ fileId, name, onClose }) {
   const kind = getPreviewKind(name);
   const [url, setUrl] = useState('');
   const [error, setError] = useState('');
+  const [showSource, setShowSource] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    // Markdown and code are fetched as text and rendered in-app; everything else
+    // Markdown, code and html are fetched as text and rendered in-app; everything else
     // loads straight from a signed storage URL.
-    (kind === 'markdown' || kind === 'code' ? fetchFileText(fileId) : fetchFileSignedUrl(fileId))
+    (kind === 'markdown' || kind === 'code' || kind === 'html' ? fetchFileText(fileId) : fetchFileSignedUrl(fileId))
       .then((u) => !cancelled && setUrl(u || ' ')) // ' ' keeps an empty file from spinning forever
       .catch(
         (err) =>
@@ -85,6 +88,17 @@ function FileViewer({ fileId, name, onClose }) {
         onClick={(e) => e.stopPropagation()}
       >
         <p className="flex-1 min-w-0 truncate text-sm font-semibold">{name}</p>
+        {kind === 'html' && (
+          <button
+            type="button"
+            onClick={() => setShowSource((v) => !v)}
+            aria-label={showSource ? 'Show preview' : 'Show source'}
+            title={showSource ? 'Show preview' : 'Show source'}
+            className="flex items-center justify-center w-9 h-9 rounded-full hover:bg-white/15 transition-colors cursor-pointer"
+          >
+            {showSource ? <FaEye size={15} /> : <FaCode size={15} />}
+          </button>
+        )}
         <button
           type="button"
           onClick={() => downloadFile(fileId)}
@@ -115,7 +129,21 @@ function FileViewer({ fileId, name, onClose }) {
             const stop = (e) => e.stopPropagation();
             const fail = () =>
               setError('Could not display this file. Try downloading it.');
-            if (kind === 'markdown' || kind === 'code')
+            if (kind === 'html' && !showSource)
+              // Uploaded HTML is untrusted: it runs in an opaque-origin
+              // sandbox (scripts allowed, but no same-origin) so it can never
+              // reach this app's cookies, storage or API.
+              return (
+                <iframe
+                  srcDoc={url}
+                  title={name}
+                  sandbox="allow-scripts"
+                  referrerPolicy="no-referrer"
+                  onClick={stop}
+                  className="w-full h-full rounded-lg bg-white"
+                />
+              );
+            if (kind === 'markdown' || kind === 'code' || kind === 'html')
               return (
                 <div
                   onClick={stop}
@@ -126,7 +154,7 @@ function FileViewer({ fileId, name, onClose }) {
                       remarkPlugins={[remarkGfm]}
                       rehypePlugins={[[rehypeHighlight, { detect: false }]]}
                     >
-                      {kind === 'code' ? toFencedBlock(url, name) : url}
+                      {kind === 'code' || kind === 'html' ? toFencedBlock(url, name) : url}
                     </ReactMarkdown>
                   </div>
                 </div>

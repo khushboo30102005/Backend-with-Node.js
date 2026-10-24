@@ -8,10 +8,11 @@ const KINDS = {
   video: ['mp4', 'webm', 'm4v', 'ogv'],
   audio: ['mp3', 'wav', 'ogg', 'm4a', 'flac'],
   pdf: ['pdf'],
+  office: ['docx', 'doc', 'pptx', 'ppt', 'xlsx', 'xls'],
   text: ['txt', 'md', 'json', 'csv', 'log', 'xml', 'yml', 'yaml', 'js', 'jsx', 'ts', 'tsx', 'css', 'html', 'py', 'java'],
 };
 
-// Returns 'image' | 'video' | 'audio' | 'pdf' | 'text', or null when the file
+// Returns 'image' | 'video' | 'audio' | 'pdf' | 'office' | 'text', or null when the file
 // can't be previewed in the browser (docx, zip, ...) and should be downloaded.
 export function getPreviewKind(name = '') {
   const ext = name.includes('.') ? name.split('.').pop().toLowerCase() : '';
@@ -118,9 +119,15 @@ function FileViewer({ fileId, name, onClose }) {
               return (
                 <audio src={url} controls autoPlay onClick={stop} onError={fail} />
               );
+            // Office files render through Microsoft's hosted viewer, which
+            // fetches the (short-lived, signed) file URL itself.
+            const src =
+              kind === 'office'
+                ? `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(url)}`
+                : url;
             return (
               <iframe
-                src={url}
+                src={src}
                 title={name}
                 onClick={stop}
                 className="w-full h-full max-w-5xl rounded-lg bg-white"

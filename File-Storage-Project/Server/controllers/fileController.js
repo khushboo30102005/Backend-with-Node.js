@@ -131,6 +131,10 @@ const PREVIEW_TYPES = {
   '.js': TEXT, '.jsx': TEXT, '.ts': TEXT, '.tsx': TEXT, '.py': TEXT, '.java': TEXT,
 };
 
+// Office files are rendered by Microsoft's hosted viewer, which fetches the URL
+// from its own servers a moment after the page loads — give it a longer window.
+const OFFICE_EXTENSIONS = ['.docx', '.doc', '.pptx', '.ppt', '.xlsx', '.xls'];
+
 export const getFile = async (req, res, next) => {
   const { id } = req.params;
 
@@ -157,7 +161,13 @@ export const getFile = async (req, res, next) => {
         ...(previewType && { ResponseContentType: previewType }),
         ResponseContentDisposition: `${isDownload ? 'attachment' : 'inline'}; filename="${encodeURIComponent(fileData.name)}"`,
       }),
-      { expiresIn: 60 },
+      {
+        expiresIn:
+          !isDownload &&
+          OFFICE_EXTENSIONS.includes(String(fileData.extension).toLowerCase())
+            ? 600
+            : 60,
+      },
     );
     // ?format=json lets the SPA fetch the signed URL with its session cookie
     // (a normal XHR) and open the storage URL itself, instead of navigating to

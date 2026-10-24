@@ -14,7 +14,7 @@ export default defineConfig({
         "media-src 'self' blob: https://*.backblazeb2.com; " +
         "img-src 'self' data: blob: https://*.googleusercontent.com https://cdn.pixabay.com https://*.backblazeb2.com; " +
         "style-src 'self' 'unsafe-inline' https://accounts.google.com; " +
-        "frame-src 'self' https://accounts.google.com https://*.backblazeb2.com; " +
+        "frame-src 'self' https://accounts.google.com https://*.backblazeb2.com https://view.officeapps.live.com; " +
         "worker-src 'self' blob:; " +
         "object-src 'none'; " +
         "base-uri 'self'; " +

@@ -56,6 +56,17 @@ export const fetchFileSignedUrl = async (id, { download = false, base = '' } = {
   return data.url;
 };
 
+// Fetches a (small) file's contents as text through the API, for in-app
+// rendering such as markdown.
+export const fetchFileText = async (id, base = '') => {
+  const { data } = await axiosWithCreds.get(`${base}/file/${id}`, {
+    params: { format: 'text' },
+    responseType: 'text',
+    transformResponse: (d) => d,
+  });
+  return data;
+};
+
 // Starts a download through the signed attachment URL without leaving the app.
 export const downloadFile = async (id, base = '') => {
   let url;

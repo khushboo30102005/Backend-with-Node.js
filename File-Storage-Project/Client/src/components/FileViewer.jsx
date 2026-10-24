@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { FaDownload, FaSpinner, FaTimes } from 'react-icons/fa';
-import { fetchFileSignedUrl, downloadFile } from '../apis/fileApi';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { fetchFileSignedUrl, fetchFileText, downloadFile } from '../apis/fileApi';
 
 const KINDS = {
   image: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'avif', 'svg'],
@@ -9,10 +11,11 @@ const KINDS = {
   audio: ['mp3', 'wav', 'ogg', 'm4a', 'flac'],
   pdf: ['pdf'],
   office: ['docx', 'doc', 'pptx', 'ppt', 'xlsx', 'xls'],
-  text: ['txt', 'md', 'json', 'csv', 'log', 'xml', 'yml', 'yaml', 'js', 'jsx', 'ts', 'tsx', 'css', 'html', 'py', 'java'],
+  markdown: ['md', 'markdown'],
+  text: ['txt', 'json', 'csv', 'log', 'xml', 'yml', 'yaml', 'js', 'jsx', 'ts', 'tsx', 'css', 'html', 'py', 'java'],
 };
 
-// Returns 'image' | 'video' | 'audio' | 'pdf' | 'office' | 'text', or null when the file
+// Returns 'image' | 'video' | 'audio' | 'pdf' | 'office' | 'markdown' | 'text', or null when the file
 // can't be previewed in the browser (docx, zip, ...) and should be downloaded.
 export function getPreviewKind(name = '') {
   const ext = name.includes('.') ? name.split('.').pop().toLowerCase() : '';
@@ -33,8 +36,10 @@ function FileViewer({ fileId, name, onClose }) {
 
   useEffect(() => {
     let cancelled = false;
-    fetchFileSignedUrl(fileId)
-      .then((u) => !cancelled && setUrl(u))
+    // Markdown is fetched as text and rendered in-app; everything else
+    // loads straight from a signed storage URL.
+    (kind === 'markdown' ? fetchFileText(fileId) : fetchFileSignedUrl(fileId))
+      .then((u) => !cancelled && setUrl(u || ' ')) // ' ' keeps an empty file from spinning forever
       .catch(
         (err) =>
           !cancelled &&
@@ -43,7 +48,7 @@ function FileViewer({ fileId, name, onClose }) {
     return () => {
       cancelled = true;
     };
-  }, [fileId]);
+  }, [fileId, kind]);
 
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && onClose();
@@ -94,6 +99,17 @@ function FileViewer({ fileId, name, onClose }) {
             const stop = (e) => e.stopPropagation();
             const fail = () =>
               setError('Could not display this file. Try downloading it.');
+            if (kind === 'markdown')
+              return (
+                <div
+                  onClick={stop}
+                  className="w-full h-full max-w-3xl overflow-y-auto rounded-lg bg-white px-8 py-6 text-gray-900"
+                >
+                  <div className="md-body">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{url}</ReactMarkdown>
+                  </div>
+                </div>
+              );
             if (kind === 'image')
               return (
                 <img

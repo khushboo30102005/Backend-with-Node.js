@@ -5,9 +5,9 @@ import DirectoryHeader from './DirectoryHeader';
 import DirectoryList from './DirectoryList';
 import DetailsPopup from './DetailsPopup';
 import RenameModal from './RenameModal';
-import FileViewer, { isImageName } from './FileViewer';
+import FileViewer, { getPreviewKind } from './FileViewer';
 import { getSharedWithMe } from '../apis/shareApi';
-import { openFileInNewTab, renameFile } from '../apis/fileApi';
+import { downloadFile, renameFile } from '../apis/fileApi';
 import { useAutoDismissError } from '../hooks/useAutoDismissError';
 import { useNotifications } from '../context/NotificationsContext';
 
@@ -88,19 +88,11 @@ function SharedWithMe() {
   }
 
   // Shared files never support navigation into a folder (folder sharing
-  // isn't implemented) — a click always opens the file in a new tab.
+  // isn't implemented) — a click previews the file in-app or downloads it.
   function handleRowClick(type, id) {
     const file = entries.find((e) => e.file.id === id)?.file;
-    if (file && isImageName(file.name)) {
-      setViewerFile({ id, name: file.name });
-      return;
-    }
-    openFileInNewTab(id).then((result) => {
-      if (result === 'blocked')
-        setErrorMessage(
-          'Your browser blocked the new tab. Allow pop-ups for this site to open files.',
-        );
-    });
+    if (file && getPreviewKind(file.name)) setViewerFile({ id, name: file.name });
+    else downloadFile(id);
   }
 
   function handleContextMenu(e, id) {

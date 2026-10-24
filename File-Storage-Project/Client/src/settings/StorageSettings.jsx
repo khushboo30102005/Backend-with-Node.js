@@ -4,7 +4,8 @@ import { FaTrash } from 'react-icons/fa';
 import { getStorageSummary } from '../apis/storageApi';
 import { formatSize } from '../components/DetailsPopup';
 import { BASE_URL } from '../Register';
-import { getFileUrl, openFileInNewTab } from '../apis/fileApi';
+import { getFileUrl, downloadFile } from '../apis/fileApi';
+import FileViewer, { getPreviewKind } from '../components/FileViewer';
 import { SettingsSection, SettingsRow, Notice, secondaryBtn } from './SettingsUI';
 
 function Skeleton() {
@@ -20,6 +21,7 @@ function StorageSettings() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [viewerFile, setViewerFile] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -107,10 +109,9 @@ function StorageSettings() {
                   href={`${BASE_URL}${getFileUrl(f._id)}`}
                   onClick={(e) => {
                     e.preventDefault();
-                    openFileInNewTab(f._id);
+                    if (getPreviewKind(f.name)) setViewerFile({ id: f._id, name: f.name });
+                    else downloadFile(f._id);
                   }}
-                  target="_blank"
-                  rel="noopener noreferrer"
                   className="min-w-0 flex-1 truncate text-sm font-medium text-text hover:text-primary"
                   title={f.name}
                 >
@@ -126,6 +127,14 @@ function StorageSettings() {
       <p className="text-xs text-text-muted">
         Need more space? Plans and upgrades aren't available yet — there's no payment system in StorageApp.
       </p>
+
+      {viewerFile && (
+        <FileViewer
+          fileId={viewerFile.id}
+          name={viewerFile.name}
+          onClose={() => setViewerFile(null)}
+        />
+      )}
     </>
   );
 }

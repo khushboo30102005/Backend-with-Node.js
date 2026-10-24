@@ -3,17 +3,30 @@ import { createPortal } from 'react-dom';
 import { FaDownload, FaSpinner, FaTimes } from 'react-icons/fa';
 import { fetchFileSignedUrl, downloadFile } from '../apis/fileApi';
 
-const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'avif'];
+const KINDS = {
+  image: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'avif', 'svg'],
+  video: ['mp4', 'webm', 'm4v', 'ogv'],
+  audio: ['mp3', 'wav', 'ogg', 'm4a', 'flac'],
+  pdf: ['pdf'],
+  text: ['txt', 'md', 'json', 'csv', 'log', 'xml', 'yml', 'yaml', 'js', 'jsx', 'ts', 'tsx', 'css', 'html', 'py', 'java'],
+};
+
+// Returns 'image' | 'video' | 'audio' | 'pdf' | 'text', or null when the file
+// can't be previewed in the browser (docx, zip, ...) and should be downloaded.
+export function getPreviewKind(name = '') {
+  const ext = name.includes('.') ? name.split('.').pop().toLowerCase() : '';
+  return Object.keys(KINDS).find((k) => KINDS[k].includes(ext)) || null;
+}
 
 export function isImageName(name = '') {
-  const ext = name.includes('.') ? name.split('.').pop().toLowerCase() : '';
-  return IMAGE_EXTENSIONS.includes(ext);
+  return getPreviewKind(name) === 'image';
 }
 
 // In-app image preview. Fetches a short-lived signed storage URL with the
 // session cookie (a normal request) and shows it in a lightbox, so previewing
 // never depends on a new tab / pop-up being allowed.
 function FileViewer({ fileId, name, onClose }) {
+  const kind = getPreviewKind(name);
   const [url, setUrl] = useState('');
   const [error, setError] = useState('');
 
@@ -43,7 +56,7 @@ function FileViewer({ fileId, name, onClose }) {
       onClick={onClose}
       role="dialog"
       aria-modal="true"
-      aria-label={name || 'Image preview'}
+      aria-label={name || 'File preview'}
     >
       <div
         className="flex items-center gap-3 px-4 py-3 text-white"
@@ -76,13 +89,44 @@ function FileViewer({ fileId, name, onClose }) {
             {error}
           </p>
         ) : url ? (
-          <img
-            src={url}
-            alt={name}
-            onClick={(e) => e.stopPropagation()}
-            onError={() => setError('Could not display this image.')}
-            className="max-w-full max-h-full object-contain rounded-lg shadow-[0_16px_48px_rgba(0,0,0,0.5)]"
-          />
+          (() => {
+            const stop = (e) => e.stopPropagation();
+            const fail = () =>
+              setError('Could not display this file. Try downloading it.');
+            if (kind === 'image')
+              return (
+                <img
+                  src={url}
+                  alt={name}
+                  onClick={stop}
+                  onError={fail}
+                  className="max-w-full max-h-full object-contain rounded-lg shadow-[0_16px_48px_rgba(0,0,0,0.5)]"
+                />
+              );
+            if (kind === 'video')
+              return (
+                <video
+                  src={url}
+                  controls
+                  autoPlay
+                  onClick={stop}
+                  onError={fail}
+                  className="max-w-full max-h-full rounded-lg"
+                />
+              );
+            if (kind === 'audio')
+              return (
+                <audio src={url} controls autoPlay onClick={stop} onError={fail} />
+              );
+            return (
+              <iframe
+                src={url}
+                title={name}
+                onClick={stop}
+                className="w-full h-full max-w-5xl rounded-lg bg-white"
+              />
+            );
+          })()
         ) : (
           <FaSpinner className="animate-spin text-white" size={28} />
         )}

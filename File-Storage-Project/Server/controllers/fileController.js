@@ -116,6 +116,21 @@ export const uploadFile = async (req, res, next) => {
   }
 };
 
+// Types the in-app viewer previews. B2 may store these with a generic
+// content type, so force one the browser can render inline.
+const TEXT = 'text/plain; charset=utf-8';
+const PREVIEW_TYPES = {
+  '.pdf': 'application/pdf',
+  '.mp4': 'video/mp4',
+  '.m4v': 'video/mp4',
+  '.webm': 'video/webm',
+  '.mp3': 'audio/mpeg',
+  '.wav': 'audio/wav',
+  '.txt': TEXT, '.md': TEXT, '.json': TEXT, '.csv': TEXT, '.log': TEXT,
+  '.xml': TEXT, '.yml': TEXT, '.yaml': TEXT, '.html': TEXT, '.css': TEXT,
+  '.js': TEXT, '.jsx': TEXT, '.ts': TEXT, '.tsx': TEXT, '.py': TEXT, '.java': TEXT,
+};
+
 export const getFile = async (req, res, next) => {
   const { id } = req.params;
 
@@ -131,12 +146,15 @@ export const getFile = async (req, res, next) => {
     const fileData = access.file;
     const objectKey = `${id}${fileData.extension}`;
     const isDownload = req.query.action === 'download';
+    const previewType =
+      !isDownload && PREVIEW_TYPES[String(fileData.extension).toLowerCase()];
 
     const signedUrl = await getSignedUrl(
       s3,
       new GetObjectCommand({
         Bucket: BUCKET_NAME,
         Key: objectKey,
+        ...(previewType && { ResponseContentType: previewType }),
         ResponseContentDisposition: `${isDownload ? 'attachment' : 'inline'}; filename="${encodeURIComponent(fileData.name)}"`,
       }),
       { expiresIn: 60 },

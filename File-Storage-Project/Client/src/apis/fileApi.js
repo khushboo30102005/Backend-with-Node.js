@@ -22,7 +22,7 @@ export const uploadFileWithProgress = async (
   signal,
 ) => {
   const { data } = await axiosWithCreds.post(
-    `${base}/file/${dirId || ''}`,
+    `${base}/file${dirId ? `/${dirId}` : ''}`,
     file,
     {
       headers: {

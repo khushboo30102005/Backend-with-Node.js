@@ -1,13 +1,13 @@
 import { axiosWithCreds } from './axiosInstances';
 
 export const getDirectoryItems = async (dirId = '', base = '') => {
-  const { data } = await axiosWithCreds.get(`${base}/directory/${dirId}`);
+  const { data } = await axiosWithCreds.get(`${base}/directory${dirId ? `/${dirId}` : ''}`);
   return data;
 };
 
 export const createDirectory = async (dirId = '', newDirname, base = '') => {
   const { data } = await axiosWithCreds.post(
-    `${base}/directory/${dirId}`,
+    `${base}/directory${dirId ? `/${dirId}` : ''}`,
     {},
     { headers: { dirname: newDirname } },
   );

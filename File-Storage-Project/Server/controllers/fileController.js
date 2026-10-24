@@ -133,6 +133,7 @@ const PREVIEW_TYPES = {
 
 // Office files are rendered by Microsoft's hosted viewer, which fetches the URL
 // from its own servers a moment after the page loads — give it a longer window.
+const MAX_TEXT_PREVIEW_BYTES = 2 * 1024 * 1024;
 const OFFICE_EXTENSIONS = ['.docx', '.doc', '.pptx', '.ppt', '.xlsx', '.xls'];
 
 export const getFile = async (req, res, next) => {
@@ -150,6 +151,18 @@ export const getFile = async (req, res, next) => {
     const fileData = access.file;
     const objectKey = `${id}${fileData.extension}`;
     const isDownload = req.query.action === 'download';
+
+    // ?format=text returns the file body as text for the in-app markdown
+    // viewer. Served by the API (not B2) so it needs no bucket CORS rules.
+    if (req.query.format === 'text') {
+      if (fileData.size > MAX_TEXT_PREVIEW_BYTES) {
+        return res.status(413).json({ error: 'File is too large to preview.' });
+      }
+      const obj = await s3.send(
+        new GetObjectCommand({ Bucket: BUCKET_NAME, Key: objectKey }),
+      );
+      return res.type('text/plain; charset=utf-8').send(await obj.Body.transformToString());
+    }
     const previewType =
       !isDownload && PREVIEW_TYPES[String(fileData.extension).toLowerCase()];
 

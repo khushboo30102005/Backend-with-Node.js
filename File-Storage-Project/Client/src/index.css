@@ -311,6 +311,7 @@ html, body { overflow-x: clip; }
 .md-body code { background: #f0f3f9; border-radius: 4px; padding: 0.15em 0.4em; font-size: 0.9em; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 .md-body pre { background: #f6f8fc; border: 1px solid #e3e8f0; border-radius: 8px; padding: 0.9em 1em; overflow-x: auto; }
 .md-body pre code { background: none; padding: 0; }
+.md-body pre code.hljs { background: none; padding: 0; }
 .md-body hr { border: 0; border-top: 1px solid #e5e7eb; margin: 1.5em 0; }
 .md-body img { max-width: 100%; border-radius: 6px; }
 .md-body table { border-collapse: collapse; display: block; overflow-x: auto; }

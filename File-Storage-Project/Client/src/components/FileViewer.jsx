@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom';
 import { FaDownload, FaSpinner, FaTimes } from 'react-icons/fa';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import rehypeHighlight from 'rehype-highlight';
+import 'highlight.js/styles/github.css';
 import { fetchFileSignedUrl, fetchFileText, downloadFile } from '../apis/fileApi';
 
 const KINDS = {
@@ -12,10 +14,24 @@ const KINDS = {
   pdf: ['pdf'],
   office: ['docx', 'doc', 'pptx', 'ppt', 'xlsx', 'xls'],
   markdown: ['md', 'markdown'],
-  text: ['txt', 'json', 'csv', 'log', 'xml', 'yml', 'yaml', 'js', 'jsx', 'ts', 'tsx', 'css', 'html', 'py', 'java'],
+  // Source files: shown with syntax highlighting (language keyed by extension)
+  code: ['json', 'xml', 'yml', 'yaml', 'js', 'jsx', 'ts', 'tsx', 'css', 'html', 'py', 'java'],
+  // Plain text: no structure worth rendering
+  text: ['txt', 'csv', 'log'],
 };
 
-// Returns 'image' | 'video' | 'audio' | 'pdf' | 'office' | 'markdown' | 'text', or null when the file
+const CODE_LANG = { jsx: 'javascript', js: 'javascript', ts: 'typescript', tsx: 'typescript', py: 'python', yml: 'yaml', html: 'xml' };
+
+// Wraps source text in a markdown code fence (longer than any backtick run
+// inside it) so it goes through the same highlighted renderer as .md blocks.
+function toFencedBlock(text, name) {
+  const ext = name.split('.').pop().toLowerCase();
+  const longest = Math.max(0, ...(text.match(/`+/g) || []).map((m) => m.length));
+  const fence = '`'.repeat(Math.max(3, longest + 1));
+  return `${fence}${CODE_LANG[ext] || ext}\n${text}\n${fence}`;
+}
+
+// Returns 'image' | 'video' | 'audio' | 'pdf' | 'office' | 'markdown' | 'code' | 'text', or null when the file
 // can't be previewed in the browser (docx, zip, ...) and should be downloaded.
 export function getPreviewKind(name = '') {
   const ext = name.includes('.') ? name.split('.').pop().toLowerCase() : '';
@@ -36,9 +52,9 @@ function FileViewer({ fileId, name, onClose }) {
 
   useEffect(() => {
     let cancelled = false;
-    // Markdown is fetched as text and rendered in-app; everything else
+    // Markdown and code are fetched as text and rendered in-app; everything else
     // loads straight from a signed storage URL.
-    (kind === 'markdown' ? fetchFileText(fileId) : fetchFileSignedUrl(fileId))
+    (kind === 'markdown' || kind === 'code' ? fetchFileText(fileId) : fetchFileSignedUrl(fileId))
       .then((u) => !cancelled && setUrl(u || ' ')) // ' ' keeps an empty file from spinning forever
       .catch(
         (err) =>
@@ -99,14 +115,19 @@ function FileViewer({ fileId, name, onClose }) {
             const stop = (e) => e.stopPropagation();
             const fail = () =>
               setError('Could not display this file. Try downloading it.');
-            if (kind === 'markdown')
+            if (kind === 'markdown' || kind === 'code')
               return (
                 <div
                   onClick={stop}
                   className="w-full h-full max-w-3xl overflow-y-auto rounded-lg bg-white px-8 py-6 text-gray-900"
                 >
                   <div className="md-body">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{url}</ReactMarkdown>
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      rehypePlugins={[[rehypeHighlight, { detect: false }]]}
+                    >
+                      {kind === 'code' ? toFencedBlock(url, name) : url}
+                    </ReactMarkdown>
                   </div>
                 </div>
               );

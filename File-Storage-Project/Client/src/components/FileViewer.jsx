@@ -47,7 +47,12 @@ export function isImageName(name = '') {
 // In-app image preview. Fetches a short-lived signed storage URL with the
 // session cookie (a normal request) and shows it in a lightbox, so previewing
 // never depends on a new tab / pop-up being allowed.
-function FileViewer({ fileId, name, onClose }) {
+// `source` lets other file stores (e.g. workspaces) supply their own
+// getUrl / getText / download; it defaults to personal files.
+function FileViewer({ fileId, name, onClose, source }) {
+  const getUrl = source?.getUrl ?? fetchFileSignedUrl;
+  const getText = source?.getText ?? fetchFileText;
+  const download = source?.download ?? downloadFile;
   const kind = getPreviewKind(name);
   const [url, setUrl] = useState('');
   const [error, setError] = useState('');
@@ -57,7 +62,7 @@ function FileViewer({ fileId, name, onClose }) {
     let cancelled = false;
     // Markdown, code and html are fetched as text and rendered in-app; everything else
     // loads straight from a signed storage URL.
-    (kind === 'markdown' || kind === 'code' || kind === 'html' ? fetchFileText(fileId) : fetchFileSignedUrl(fileId))
+    (kind === 'markdown' || kind === 'code' || kind === 'html' ? getText(fileId) : getUrl(fileId))
       .then((u) => !cancelled && setUrl(u || ' ')) // ' ' keeps an empty file from spinning forever
       .catch(
         (err) =>
@@ -101,7 +106,7 @@ function FileViewer({ fileId, name, onClose }) {
         )}
         <button
           type="button"
-          onClick={() => downloadFile(fileId)}
+          onClick={() => download(fileId)}
           aria-label="Download"
           title="Download"
           className="flex items-center justify-center w-9 h-9 rounded-full hover:bg-white/15 transition-colors cursor-pointer"

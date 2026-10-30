@@ -14,6 +14,8 @@ import storageRoutes from './routes/storageRoutes.js';
 import checkAuth from './middlewares/authMiddleware.js';
 import { apiLimiter } from './middlewares/rateLimitMiddleware.js';
 import trashRoutes from './routes/trashRoutes.js';
+import workspaceRoutes from './routes/workspaceRoutes.js';
+import { startWorkspaceSweeper } from './services/workspaceCleanupService.js';
 await connectDB();
 const app = express();
 const port = process.env.PORT || 4000;
@@ -48,6 +50,7 @@ app.use('/auth', authRoutes);
 app.use('/share', checkAuth, shareRoutes);
 app.use('/trash', checkAuth, trashRoutes);
 app.use('/storage', checkAuth, storageRoutes);
+app.use('/workspace', checkAuth, workspaceRoutes);
 
 
 app.use((err, req, res, next) => {
@@ -57,4 +60,5 @@ app.use((err, req, res, next) => {
 
 app.listen(port, () => {
   console.log(`Server Started`);
+  startWorkspaceSweeper();
 });

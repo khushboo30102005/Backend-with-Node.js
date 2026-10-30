@@ -11,7 +11,7 @@ console.log('Database Connected');
 const command = 'collMod';
 
 // collMod fails on collections that don't exist yet (fresh database), so create them first
-for (const name of ['users', 'directories', 'files', 'otps', 'shares']) {
+for (const name of ['users', 'directories', 'files', 'otps', 'shares', 'workspaces', 'workspacefiles']) {
   const exists = await db.listCollections({ name }).hasNext();
   if (!exists) {
     await db.createCollection(name);
@@ -364,6 +364,106 @@ try {
   { seenAt: { $exists: false } },
   { $set: { seenAt: new Date() } },
 );
+
+  // =========================
+  // Workspaces Collection (Ephemeral Workspace)
+  // =========================
+  await db.command({
+    [command]: 'workspaces',
+    validator: {
+      $jsonSchema: {
+        bsonType: 'object',
+
+        required: ['_id', 'name', 'ownerId', 'expiresAt', 'status', 'cleanupPolicy'],
+
+        properties: {
+          _id: { bsonType: 'objectId' },
+          __v: { bsonType: 'int' },
+          name: { bsonType: 'string', minLength: 3, maxLength: 100 },
+          description: { bsonType: 'string', maxLength: 500 },
+          ownerId: { bsonType: 'objectId' },
+          members: {
+            bsonType: 'array',
+            maxItems: 50,
+            items: {
+              bsonType: 'object',
+              required: ['userId', 'role'],
+              properties: {
+                userId: { bsonType: 'objectId' },
+                role: { bsonType: 'string', enum: ['editor', 'viewer'] },
+                addedAt: { bsonType: 'date' },
+              },
+              additionalProperties: false,
+            },
+          },
+          expiresAt: { bsonType: 'date' },
+          cleanupPolicy: { bsonType: 'string', enum: ['archive', 'delete'] },
+          status: { bsonType: 'string', enum: ['active', 'expired', 'purged'] },
+          expiredAt: { bsonType: ['null', 'date'] },
+          purgeAfter: { bsonType: ['null', 'date'] },
+          purgedAt: { bsonType: ['null', 'date'] },
+          size: { bsonType: ['int', 'long', 'double'] },
+          cleanup: {
+            bsonType: 'object',
+            properties: {
+              attempts: { bsonType: ['int', 'long', 'double'] },
+              lastError: { bsonType: ['null', 'string'] },
+              lastAttemptAt: { bsonType: ['null', 'date'] },
+              lockedUntil: { bsonType: ['null', 'date'] },
+            },
+            additionalProperties: false,
+          },
+          createdAt: { bsonType: 'date' },
+          updatedAt: { bsonType: 'date' },
+        },
+
+        additionalProperties: false,
+      },
+    },
+
+    validationAction: 'error',
+    validationLevel: 'strict',
+  });
+
+  await db.collection('workspaces').createIndex({ ownerId: 1 });
+  await db.collection('workspaces').createIndex({ 'members.userId': 1 });
+  await db.collection('workspaces').createIndex({ status: 1, expiresAt: 1 });
+  await db.collection('workspaces').createIndex({ status: 1, purgeAfter: 1 });
+
+  // =========================
+  // Workspace Files Collection
+  // =========================
+  await db.command({
+    [command]: 'workspacefiles',
+    validator: {
+      $jsonSchema: {
+        bsonType: 'object',
+
+        required: ['_id', 'workspaceId', 'name', 'size', 'uploadedBy'],
+
+        properties: {
+          _id: { bsonType: 'objectId' },
+          __v: { bsonType: 'int' },
+          workspaceId: { bsonType: 'objectId' },
+          name: { bsonType: 'string', maxLength: 255 },
+          size: { bsonType: ['int', 'long', 'double'] },
+          extension: { bsonType: 'string' },
+          uploadedBy: { bsonType: 'objectId' },
+          isReady: { bsonType: 'bool' },
+          createdAt: { bsonType: 'date' },
+          updatedAt: { bsonType: 'date' },
+        },
+
+        additionalProperties: false,
+      },
+    },
+
+    validationAction: 'error',
+    validationLevel: 'strict',
+  });
+
+  await db.collection('workspacefiles').createIndex({ workspaceId: 1, createdAt: -1 });
+
   console.log('MongoDB validation rules applied successfully.');
 } catch (error) {
   console.error('Error occurred while setting up validation:', error);

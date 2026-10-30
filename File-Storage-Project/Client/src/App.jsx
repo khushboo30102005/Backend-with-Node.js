@@ -14,6 +14,8 @@ import RootRoute from './RootRoute';
 import SharedWithMe from './components/SharedWithMe';
 import Layout from './components/Layout';
 import TrashPage from './TrashPage';
+import WorkspacesPage from './components/workspace/WorkspacesPage';
+import WorkspaceDetail from './components/workspace/WorkspaceDetail';
 import SettingsLayout from './settings/SettingsLayout';
 import ProfileSettings from './settings/ProfileSettings';
 import SecuritySettings from './settings/SecuritySettings';
@@ -56,6 +58,8 @@ const router = createBrowserRouter([
     children: [
       { path: 'mydrive/*', element: <MyDrive /> }, // /mydrive and /mydrive/folder/:id
       { path: 'shared', element: <SharedWithMe /> },
+      { path: 'workspaces', element: <WorkspacesPage /> },
+      { path: 'workspaces/:id', element: <WorkspaceDetail /> },
       { path: 'trash', element: <TrashPage /> },
       {
         path: 'settings',

@@ -22,7 +22,7 @@ export const uploadFileWithProgress = async (
   signal,
 ) => {
   const { data } = await axiosWithCreds.post(
-    `${base}/file/${dirId || ''}`,
+    `${base}/file${dirId ? `/${dirId}` : ''}`,
     file,
     {
       headers: {
@@ -56,22 +56,15 @@ export const fetchFileSignedUrl = async (id, { download = false, base = '' } = {
   return data.url;
 };
 
-// Opens a file in a new tab. The tab is opened synchronously inside the click
-// (so pop-up blockers allow it) and pointed at the signed URL once it arrives.
-// Returns 'blocked' when the browser refuses the new tab; it never navigates
-// the app tab away (that would also interrupt running uploads). If the signed
-// URL can't be fetched, the new tab falls back to the plain API URL, which
-// shows the server's error.
-export const openFileInNewTab = async (id, base = '') => {
-  const tab = window.open('', '_blank');
-  if (!tab) return 'blocked';
-  tab.opener = null;
-  try {
-    tab.location.href = await fetchFileSignedUrl(id, { base });
-  } catch {
-    tab.location.href = `${import.meta.env.VITE_BACKEND_BASE_URL}${getFileUrl(id, base)}`;
-  }
-  return 'opened';
+// Fetches a (small) file's contents as text through the API, for in-app
+// rendering such as markdown.
+export const fetchFileText = async (id, base = '') => {
+  const { data } = await axiosWithCreds.get(`${base}/file/${id}`, {
+    params: { format: 'text' },
+    responseType: 'text',
+    transformResponse: (d) => d,
+  });
+  return data;
 };
 
 // Starts a download through the signed attachment URL without leaving the app.

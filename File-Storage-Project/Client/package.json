@@ -13,11 +13,15 @@
     "@react-oauth/google": "^0.13.5",
     "@tailwindcss/vite": "^4.3.3",
     "axios": "^1.19.0",
+    "highlight.js": "^11.12.0",
     "motion": "^13.4.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-icons": "^5.7.0",
+    "react-markdown": "^10.1.0",
     "react-router": "^8.4.0",
+    "rehype-highlight": "^7.0.2",
+    "remark-gfm": "^4.0.1",
     "tailwindcss": "^4.3.3"
   },
   "devDependencies": {

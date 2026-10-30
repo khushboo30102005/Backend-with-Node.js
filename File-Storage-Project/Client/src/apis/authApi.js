@@ -22,6 +22,14 @@ export const verifyLoginOtp = async (email, otp) => {
   return data;
 };
 
+// Sets a probe cookie, then asks the server whether the browser sent it back.
+// Resolves true/false; throws only on network errors.
+export const checkCookiesEnabled = async () => {
+  await axiosWithCreds.get('/auth/cookie-test');
+  const { data } = await axiosWithCreds.get('/auth/cookie-test/verify');
+  return data.enabled === true;
+};
+
 export const loginWithGoogle = async (idToken) => {
   const { data } = await axiosWithCreds.post('/auth/google', { idToken });
   return data;

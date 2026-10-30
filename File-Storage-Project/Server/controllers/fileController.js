@@ -116,6 +116,26 @@ export const uploadFile = async (req, res, next) => {
   }
 };
 
+// Types the in-app viewer previews. B2 may store these with a generic
+// content type, so force one the browser can render inline.
+const TEXT = 'text/plain; charset=utf-8';
+const PREVIEW_TYPES = {
+  '.pdf': 'application/pdf',
+  '.mp4': 'video/mp4',
+  '.m4v': 'video/mp4',
+  '.webm': 'video/webm',
+  '.mp3': 'audio/mpeg',
+  '.wav': 'audio/wav',
+  '.txt': TEXT, '.md': TEXT, '.json': TEXT, '.csv': TEXT, '.log': TEXT,
+  '.xml': TEXT, '.yml': TEXT, '.yaml': TEXT, '.html': TEXT, '.css': TEXT,
+  '.js': TEXT, '.jsx': TEXT, '.ts': TEXT, '.tsx': TEXT, '.py': TEXT, '.java': TEXT,
+};
+
+// Office files are rendered by Microsoft's hosted viewer, which fetches the URL
+// from its own servers a moment after the page loads — give it a longer window.
+const MAX_TEXT_PREVIEW_BYTES = 2 * 1024 * 1024;
+const OFFICE_EXTENSIONS = ['.docx', '.doc', '.pptx', '.ppt', '.xlsx', '.xls'];
+
 export const getFile = async (req, res, next) => {
   const { id } = req.params;
 
@@ -132,14 +152,35 @@ export const getFile = async (req, res, next) => {
     const objectKey = `${id}${fileData.extension}`;
     const isDownload = req.query.action === 'download';
 
+    // ?format=text returns the file body as text for the in-app markdown
+    // viewer. Served by the API (not B2) so it needs no bucket CORS rules.
+    if (req.query.format === 'text') {
+      if (fileData.size > MAX_TEXT_PREVIEW_BYTES) {
+        return res.status(413).json({ error: 'File is too large to preview.' });
+      }
+      const obj = await s3.send(
+        new GetObjectCommand({ Bucket: BUCKET_NAME, Key: objectKey }),
+      );
+      return res.type('text/plain; charset=utf-8').send(await obj.Body.transformToString());
+    }
+    const previewType =
+      !isDownload && PREVIEW_TYPES[String(fileData.extension).toLowerCase()];
+
     const signedUrl = await getSignedUrl(
       s3,
       new GetObjectCommand({
         Bucket: BUCKET_NAME,
         Key: objectKey,
+        ...(previewType && { ResponseContentType: previewType }),
         ResponseContentDisposition: `${isDownload ? 'attachment' : 'inline'}; filename="${encodeURIComponent(fileData.name)}"`,
       }),
-      { expiresIn: 60 },
+      {
+        expiresIn:
+          !isDownload &&
+          OFFICE_EXTENSIONS.includes(String(fileData.extension).toLowerCase())
+            ? 600
+            : 60,
+      },
     );
     // ?format=json lets the SPA fetch the signed URL with its session cookie
     // (a normal XHR) and open the storage URL itself, instead of navigating to

@@ -29,12 +29,11 @@ import {
   deleteFile as deleteFileApi,
   renameFile as renameFileApi,
   uploadFileWithProgress,
-  openFileInNewTab,
   downloadFile,
 } from './apis/fileApi';
 import ShareModal from './components/ShareModal';
 import BulkShareModal from './components/BulkShareModal';
-import FileViewer, { isImageName } from './components/FileViewer';
+import FileViewer, { getPreviewKind } from './components/FileViewer';
 
 export const MY_DRIVE_PATH = '/mydrive';
 export const folderPath = (id) => `${MY_DRIVE_PATH}/folder/${id}`;
@@ -273,18 +272,13 @@ function DirectoryView({ dirId }) {
       navigate(folderPath(id));
     } else {
       const file = combinedItems.find((i) => i.id === id);
-      if (file && isImageName(file.name)) {
-        // Images preview in-app (no new tab / pop-up needed)
+      if (file && getPreviewKind(file.name)) {
+        // Previewable files open in an in-app viewer (no new tab / pop-up)
         setViewerFile({ id, name: file.name });
-        return;
+      } else {
+        // Everything else (docx, zip, ...) downloads directly
+        downloadFile(id);
       }
-      // Other files open in a new tab so the app (and any running upload) stays alive
-      openFileInNewTab(id).then((result) => {
-        if (result === 'blocked')
-          setErrorMessage(
-            'Your browser blocked the new tab. Allow pop-ups for this site to open files.',
-          );
-      });
     }
   }
 

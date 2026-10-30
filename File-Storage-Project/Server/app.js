@@ -26,7 +26,7 @@ app.use(
 );
 app.use(cookieParser(process.env.SESSION_SECRET)); // this middleware parses the cookie send by the client, because it has secretKey, it can also verify signedCookie.
 app.use(express.json());
-app.set('trust proxy', 1);
+app.set('trust proxy', 2);
 
 app.use(helmet());
 

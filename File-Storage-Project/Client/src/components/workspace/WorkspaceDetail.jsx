@@ -13,6 +13,7 @@ import {
   FaUpload,
   FaUserCircle,
 } from 'react-icons/fa';
+import { useNotifications } from '../../context/NotificationsContext';
 import {
   addWorkspaceMember,
   deleteWorkspace,
@@ -446,6 +447,15 @@ function WorkspaceDetail() {
   const [expired, setExpired] = useState(null); // {workspace, error}
   const [error, setError] = useState('');
   const [tab, setTab] = useState('files');
+  const { notifications, markWorkspaceSeen } = useNotifications();
+
+  // Opening the workspace counts as seeing the "you were added" notification.
+  const hasUnread = notifications.some(
+    (n) => n.type === 'workspace' && n.workspaceId === id && !n.seen,
+  );
+  useEffect(() => {
+    if (ws && hasUnread) markWorkspaceSeen([id]);
+  }, [ws, hasUnread, id, markWorkspaceSeen]);
 
   const load = useCallback(async () => {
     try {

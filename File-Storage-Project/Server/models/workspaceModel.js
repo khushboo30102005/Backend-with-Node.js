@@ -5,6 +5,10 @@ const memberSchema = new Schema(
     userId: { type: Schema.Types.ObjectId, required: true, ref: 'User' },
     role: { type: String, enum: ['editor', 'viewer'], required: true },
     addedAt: { type: Date, default: Date.now },
+    addedBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
+    // Notification state, same idea as Share.seenAt: null = the member hasn't
+    // opened the workspace (or its notification) since being added.
+    seenAt: { type: Date, default: null },
   },
   { _id: false, strict: 'throw' },
 );

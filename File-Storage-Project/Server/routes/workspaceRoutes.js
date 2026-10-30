@@ -8,6 +8,8 @@ import {
   deleteWorkspaceFile,
   getWorkspace,
   getWorkspaceFile,
+  getWorkspaceNotifications,
+  markWorkspaceNotificationsSeen,
   listWorkspaceFiles,
   listWorkspaces,
   removeMember,
@@ -31,6 +33,10 @@ const createLimiter = rateLimit({
 router.param('id', validateIdMiddleware);
 router.param('userId', validateIdMiddleware);
 router.param('fileId', validateIdMiddleware);
+
+// Must stay above '/:id' so "notifications" isn't parsed as an id
+router.get('/notifications', getWorkspaceNotifications);
+router.post('/notifications/seen', markWorkspaceNotificationsSeen);
 
 router.get('/', listWorkspaces);
 router.post('/', createLimiter, createWorkspace);

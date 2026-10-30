@@ -392,6 +392,8 @@ try {
                 userId: { bsonType: 'objectId' },
                 role: { bsonType: 'string', enum: ['editor', 'viewer'] },
                 addedAt: { bsonType: 'date' },
+                addedBy: { bsonType: ['null', 'objectId'] },
+                seenAt: { bsonType: ['null', 'date'] },
               },
               additionalProperties: false,
             },

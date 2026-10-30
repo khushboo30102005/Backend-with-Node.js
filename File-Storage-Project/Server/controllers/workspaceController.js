@@ -133,7 +133,7 @@ export const createWorkspace = async (req, res, next) => {
       ownerId: req.user._id,
       expiresAt: data.expiresAt,
       cleanupPolicy: data.cleanupPolicy,
-      members: data.members,
+      members: data.members.map((m) => ({ ...m, addedBy: req.user._id })),
     });
     return res.status(201).json({ _id: ws._id, message: 'Workspace created' });
   } catch (err) {
@@ -281,7 +281,7 @@ export const addMember = async (req, res, next) => {
         'members.userId': { $ne: userId },
         [`members.${WORKSPACE_MAX_MEMBERS - 1}`]: { $exists: false },
       },
-      { $push: { members: { userId, role, addedAt: new Date() } } },
+      { $push: { members: { userId, role, addedAt: new Date(), addedBy: req.user._id } } },
     ).lean();
     if (!updated) {
       return res
@@ -372,7 +372,7 @@ export const transferOwnership = async (req, res, next) => {
             members: {
               $concatArrays: [
                 { $filter: { input: '$members', cond: { $ne: ['$$this.userId', target] } } },
-                [{ userId: '$ownerId', role: 'editor', addedAt: '$$NOW' }],
+                [{ userId: '$ownerId', role: 'editor', addedAt: '$$NOW', addedBy: target, seenAt: '$$NOW' }],
               ],
             },
             ownerId: target,
@@ -624,3 +624,80 @@ export const deleteWorkspaceFile = async (req, res, next) => {
   }
 };
 
+
+// ------------------------------------------------------------- notifications
+// Derived from the membership rows themselves (like share notifications are
+// derived from Share): being added = a member entry with seenAt === null.
+
+const RECENT_READ_LIMIT = 10;
+const UNREAD_LIMIT = 50;
+
+// GET /workspace/notifications
+export const getWorkspaceNotifications = async (req, res, next) => {
+  try {
+    const me = String(req.user._id);
+    const rows = await Workspace.find({
+      'members.userId': req.user._id,
+      status: 'active',
+      expiresAt: { $gt: new Date() },
+    })
+      .select('name members expiresAt')
+      .limit(200)
+      .lean();
+
+    const items = rows
+      .map((ws) => ({ ws, m: ws.members.find((x) => String(x.userId) === me) }))
+      .filter((x) => x.m)
+      .sort((a, b) => new Date(b.m.addedAt) - new Date(a.m.addedAt));
+
+    const unread = items.filter((x) => !x.m.seenAt).slice(0, UNREAD_LIMIT);
+    const read = items.filter((x) => x.m.seenAt).slice(0, RECENT_READ_LIMIT);
+    const picked = [...unread, ...read];
+
+    const adderIds = [...new Set(picked.map((x) => x.m.addedBy).filter(Boolean).map(String))];
+    const adders = await User.find({ _id: { $in: adderIds } }).select('name picture').lean();
+    const byId = new Map(adders.map((u) => [String(u._id), u]));
+
+    const notifications = await Promise.all(
+      picked.map(async ({ ws, m }) => {
+        const a = m.addedBy && byId.get(String(m.addedBy));
+        return {
+          type: 'workspace',
+          workspaceId: ws._id,
+          workspaceName: ws.name,
+          role: m.role,
+          expiresAt: ws.expiresAt,
+          createdAt: m.addedAt,
+          seen: Boolean(m.seenAt),
+          addedBy: {
+            id: a?._id ?? null,
+            name: a?.name ?? 'Someone',
+            picture: a ? await resolvePicture(a.picture) : null,
+          },
+        };
+      }),
+    );
+    return res.status(200).json({ unreadCount: unread.length, notifications });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// POST /workspace/notifications/seen   body: { workspaceIds: [...] }
+// Only ever touches the requester's own membership entries.
+export const markWorkspaceNotificationsSeen = async (req, res, next) => {
+  const raw = req.body?.workspaceIds;
+  const ids = Array.isArray(raw) ? raw.filter((id) => mongoose.isValidObjectId(id)) : [];
+  if (ids.length === 0) return res.status(204).end();
+
+  try {
+    await Workspace.updateMany(
+      { _id: { $in: ids }, 'members.userId': req.user._id },
+      { $set: { 'members.$[m].seenAt': new Date() } },
+      { arrayFilters: [{ 'm.userId': req.user._id, 'm.seenAt': null }] },
+    );
+    return res.status(204).end();
+  } catch (err) {
+    next(err);
+  }
+};

@@ -35,7 +35,7 @@ function SenderAvatar({ user }) {
 
 function NotificationsBell() {
   const navigate = useNavigate();
-  const { notifications, unreadCount } = useNotifications();
+  const { notifications, unreadCount, markWorkspaceSeen } = useNotifications();
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -58,6 +58,12 @@ function NotificationsBell() {
   function goToShared() {
     setOpen(false);
     navigate('/shared');
+  }
+
+  function goToWorkspace(n) {
+    setOpen(false);
+    if (!n.seen) markWorkspaceSeen([n.workspaceId]);
+    navigate(`/workspaces/${n.workspaceId}`);
   }
 
   return (
@@ -102,12 +108,54 @@ function NotificationsBell() {
                 No notifications yet
               </p>
               <p className="text-xs text-text-muted mt-1">
-                When someone shares a file with you, it will show up here.
+                When someone shares a file or adds you to a workspace, it will show up here.
               </p>
             </div>
           ) : (
             <ul className="max-h-[min(26rem,65vh)] overflow-y-auto divide-y divide-border">
-              {notifications.map((n) => (
+              {notifications.map((n) =>
+                n.type === 'workspace' ? (
+                <li key={`ws-${n.workspaceId}`}>
+                  <button
+                    type="button"
+                    onClick={() => goToWorkspace(n)}
+                    className={`flex items-start gap-3 w-full px-4 py-3 text-left transition-colors hover:bg-surface-muted focus-visible:outline-none focus-visible:bg-surface-muted ${
+                      n.seen ? '' : 'bg-primary/[0.06]'
+                    }`}
+                  >
+                    <SenderAvatar user={n.addedBy} />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[13px] text-text leading-snug">
+                        <span className="font-semibold">{n.addedBy.name}</span>{' '}
+                        added you to the workspace{' '}
+                        <span className="font-semibold break-all">
+                          “{n.workspaceName}”
+                        </span>
+                        <span className="text-text-muted">
+                          {' '}
+                          · {n.role === 'editor' ? 'Editor' : 'Viewer'}
+                        </span>
+                      </p>
+                      <p
+                        className="text-xs text-text-muted mt-0.5"
+                        title={`Expires ${new Date(n.expiresAt).toLocaleString()}`}
+                      >
+                        {formatWhen(n.createdAt)} · expires{' '}
+                        {new Date(n.expiresAt).toLocaleDateString(undefined, {
+                          month: 'short',
+                          day: 'numeric',
+                        })}
+                      </p>
+                    </div>
+                    {!n.seen && (
+                      <span
+                        className="mt-1.5 w-2 h-2 rounded-full bg-primary flex-shrink-0"
+                        aria-label="Unread"
+                      />
+                    )}
+                  </button>
+                </li>
+                ) : (
                 <li key={n.shareId}>
                   <button
                     type="button"
@@ -145,7 +193,8 @@ function NotificationsBell() {
                     )}
                   </button>
                 </li>
-              ))}
+                ),
+              )}
             </ul>
           )}
 

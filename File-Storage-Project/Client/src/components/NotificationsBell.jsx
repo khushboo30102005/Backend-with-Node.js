@@ -108,13 +108,58 @@ function NotificationsBell() {
                 No notifications yet
               </p>
               <p className="text-xs text-text-muted mt-1">
-                When someone shares a file or adds you to a workspace, it will show up here.
+                When someone shares a file, adds you to a workspace or uploads to one, it will show up here.
               </p>
             </div>
           ) : (
             <ul className="max-h-[min(26rem,65vh)] overflow-y-auto divide-y divide-border">
               {notifications.map((n) =>
-                n.type === 'workspace' ? (
+                n.type === 'workspace-files' ? (
+                <li key={`wsf-${n.workspaceId}`}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpen(false);
+                      navigate(`/workspaces/${n.workspaceId}`);
+                    }}
+                    className="flex items-start gap-3 w-full px-4 py-3 text-left transition-colors hover:bg-surface-muted focus-visible:outline-none focus-visible:bg-surface-muted bg-primary/[0.06]"
+                  >
+                    <SenderAvatar user={n.uploader} />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[13px] text-text leading-snug">
+                        <span className="font-semibold">{n.uploader.name}</span>{' '}
+                        {n.count === 1 ? (
+                          <>
+                            added{' '}
+                            <span className="font-semibold break-all">
+                              “{n.latestFileName}”
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            and others added{' '}
+                            <span className="font-semibold">{n.count} new files</span>
+                          </>
+                        )}{' '}
+                        to{' '}
+                        <span className="font-semibold break-all">
+                          “{n.workspaceName}”
+                        </span>
+                      </p>
+                      <p
+                        className="text-xs text-text-muted mt-0.5"
+                        title={new Date(n.createdAt).toLocaleString()}
+                      >
+                        {formatWhen(n.createdAt)}
+                      </p>
+                    </div>
+                    <span
+                      className="mt-1.5 w-2 h-2 rounded-full bg-primary flex-shrink-0"
+                      aria-label="Unread"
+                    />
+                  </button>
+                </li>
+                ) : n.type === 'workspace' ? (
                 <li key={`ws-${n.workspaceId}`}>
                   <button
                     type="button"

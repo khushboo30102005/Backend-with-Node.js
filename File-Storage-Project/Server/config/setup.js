@@ -11,7 +11,7 @@ console.log('Database Connected');
 const command = 'collMod';
 
 // collMod fails on collections that don't exist yet (fresh database), so create them first
-for (const name of ['users', 'directories', 'files', 'otps', 'shares', 'workspaces', 'workspacefiles']) {
+for (const name of ['users', 'directories', 'files', 'otps', 'shares', 'workspaces', 'workspacefiles', 'workspacevisits']) {
   const exists = await db.listCollections({ name }).hasNext();
   if (!exists) {
     await db.createCollection(name);
@@ -465,6 +465,33 @@ try {
   });
 
   await db.collection('workspacefiles').createIndex({ workspaceId: 1, createdAt: -1 });
+
+  // =========================
+  // Workspace Visits Collection (drives "new files" notifications)
+  // =========================
+  await db.command({
+    [command]: 'workspacevisits',
+    validator: {
+      $jsonSchema: {
+        bsonType: 'object',
+        required: ['_id', 'workspaceId', 'userId', 'lastSeenAt'],
+        properties: {
+          _id: { bsonType: 'objectId' },
+          __v: { bsonType: 'int' },
+          workspaceId: { bsonType: 'objectId' },
+          userId: { bsonType: 'objectId' },
+          lastSeenAt: { bsonType: 'date' },
+        },
+        additionalProperties: false,
+      },
+    },
+    validationAction: 'error',
+    validationLevel: 'strict',
+  });
+
+  await db
+    .collection('workspacevisits')
+    .createIndex({ workspaceId: 1, userId: 1 }, { unique: true });
 
   console.log('MongoDB validation rules applied successfully.');
 } catch (error) {

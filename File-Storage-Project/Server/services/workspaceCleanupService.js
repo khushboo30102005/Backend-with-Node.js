@@ -2,6 +2,7 @@ import { DeleteObjectsCommand } from '@aws-sdk/client-s3';
 import s3, { BUCKET_NAME } from '../config/b2.js';
 import Workspace from '../models/workspaceModel.js';
 import WorkspaceFile from '../models/workspaceFileModel.js';
+import WorkspaceVisit from '../models/workspaceVisitModel.js';
 import { expireIfDue } from '../utils/workspaceAccess.js';
 
 const MAX_ATTEMPTS = 5;
@@ -64,6 +65,7 @@ export async function purgeWorkspace(workspaceId) {
       await WorkspaceFile.deleteMany({ _id: { $in: files.map((f) => f._id) } });
     }
 
+    await WorkspaceVisit.deleteMany({ workspaceId });
     await Workspace.updateOne(
       { _id: workspaceId },
       {

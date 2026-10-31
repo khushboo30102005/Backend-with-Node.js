@@ -8,6 +8,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import s3, { BUCKET_NAME } from '../config/b2.js';
 import Workspace from '../models/workspaceModel.js';
 import WorkspaceFile from '../models/workspaceFileModel.js';
+import WorkspaceVisit from '../models/workspaceVisitModel.js';
 import User from '../models/userModel.js';
 import { resolvePicture } from '../utils/avatar.js';
 import {
@@ -404,6 +405,13 @@ export const listWorkspaceFiles = async (req, res, next) => {
       .populate('uploadedBy', 'name')
       .lean();
 
+    // Listing the files = having seen them: clears the "new files" notification.
+    await WorkspaceVisit.updateOne(
+      { workspaceId: access.workspace._id, userId: req.user._id },
+      { $set: { lastSeenAt: new Date() } },
+      { upsert: true },
+    ).catch(() => {});
+
     const me = String(req.user._id);
     const { role, readOnly } = access;
     return res.status(200).json(
@@ -677,11 +685,91 @@ export const getWorkspaceNotifications = async (req, res, next) => {
         };
       }),
     );
-    return res.status(200).json({ unreadCount: unread.length, notifications });
+    const activity = await getFileActivity(req.user._id);
+    const all = [...activity, ...notifications].sort(
+      (a, b) => Number(a.seen) - Number(b.seen) || new Date(b.createdAt) - new Date(a.createdAt),
+    );
+    return res
+      .status(200)
+      .json({ unreadCount: unread.length + activity.length, notifications: all });
   } catch (err) {
     next(err);
   }
 };
+
+// Files other people uploaded to the user's active workspaces since the user
+// last looked at them (owner or member). One notification per workspace.
+async function getFileActivity(userId) {
+  const now = new Date();
+  const uid = new mongoose.Types.ObjectId(String(userId));
+  const spaces = await Workspace.find({
+    $or: [{ ownerId: uid }, { 'members.userId': uid }],
+    status: 'active',
+    expiresAt: { $gt: now },
+  })
+    .select('name ownerId members createdAt')
+    .limit(100)
+    .lean();
+  if (spaces.length === 0) return [];
+
+  const visits = await WorkspaceVisit.find({
+    userId: uid,
+    workspaceId: { $in: spaces.map((s) => s._id) },
+  }).lean();
+  const seenAt = new Map(visits.map((v) => [String(v.workspaceId), v.lastSeenAt]));
+
+  // Before the first visit, "new" means uploaded after the user joined.
+  const conds = spaces.map((s) => {
+    const joined =
+      String(s.ownerId) === String(uid)
+        ? s.createdAt
+        : s.members.find((m) => String(m.userId) === String(uid))?.addedAt ?? s.createdAt;
+    return { workspaceId: s._id, createdAt: { $gt: seenAt.get(String(s._id)) ?? joined } };
+  });
+
+  const groups = await WorkspaceFile.aggregate([
+    { $match: { isReady: true, uploadedBy: { $ne: uid }, $or: conds } },
+    { $sort: { createdAt: -1 } },
+    {
+      $group: {
+        _id: '$workspaceId',
+        count: { $sum: 1 },
+        latestAt: { $first: '$createdAt' },
+        latestName: { $first: '$name' },
+        uploaderId: { $first: '$uploadedBy' },
+      },
+    },
+    { $sort: { latestAt: -1 } },
+    { $limit: 50 },
+  ]);
+  if (groups.length === 0) return [];
+
+  const names = new Map(spaces.map((s) => [String(s._id), s.name]));
+  const users = await User.find({ _id: { $in: groups.map((g) => g.uploaderId) } })
+    .select('name picture')
+    .lean();
+  const byId = new Map(users.map((u) => [String(u._id), u]));
+
+  return Promise.all(
+    groups.map(async (g) => {
+      const u = byId.get(String(g.uploaderId));
+      return {
+        type: 'workspace-files',
+        workspaceId: g._id,
+        workspaceName: names.get(String(g._id)),
+        count: g.count,
+        latestFileName: g.latestName,
+        createdAt: g.latestAt,
+        seen: false,
+        uploader: {
+          id: u?._id ?? null,
+          name: u?.name ?? 'Someone',
+          picture: u ? await resolvePicture(u.picture) : null,
+        },
+      };
+    }),
+  );
+}
 
 // POST /workspace/notifications/seen   body: { workspaceIds: [...] }
 // Only ever touches the requester's own membership entries.

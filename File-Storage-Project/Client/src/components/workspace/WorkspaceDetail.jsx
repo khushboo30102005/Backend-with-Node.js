@@ -96,18 +96,27 @@ function FilesTab({ ws, readOnly, onExpired }) {
   const source = useMemo(() => workspaceFileSource(ws._id), [ws._id]);
   const canUpload = !readOnly && (ws.role === 'owner' || ws.role === 'editor');
 
+  const { refresh: refreshNotifications } = useNotifications();
+
   const load = useCallback(async () => {
     try {
       setFiles(await listWorkspaceFiles(ws._id));
+      // The server counts a file-list fetch as "seen"; sync the bell badge.
+      refreshNotifications();
     } catch (err) {
       if (err.response?.status === 410) return onExpired(err.response.data);
       setError(err.response?.data?.error || 'Could not load files.');
       setFiles((p) => p ?? []);
     }
-  }, [ws._id, onExpired]);
+  }, [ws._id, onExpired, refreshNotifications]);
 
   useEffect(() => {
     load();
+    // Pick up files other members upload while this page stays open.
+    const timer = setInterval(() => {
+      if (!document.hidden) load();
+    }, 30000);
+    return () => clearInterval(timer);
   }, [load]);
 
   async function handleFiles(list) {

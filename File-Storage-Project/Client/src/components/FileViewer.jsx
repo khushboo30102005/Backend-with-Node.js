@@ -152,7 +152,7 @@ function FileViewer({ fileId, name, onClose, source }) {
               return (
                 <div
                   onClick={stop}
-                  className="w-full h-full max-w-3xl overflow-y-auto rounded-lg bg-white px-8 py-6 text-gray-900"
+                  className="w-full h-full max-w-3xl overflow-y-auto rounded-lg bg-surface px-5 sm:px-8 py-6 text-text"
                 >
                   <div className="md-body">
                     <ReactMarkdown

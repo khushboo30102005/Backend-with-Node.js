@@ -3,6 +3,12 @@ import Workspace from '../models/workspaceModel.js';
 export const WORKSPACE_MAX_BYTES =
   Number(process.env.WORKSPACE_MAX_BYTES) || 500 * 1024 * 1024;
 export const WORKSPACE_MAX_MEMBERS = 50;
+// Total workspace bytes one user may own across all their workspaces.
+export const WORKSPACE_USER_MAX_BYTES =
+  Number(process.env.WORKSPACE_USER_MAX_BYTES) || 2 * 1024 * 1024 * 1024;
+export const MAX_FOLDERS = 200;
+export const MAX_FOLDER_DEPTH = 6;
+export const STALE_UPLOAD_MS = 2 * 60 * 60 * 1000;
 export const MIN_LIFETIME_MS = 5 * 60 * 1000;
 export const MAX_LIFETIME_MS =
   (Number(process.env.WORKSPACE_MAX_DAYS) || 90) * 24 * 60 * 60 * 1000;
@@ -22,10 +28,14 @@ const CAN = {
 
 export const canPerformWs = (role, action) => CAN[action]?.includes(role) ?? false;
 
+// Pending invitees have no access; legacy entries without a status are active.
+export const isPending = (member) => member?.status === 'pending';
+
 export const roleOf = (workspace, userId) => {
   const id = String(userId);
   if (String(workspace.ownerId) === id) return 'owner';
-  return workspace.members.find((m) => String(m.userId) === id)?.role ?? null;
+  const m = workspace.members.find((x) => String(x.userId) === id);
+  return m && !isPending(m) ? m.role : null;
 };
 
 /**
@@ -48,6 +58,18 @@ export async function expireIfDue(workspace) {
     { status: 'expired', expiredAt: now, purgeAfter },
     { new: true },
   ).lean();
+  if (updated && updated.cleanupPolicy === 'delete') {
+    // First request after a sleep/restart: don't wait for the next sweep to
+    // start deleting the data. Fire-and-forget; the sweeper retries failures.
+    import('../services/workspaceCleanupService.js')
+      .then((m) => m.purgeWorkspace(updated._id))
+      .catch(() => {});
+  }
+  if (updated) {
+    import('./workspaceActivity.js').then((m) =>
+      m.logActivity(updated._id, null, 'expired'),
+    );
+  }
   return updated ?? (await Workspace.findById(workspace._id).lean());
 }
 

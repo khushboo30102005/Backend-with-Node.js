@@ -1,73 +1,35 @@
-import path from 'path';
 import mongoose from 'mongoose';
-import { once } from 'events';
-import { PassThrough } from 'stream';
-import { Upload } from '@aws-sdk/lib-storage';
-import { DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import s3, { BUCKET_NAME } from '../config/b2.js';
 import Workspace from '../models/workspaceModel.js';
 import WorkspaceFile from '../models/workspaceFileModel.js';
 import WorkspaceVisit from '../models/workspaceVisitModel.js';
+import WorkspaceActivity from '../models/workspaceActivityModel.js';
 import User from '../models/userModel.js';
 import { resolvePicture } from '../utils/avatar.js';
 import {
+  EXPIRING_SOON_MS,
+  MAX_FOLDERS,
   WORKSPACE_MAX_BYTES,
   WORKSPACE_MAX_MEMBERS,
-  canPerformWs,
   expireIfDue,
-  getWorkspaceAccess,
+  isPending,
   roleOf,
   stateOf,
 } from '../utils/workspaceAccess.js';
-import { purgeWorkspace, workspaceObjectKey } from '../services/workspaceCleanupService.js';
+import { authorize, deny, firstZodError } from '../utils/workspaceHttp.js';
+import { logActivity } from '../utils/workspaceActivity.js';
+import { getWorkspaceAccess } from '../utils/workspaceAccess.js';
+import { purgeWorkspace } from '../services/workspaceCleanupService.js';
 import {
   addMemberSchema,
   createWorkspaceSchema,
-  renameWorkspaceFileSchema,
+  reactivateSchema,
   transferSchema,
   updateMemberSchema,
   updateWorkspaceSchema,
 } from '../validator/workspaceSchema.js';
 
-const firstZodError = (result) => result.error.issues[0]?.message || 'Invalid input';
-
-// Sends the right error for a denied access result and returns true.
-const deny = (res, access) => {
-  const { status, code, message, workspace } = access.error;
-  res.status(status).json({
-    error: message,
-    ...(code && { code }),
-    ...(workspace && {
-      workspace: {
-        _id: workspace._id,
-        name: workspace.name,
-        expiresAt: workspace.expiresAt,
-        cleanupPolicy: workspace.cleanupPolicy,
-        status: workspace.status,
-      },
-    }),
-  });
-};
-
-// Loads access and enforces an action in one place. Returns the access object
-// or null after having already responded.
-async function authorize(req, res, action, { write = false } = {}) {
-  const access = await getWorkspaceAccess(req.params.id, req.user._id);
-  if (access.error) {
-    deny(res, access);
-    return null;
-  }
-  if (!canPerformWs(access.role, action)) {
-    res.status(403).json({ error: 'You do not have permission to do this.' });
-    return null;
-  }
-  if (write && access.readOnly) {
-    res.status(403).json({ error: 'This workspace is archived and read-only.' });
-    return null;
-  }
-  return access;
-}
+const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const activeMembers = (ws) => ws.members.filter((m) => !isPending(m));
 
 const summarize = (ws, userId, owner) => {
   const role = roleOf(ws, userId);
@@ -83,7 +45,7 @@ const summarize = (ws, userId, owner) => {
     expiresAt: ws.expiresAt,
     cleanupPolicy: ws.cleanupPolicy,
     purgeAfter: ws.purgeAfter,
-    memberCount: ws.members.length + 1,
+    memberCount: activeMembers(ws).length + 1,
     size: ws.size,
     createdAt: ws.createdAt,
     // Whether the requester can still open it (members lose access at expiry;
@@ -92,10 +54,16 @@ const summarize = (ws, userId, owner) => {
       ws.status === 'active' ||
       (ws.status === 'expired' && ws.cleanupPolicy === 'archive' && role === 'owner'),
     readOnly: ws.status !== 'active',
+    canReactivate:
+      role === 'owner' &&
+      ws.status === 'expired' &&
+      ws.cleanupPolicy === 'archive' &&
+      ws.purgeAfter &&
+      new Date(ws.purgeAfter) > new Date(),
   };
 };
 
-// Validates member ids: must exist, not deleted, not the owner, unique.
+// Invitees must exist, not be deleted, not be the owner, and be unique.
 async function validateMembers(members, ownerId) {
   const ids = members.map((m) => m.userId);
   if (new Set(ids).size !== ids.length) return 'Duplicate members in the list.';
@@ -105,6 +73,20 @@ async function validateMembers(members, ownerId) {
     if (count !== ids.length) return 'One or more selected users do not exist.';
   }
   return null;
+}
+
+// Total bytes of workspaces a user owns (everything not yet purged).
+export async function ownerWorkspaceBytes(ownerId) {
+  const [row] = await Workspace.aggregate([
+    {
+      $match: {
+        ownerId: new mongoose.Types.ObjectId(String(ownerId)),
+        status: { $in: ['active', 'expired'] },
+      },
+    },
+    { $group: { _id: null, bytes: { $sum: '$size' } } },
+  ]);
+  return row?.bytes ?? 0;
 }
 
 // ---------------------------------------------------------------- workspaces
@@ -118,24 +100,30 @@ export const createWorkspace = async (req, res, next) => {
     const memberError = await validateMembers(data.members, req.user._id);
     if (memberError) return res.status(400).json({ error: memberError });
 
-    const owned = await Workspace.countDocuments({
-      ownerId: req.user._id,
-      status: 'active',
-    });
+    const owned = await Workspace.countDocuments({ ownerId: req.user._id, status: 'active' });
     if (owned >= 25) {
-      return res
-        .status(400)
-        .json({ error: 'You have reached the limit of 25 active workspaces.' });
+      return res.status(400).json({ error: 'You have reached the limit of 25 active workspaces.' });
     }
 
+    const now = new Date();
     const ws = await Workspace.create({
       name: data.name,
       description: data.description,
       ownerId: req.user._id,
       expiresAt: data.expiresAt,
       cleanupPolicy: data.cleanupPolicy,
-      members: data.members.map((m) => ({ ...m, addedBy: req.user._id })),
+      // Everyone starts as a pending invitation until they accept.
+      members: data.members.map((m) => ({
+        ...m,
+        status: 'pending',
+        addedAt: now,
+        addedBy: req.user._id,
+      })),
     });
+    await logActivity(ws._id, req.user._id, 'workspace_created', { targetName: ws.name });
+    for (const m of data.members) {
+      await logActivity(ws._id, req.user._id, 'member_invited', { targetUserId: m.userId, detail: m.role });
+    }
     return res.status(201).json({ _id: ws._id, message: 'Workspace created' });
   } catch (err) {
     next(err);
@@ -158,7 +146,7 @@ export const listWorkspaces = async (req, res, next) => {
       const owner = ws.ownerId;
       ws.ownerId = owner._id;
       ws = await expireIfDue(ws); // lazy expiry keeps the list honest
-      // A purged workspace has no members left, so only its owner still sees it.
+      // Pending invitations are shown separately (bell / invitations banner).
       if (!roleOf(ws, req.user._id)) continue;
       out.push(summarize(ws, req.user._id, { _id: owner._id, name: owner.name }));
     }
@@ -172,14 +160,16 @@ export const getWorkspace = async (req, res, next) => {
   try {
     const access = await authorize(req, res, 'view');
     if (!access) return;
-    const { workspace: ws } = access;
+    const { workspace: ws, role } = access;
 
-    const ids = [ws.ownerId, ...ws.members.map((m) => m.userId)];
+    // Only the owner sees who is still just invited.
+    const visible = ws.members.filter((m) => role === 'owner' || !isPending(m));
+    const ids = [ws.ownerId, ...visible.map((m) => m.userId)];
     const users = await User.find({ _id: { $in: ids } })
       .select('name email picture isDeleted')
       .lean();
     const byId = new Map(users.map((u) => [String(u._id), u]));
-    const shape = async (userId, role, addedAt) => {
+    const shape = async (userId, mRole, addedAt, status = 'active') => {
       const u = byId.get(String(userId));
       return {
         _id: userId,
@@ -187,13 +177,14 @@ export const getWorkspace = async (req, res, next) => {
         email: u?.email ?? '',
         picture: u ? await resolvePicture(u.picture) : null,
         isDeleted: !u || !!u.isDeleted,
-        role,
+        role: mRole,
+        status,
         addedAt,
       };
     };
     const members = await Promise.all([
       shape(ws.ownerId, 'owner', ws.createdAt),
-      ...ws.members.map((m) => shape(m.userId, m.role, m.addedAt)),
+      ...visible.map((m) => shape(m.userId, m.role, m.addedAt, isPending(m) ? 'pending' : 'active')),
     ]);
 
     return res.status(200).json({
@@ -205,6 +196,7 @@ export const getWorkspace = async (req, res, next) => {
       me: req.user._id,
       maxBytes: WORKSPACE_MAX_BYTES,
       maxMembers: WORKSPACE_MAX_MEMBERS,
+      maxFolders: MAX_FOLDERS,
       serverTime: new Date(),
     });
   } catch (err) {
@@ -228,7 +220,56 @@ export const updateWorkspace = async (req, res, next) => {
     if (!updated) {
       return res.status(410).json({ error: 'This workspace has expired.', code: 'WORKSPACE_EXPIRED' });
     }
+    const prev = access.workspace;
+    if (parsed.data.expiresAt && +new Date(prev.expiresAt) !== +parsed.data.expiresAt) {
+      await logActivity(prev._id, req.user._id, 'expiry_changed', {
+        detail: parsed.data.expiresAt.toISOString(),
+      });
+    } else {
+      await logActivity(prev._id, req.user._id, 'settings_updated');
+    }
     return res.status(200).json({ message: 'Workspace updated' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// POST /workspace/:id/reactivate — owner reopens an archived workspace
+// before its retention window ends and the data is purged.
+export const reactivateWorkspace = async (req, res, next) => {
+  const parsed = reactivateSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: firstZodError(parsed) });
+
+  try {
+    const access = await authorize(req, res, 'manage');
+    if (!access) return;
+    const now = new Date();
+    const updated = await Workspace.findOneAndUpdate(
+      {
+        _id: access.workspace._id,
+        status: 'expired',
+        cleanupPolicy: 'archive',
+        purgeAfter: { $gt: now },
+        $or: [{ 'cleanup.lockedUntil': null }, { 'cleanup.lockedUntil': { $lte: now } }],
+      },
+      {
+        $set: {
+          status: 'active',
+          expiresAt: parsed.data.expiresAt,
+          expiredAt: null,
+          purgeAfter: null,
+          'cleanup.attempts': 0,
+          'cleanup.lastError': null,
+        },
+      },
+    ).lean();
+    if (!updated) {
+      return res.status(409).json({ error: 'This workspace can no longer be reactivated.' });
+    }
+    await logActivity(updated._id, req.user._id, 'reactivated', {
+      detail: parsed.data.expiresAt.toISOString(),
+    });
+    return res.status(200).json({ message: 'Workspace reactivated' });
   } catch (err) {
     next(err);
   }
@@ -249,9 +290,7 @@ export const deleteWorkspace = async (req, res, next) => {
     const ok = await purgeWorkspace(ws._id);
     if (!ok) {
       // Access is already revoked; the sweeper will finish the cleanup.
-      return res
-        .status(202)
-        .json({ message: 'Workspace closed. Data removal will finish shortly.' });
+      return res.status(202).json({ message: 'Workspace closed. Data removal will finish shortly.' });
     }
     return res.status(200).json({ message: 'Workspace deleted' });
   } catch (err) {
@@ -259,7 +298,7 @@ export const deleteWorkspace = async (req, res, next) => {
   }
 };
 
-// ------------------------------------------------------------------- members
+// ------------------------------------------------- members and invitations
 
 export const addMember = async (req, res, next) => {
   const parsed = addMemberSchema.safeParse(req.body);
@@ -274,7 +313,7 @@ export const addMember = async (req, res, next) => {
     const err = await validateMembers([{ userId, role }], ws.ownerId);
     if (err) return res.status(400).json({ error: err });
 
-    // One atomic update enforces "not already a member" and the member cap.
+    // One atomic update enforces "not already invited/a member" and the cap.
     const updated = await Workspace.findOneAndUpdate(
       {
         _id: ws._id,
@@ -282,14 +321,17 @@ export const addMember = async (req, res, next) => {
         'members.userId': { $ne: userId },
         [`members.${WORKSPACE_MAX_MEMBERS - 1}`]: { $exists: false },
       },
-      { $push: { members: { userId, role, addedAt: new Date(), addedBy: req.user._id } } },
+      {
+        $push: {
+          members: { userId, role, status: 'pending', addedAt: new Date(), addedBy: req.user._id },
+        },
+      },
     ).lean();
     if (!updated) {
-      return res
-        .status(409)
-        .json({ error: 'Already a member, or the member limit was reached.' });
+      return res.status(409).json({ error: 'Already invited or a member, or the member limit was reached.' });
     }
-    return res.status(201).json({ message: 'Member added' });
+    await logActivity(ws._id, req.user._id, 'member_invited', { targetUserId: userId, detail: role });
+    return res.status(201).json({ message: 'Invitation sent' });
   } catch (e) {
     next(e);
   }
@@ -307,14 +349,18 @@ export const updateMember = async (req, res, next) => {
       { $set: { 'members.$.role': parsed.data.role } },
     );
     if (!result.matchedCount) return res.status(404).json({ error: 'Member not found.' });
+    await logActivity(access.workspace._id, req.user._id, 'member_role_changed', {
+      targetUserId: req.params.userId,
+      detail: parsed.data.role,
+    });
     return res.status(200).json({ message: 'Member updated' });
   } catch (err) {
     next(err);
   }
 };
 
-// DELETE /workspace/:id/members/:userId — the owner removes a member, or a
-// member removes themselves (leave).
+// DELETE /workspace/:id/members/:userId — the owner removes a member (or
+// cancels an invitation), or a member removes themselves (leave).
 export const removeMember = async (req, res, next) => {
   try {
     const access = await getWorkspaceAccess(req.params.id, req.user._id);
@@ -335,17 +381,45 @@ export const removeMember = async (req, res, next) => {
       return res.status(403).json({ error: 'This workspace is archived and read-only.' });
     }
 
-    const result = await Workspace.updateOne(
-      { _id: ws._id },
-      { $pull: { members: { userId: target } } },
-    );
+    const result = await Workspace.updateOne({ _id: ws._id }, { $pull: { members: { userId: target } } });
     if (!result.modifiedCount) return res.status(404).json({ error: 'Member not found.' });
+    await WorkspaceVisit.deleteOne({ workspaceId: ws._id, userId: target });
+    await logActivity(ws._id, req.user._id, isSelf ? 'member_left' : 'member_removed', {
+      targetUserId: target,
+    });
     // Files they uploaded stay in the workspace (they belong to it).
     return res.status(200).json({ message: isSelf ? 'You left the workspace' : 'Member removed' });
   } catch (err) {
     next(err);
   }
 };
+
+// POST /workspace/:id/invitation/accept | decline — invitee only.
+const respondToInvitation = (accept) => async (req, res, next) => {
+  try {
+    const now = new Date();
+    const filter = {
+      _id: req.params.id,
+      status: 'active',
+      expiresAt: { $gt: now },
+      members: { $elemMatch: { userId: req.user._id, status: 'pending' } },
+    };
+    const update = accept
+      ? { $set: { 'members.$.status': 'active', 'members.$.joinedAt': now } }
+      : { $pull: { members: { userId: req.user._id, status: 'pending' } } };
+    const result = await Workspace.updateOne(filter, update);
+    // Uniform answer: no pending invitation / expired / unknown workspace.
+    if (!result.modifiedCount) {
+      return res.status(404).json({ error: 'Invitation not found or no longer valid.' });
+    }
+    await logActivity(req.params.id, req.user._id, accept ? 'invitation_accepted' : 'invitation_declined');
+    return res.status(200).json({ message: accept ? 'You joined the workspace' : 'Invitation declined' });
+  } catch (err) {
+    next(err);
+  }
+};
+export const acceptInvitation = respondToInvitation(true);
+export const declineInvitation = respondToInvitation(false);
 
 export const transferOwnership = async (req, res, next) => {
   const parsed = transferSchema.safeParse(req.body);
@@ -354,438 +428,305 @@ export const transferOwnership = async (req, res, next) => {
   try {
     const access = await authorize(req, res, 'manage', { write: true });
     if (!access) return;
-    const target = new mongoose.Types.ObjectId(parsed.data.userId);
+    const ws = access.workspace;
+    const target = parsed.data.userId;
 
+    const heir = ws.members.find((m) => String(m.userId) === target && !isPending(m));
+    if (!heir) {
+      return res.status(400).json({ error: 'Ownership can only be transferred to a current member.' });
+    }
     const user = await User.findOne({ _id: target, isDeleted: false }).select('_id').lean();
     if (!user) return res.status(400).json({ error: 'That user is not available.' });
 
-    // New owner leaves the member list; the old owner becomes an editor.
-    const updated = await Workspace.findOneAndUpdate(
+    // The new owner leaves the member list; the old owner becomes an editor.
+    // updatedAt in the filter makes this an optimistic lock: if the workspace
+    // changed since we read it, nothing is written and the client retries.
+    const members = [
+      ...ws.members.filter((m) => String(m.userId) !== target),
       {
-        _id: access.workspace._id,
-        ownerId: req.user._id,
+        userId: ws.ownerId,
+        role: 'editor',
         status: 'active',
-        'members.userId': target,
+        addedAt: new Date(),
+        addedBy: heir.userId,
+        joinedAt: new Date(),
       },
-      [
-        {
-          $set: {
-            members: {
-              $concatArrays: [
-                { $filter: { input: '$members', cond: { $ne: ['$$this.userId', target] } } },
-                [{ userId: '$ownerId', role: 'editor', addedAt: '$$NOW', addedBy: target, seenAt: '$$NOW' }],
-              ],
-            },
-            ownerId: target,
-          },
-        },
-      ],
+    ];
+    const updated = await Workspace.findOneAndUpdate(
+      { _id: ws._id, ownerId: req.user._id, status: 'active', updatedAt: ws.updatedAt },
+      { $set: { ownerId: heir.userId, members } },
     ).lean();
     if (!updated) {
-      return res.status(400).json({ error: 'Ownership can only be transferred to a current member.' });
+      return res.status(409).json({ error: 'The workspace changed. Please try again.' });
     }
+    await logActivity(ws._id, req.user._id, 'ownership_transferred', { targetUserId: target });
     return res.status(200).json({ message: 'Ownership transferred' });
   } catch (err) {
     next(err);
   }
 };
 
-// --------------------------------------------------------------------- files
+// ------------------------------------------------------------------ activity
 
-export const listWorkspaceFiles = async (req, res, next) => {
+export const listActivity = async (req, res, next) => {
   try {
     const access = await authorize(req, res, 'view');
     if (!access) return;
+    const filter = { workspaceId: access.workspace._id };
+    if (req.query.before) {
+      const d = new Date(String(req.query.before));
+      if (!Number.isNaN(d.getTime())) filter.createdAt = { $lt: d };
+    }
+    const rows = await WorkspaceActivity.find(filter).sort({ createdAt: -1 }).limit(31).lean();
+    const hasMore = rows.length > 30;
+    const page = rows.slice(0, 30);
 
+    const userIds = [...new Set(page.flatMap((r) => [r.actorId, r.targetUserId]).filter(Boolean).map(String))];
+    const users = await User.find({ _id: { $in: userIds } }).select('name').lean();
+    const names = new Map(users.map((u) => [String(u._id), u.name]));
+
+    return res.status(200).json({
+      hasMore,
+      items: page.map((r) => ({
+        _id: r._id,
+        type: r.type,
+        actor: r.actorId ? { _id: r.actorId, name: names.get(String(r.actorId)) ?? 'Deleted user' } : null,
+        target: r.targetUserId
+          ? { _id: r.targetUserId, name: names.get(String(r.targetUserId)) ?? 'Deleted user' }
+          : null,
+        targetName: r.targetName,
+        detail: r.detail,
+        createdAt: r.createdAt,
+      })),
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// -------------------------------------------------------------------- search
+
+// GET /workspace/search?q= — files (by name) across the user's open workspaces.
+export const searchWorkspaceFiles = async (req, res, next) => {
+  try {
+    const q = String(req.query.q || '').trim();
+    if (q.length < 2) return res.status(200).json([]);
+
+    const uid = req.user._id;
+    const spaces = await Workspace.find({
+      status: 'active',
+      expiresAt: { $gt: new Date() },
+      $or: [{ ownerId: uid }, { members: { $elemMatch: { userId: uid, status: { $ne: 'pending' } } } }],
+    })
+      .select('name')
+      .limit(100)
+      .lean();
+    if (spaces.length === 0) return res.status(200).json([]);
+
+    const names = new Map(spaces.map((s) => [String(s._id), s.name]));
     const files = await WorkspaceFile.find({
-      workspaceId: access.workspace._id,
+      workspaceId: { $in: spaces.map((s) => s._id) },
       isReady: true,
+      name: { $regex: escapeRegex(q.slice(0, 100)), $options: 'i' },
     })
       .sort({ createdAt: -1 })
-      .populate('uploadedBy', 'name')
+      .limit(30)
+      .select('name size workspaceId folderId')
       .lean();
 
-    // Listing the files = having seen them: clears the "new files" notification.
-    await WorkspaceVisit.updateOne(
-      { workspaceId: access.workspace._id, userId: req.user._id },
-      { $set: { lastSeenAt: new Date() } },
-      { upsert: true },
-    ).catch(() => {});
-
-    const me = String(req.user._id);
-    const { role, readOnly } = access;
     return res.status(200).json(
-      files.map((f) => {
-        const mine = String(f.uploadedBy?._id) === me;
-        return {
-          _id: f._id,
-          name: f.name,
-          size: f.size,
-          extension: f.extension,
-          uploadedBy: f.uploadedBy ? { _id: f.uploadedBy._id, name: f.uploadedBy.name } : null,
-          createdAt: f.createdAt,
-          canRename: !readOnly && canPerformWs(role, 'rename'),
-          canDelete:
-            !readOnly &&
-            (canPerformWs(role, 'deleteAny') || (mine && canPerformWs(role, 'deleteOwn'))),
-        };
-      }),
+      files.map((f) => ({
+        _id: f._id,
+        name: f.name,
+        size: f.size,
+        folderId: f.folderId,
+        workspaceId: f.workspaceId,
+        workspaceName: names.get(String(f.workspaceId)),
+      })),
     );
   } catch (err) {
     next(err);
   }
 };
-
-const releaseQuota = (workspaceId, bytes) =>
-  Workspace.updateOne({ _id: workspaceId }, { $inc: { size: -bytes } }).catch(() => {});
-
-export const uploadWorkspaceFile = async (req, res, next) => {
-  let fileDoc;
-  let key;
-  let reserved = 0;
-  let wsId;
-
-  try {
-    const access = await authorize(req, res, 'upload', { write: true });
-    if (!access) return;
-    wsId = access.workspace._id;
-
-    const filename = String(req.headers.filename || 'untitled').slice(0, 255);
-    const filesize = Number(req.headers.filesize);
-    if (!Number.isFinite(filesize) || filesize < 0) {
-      return res.status(400).json({ error: 'Invalid filesize' });
-    }
-
-    // Reserve quota atomically, and only while the workspace is still active,
-    // so parallel uploads can't overshoot the limit.
-    const ok = await Workspace.findOneAndUpdate(
-      {
-        _id: wsId,
-        status: 'active',
-        expiresAt: { $gt: new Date() },
-        size: { $lte: WORKSPACE_MAX_BYTES - filesize },
-      },
-      { $inc: { size: filesize } },
-    ).lean();
-    if (!ok) {
-      return res
-        .status(413)
-        .json({ error: 'Not enough workspace storage space, or the workspace has expired.' });
-    }
-    reserved = filesize;
-
-    const extension = path.extname(filename);
-    fileDoc = await WorkspaceFile.create({
-      workspaceId: wsId,
-      name: filename,
-      size: filesize,
-      extension,
-      uploadedBy: req.user._id,
-    });
-    key = workspaceObjectKey(wsId, fileDoc);
-
-    let total = 0;
-    const body = new PassThrough();
-    const writer = (async () => {
-      for await (const chunk of req) {
-        total += chunk.length;
-        if (total > filesize) {
-          const err = new Error('FILESIZE_EXCEEDED');
-          body.destroy(err);
-          throw err;
-        }
-        if (!body.write(chunk)) await once(body, 'drain');
-      }
-      body.end();
-    })();
-
-    const upload = new Upload({
-      client: s3,
-      params: {
-        Bucket: BUCKET_NAME,
-        Key: key,
-        Body: body,
-        ContentType: req.headers['content-type'] || 'application/octet-stream',
-      },
-    });
-    await Promise.all([writer, upload.done()]);
-
-    if (total !== filesize) throw new Error('FILESIZE_MISMATCH');
-
-    // The workspace may have expired (or been purged) mid-upload: only publish
-    // the file if it's still active, otherwise roll everything back.
-    const stillActive = await Workspace.exists({
-      _id: wsId,
-      status: 'active',
-      expiresAt: { $gt: new Date() },
-    });
-    const published =
-      stillActive &&
-      (await WorkspaceFile.updateOne({ _id: fileDoc._id }, { $set: { isReady: true } }))
-        .matchedCount;
-    if (!published) throw new Error('WORKSPACE_EXPIRED');
-
-    return res.status(201).json({ message: 'File Uploaded' });
-  } catch (err) {
-    if (fileDoc) await WorkspaceFile.deleteOne({ _id: fileDoc._id }).catch(() => {});
-    if (key) {
-      await s3
-        .send(new DeleteObjectCommand({ Bucket: BUCKET_NAME, Key: key }))
-        .catch(() => {});
-    }
-    if (reserved) await releaseQuota(wsId, reserved);
-    if (res.headersSent) return;
-    if (err.message === 'FILESIZE_EXCEEDED' || err.message === 'FILESIZE_MISMATCH') {
-      return res.status(400).json({ error: 'Uploaded file size does not match the declared size.' });
-    }
-    if (err.message === 'WORKSPACE_EXPIRED') {
-      return res
-        .status(410)
-        .json({ error: 'This workspace expired during the upload.', code: 'WORKSPACE_EXPIRED' });
-    }
-    next(err);
-  }
-};
-
-const findFile = (workspaceId, fileId) =>
-  WorkspaceFile.findOne({ _id: fileId, workspaceId, isReady: true });
-
-export const getWorkspaceFile = async (req, res, next) => {
-  try {
-    const access = await authorize(req, res, 'view');
-    if (!access) return;
-
-    const file = await findFile(access.workspace._id, req.params.fileId).lean();
-    if (!file) return res.status(404).json({ error: 'File not found!' });
-
-    const key = workspaceObjectKey(access.workspace._id, file);
-    const isDownload = req.query.action === 'download';
-
-    if (req.query.format === 'text') {
-      if (file.size > 2 * 1024 * 1024) {
-        return res.status(413).json({ error: 'File is too large to preview.' });
-      }
-      const obj = await s3.send(new GetObjectCommand({ Bucket: BUCKET_NAME, Key: key }));
-      return res.type('text/plain; charset=utf-8').send(await obj.Body.transformToString());
-    }
-
-    // Short-lived URL; a member removed or an expiry after this point only
-    // keeps working for these few seconds.
-    const url = await getSignedUrl(
-      s3,
-      new GetObjectCommand({
-        Bucket: BUCKET_NAME,
-        Key: key,
-        ResponseContentDisposition: `${isDownload ? 'attachment' : 'inline'}; filename="${encodeURIComponent(file.name)}"`,
-      }),
-      { expiresIn: 60 },
-    );
-    if (req.query.format === 'json') return res.json({ url });
-    return res.redirect(url);
-  } catch (err) {
-    next(err);
-  }
-};
-
-export const renameWorkspaceFile = async (req, res, next) => {
-  const parsed = renameWorkspaceFileSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: firstZodError(parsed) });
-
-  try {
-    const access = await authorize(req, res, 'rename', { write: true });
-    if (!access) return;
-    const result = await WorkspaceFile.updateOne(
-      { _id: req.params.fileId, workspaceId: access.workspace._id, isReady: true },
-      { $set: { name: parsed.data.newFilename } },
-    );
-    if (!result.matchedCount) return res.status(404).json({ error: 'File not found!' });
-    return res.status(200).json({ message: 'Renamed' });
-  } catch (err) {
-    next(err);
-  }
-};
-
-export const deleteWorkspaceFile = async (req, res, next) => {
-  try {
-    const access = await authorize(req, res, 'deleteOwn', { write: true });
-    if (!access) return;
-
-    const file = await findFile(access.workspace._id, req.params.fileId).lean();
-    if (!file) return res.status(404).json({ error: 'File not found!' });
-
-    const mine = String(file.uploadedBy) === String(req.user._id);
-    if (!mine && !canPerformWs(access.role, 'deleteAny')) {
-      return res.status(403).json({ error: 'You can only delete files you uploaded.' });
-    }
-
-    await s3.send(
-      new DeleteObjectCommand({
-        Bucket: BUCKET_NAME,
-        Key: workspaceObjectKey(access.workspace._id, file),
-      }),
-    );
-    const del = await WorkspaceFile.deleteOne({ _id: file._id });
-    if (del.deletedCount) await releaseQuota(access.workspace._id, file.size);
-    return res.status(200).json({ message: 'File deleted' });
-  } catch (err) {
-    next(err);
-  }
-};
-
 
 // ------------------------------------------------------------- notifications
-// Derived from the membership rows themselves (like share notifications are
-// derived from Share): being added = a member entry with seenAt === null.
+// Derived from the workspace data itself (like share notifications are
+// derived from Share), so there's no second source of truth:
+//   workspace-invite    pending invitation (stays until accepted/declined)
+//   workspace-files     files others uploaded since the user last looked
+//   workspace-expiring  expires within 24h and not yet acknowledged
 
-const RECENT_READ_LIMIT = 10;
-const UNREAD_LIMIT = 50;
+const toObjectId = (id) => new mongoose.Types.ObjectId(String(id));
 
-// GET /workspace/notifications
 export const getWorkspaceNotifications = async (req, res, next) => {
   try {
-    const me = String(req.user._id);
-    const rows = await Workspace.find({
-      'members.userId': req.user._id,
+    const uid = toObjectId(req.user._id);
+    const now = new Date();
+
+    const spaces = await Workspace.find({
+      $or: [{ ownerId: uid }, { 'members.userId': uid }],
       status: 'active',
-      expiresAt: { $gt: new Date() },
+      expiresAt: { $gt: now },
     })
-      .select('name members expiresAt')
-      .limit(200)
+      .select('name ownerId members createdAt expiresAt')
+      .limit(100)
       .lean();
+    if (spaces.length === 0) return res.status(200).json({ unreadCount: 0, notifications: [] });
 
-    const items = rows
-      .map((ws) => ({ ws, m: ws.members.find((x) => String(x.userId) === me) }))
-      .filter((x) => x.m)
-      .sort((a, b) => new Date(b.m.addedAt) - new Date(a.m.addedAt));
+    const me = (ws) => ws.members.find((m) => String(m.userId) === String(uid));
+    const invites = spaces.filter((ws) => isPending(me(ws)));
+    const joined = spaces.filter((ws) => !isPending(me(ws)));
 
-    const unread = items.filter((x) => !x.m.seenAt).slice(0, UNREAD_LIMIT);
-    const read = items.filter((x) => x.m.seenAt).slice(0, RECENT_READ_LIMIT);
-    const picked = [...unread, ...read];
+    const visits = await WorkspaceVisit.find({
+      userId: uid,
+      workspaceId: { $in: joined.map((s) => s._id) },
+    }).lean();
+    const visitBy = new Map(visits.map((v) => [String(v.workspaceId), v]));
 
-    const adderIds = [...new Set(picked.map((x) => x.m.addedBy).filter(Boolean).map(String))];
-    const adders = await User.find({ _id: { $in: adderIds } }).select('name picture').lean();
-    const byId = new Map(adders.map((u) => [String(u._id), u]));
-
-    const notifications = await Promise.all(
-      picked.map(async ({ ws, m }) => {
-        const a = m.addedBy && byId.get(String(m.addedBy));
-        return {
-          type: 'workspace',
-          workspaceId: ws._id,
-          workspaceName: ws.name,
-          role: m.role,
-          expiresAt: ws.expiresAt,
-          createdAt: m.addedAt,
-          seen: Boolean(m.seenAt),
-          addedBy: {
-            id: a?._id ?? null,
-            name: a?.name ?? 'Someone',
-            picture: a ? await resolvePicture(a.picture) : null,
-          },
-        };
-      }),
-    );
-    const activity = await getFileActivity(req.user._id);
-    const all = [...activity, ...notifications].sort(
-      (a, b) => Number(a.seen) - Number(b.seen) || new Date(b.createdAt) - new Date(a.createdAt),
-    );
-    return res
-      .status(200)
-      .json({ unreadCount: unread.length + activity.length, notifications: all });
-  } catch (err) {
-    next(err);
-  }
-};
-
-// Files other people uploaded to the user's active workspaces since the user
-// last looked at them (owner or member). One notification per workspace.
-async function getFileActivity(userId) {
-  const now = new Date();
-  const uid = new mongoose.Types.ObjectId(String(userId));
-  const spaces = await Workspace.find({
-    $or: [{ ownerId: uid }, { 'members.userId': uid }],
-    status: 'active',
-    expiresAt: { $gt: now },
-  })
-    .select('name ownerId members createdAt')
-    .limit(100)
-    .lean();
-  if (spaces.length === 0) return [];
-
-  const visits = await WorkspaceVisit.find({
-    userId: uid,
-    workspaceId: { $in: spaces.map((s) => s._id) },
-  }).lean();
-  const seenAt = new Map(visits.map((v) => [String(v.workspaceId), v.lastSeenAt]));
-
-  // Before the first visit, "new" means uploaded after the user joined.
-  const conds = spaces.map((s) => {
-    const joined =
-      String(s.ownerId) === String(uid)
-        ? s.createdAt
-        : s.members.find((m) => String(m.userId) === String(uid))?.addedAt ?? s.createdAt;
-    return { workspaceId: s._id, createdAt: { $gt: seenAt.get(String(s._id)) ?? joined } };
-  });
-
-  const groups = await WorkspaceFile.aggregate([
-    { $match: { isReady: true, uploadedBy: { $ne: uid }, $or: conds } },
-    { $sort: { createdAt: -1 } },
-    {
-      $group: {
-        _id: '$workspaceId',
-        count: { $sum: 1 },
-        latestAt: { $first: '$createdAt' },
-        latestName: { $first: '$name' },
-        uploaderId: { $first: '$uploadedBy' },
-      },
-    },
-    { $sort: { latestAt: -1 } },
-    { $limit: 50 },
-  ]);
-  if (groups.length === 0) return [];
-
-  const names = new Map(spaces.map((s) => [String(s._id), s.name]));
-  const users = await User.find({ _id: { $in: groups.map((g) => g.uploaderId) } })
-    .select('name picture')
-    .lean();
-  const byId = new Map(users.map((u) => [String(u._id), u]));
-
-  return Promise.all(
-    groups.map(async (g) => {
-      const u = byId.get(String(g.uploaderId));
+    // --- new files from others since the last visit
+    const conds = joined.map((s) => {
+      const m = me(s);
+      const since = m?.joinedAt ?? m?.addedAt ?? s.createdAt;
       return {
+        workspaceId: s._id,
+        createdAt: { $gt: visitBy.get(String(s._id))?.lastSeenAt ?? since },
+      };
+    });
+    const groups = conds.length
+      ? await WorkspaceFile.aggregate([
+          { $match: { isReady: true, uploadedBy: { $ne: uid }, $or: conds } },
+          { $sort: { createdAt: -1 } },
+          {
+            $group: {
+              _id: '$workspaceId',
+              count: { $sum: 1 },
+              latestAt: { $first: '$createdAt' },
+              latestName: { $first: '$name' },
+              uploaderId: { $first: '$uploadedBy' },
+            },
+          },
+          { $sort: { latestAt: -1 } },
+          { $limit: 50 },
+        ])
+      : [];
+
+    // --- who to show as the actor
+    const userIds = [
+      ...groups.map((g) => g.uploaderId),
+      ...invites.map((ws) => me(ws).addedBy),
+    ].filter(Boolean);
+    const users = await User.find({ _id: { $in: userIds } }).select('name picture').lean();
+    const byId = new Map(users.map((u) => [String(u._id), u]));
+    const actor = async (id) => {
+      const u = id && byId.get(String(id));
+      return {
+        id: u?._id ?? null,
+        name: u?.name ?? 'Someone',
+        picture: u ? await resolvePicture(u.picture) : null,
+      };
+    };
+    const nameOf = new Map(spaces.map((s) => [String(s._id), s.name]));
+
+    const items = [];
+    for (const ws of invites) {
+      const m = me(ws);
+      items.push({
+        type: 'workspace-invite',
+        workspaceId: ws._id,
+        workspaceName: ws.name,
+        role: m.role,
+        expiresAt: ws.expiresAt,
+        createdAt: m.addedAt,
+        seen: false,
+        addedBy: await actor(m.addedBy),
+      });
+    }
+    for (const g of groups) {
+      items.push({
         type: 'workspace-files',
         workspaceId: g._id,
-        workspaceName: names.get(String(g._id)),
+        workspaceName: nameOf.get(String(g._id)),
         count: g.count,
         latestFileName: g.latestName,
         createdAt: g.latestAt,
         seen: false,
-        uploader: {
-          id: u?._id ?? null,
-          name: u?.name ?? 'Someone',
-          picture: u ? await resolvePicture(u.picture) : null,
-        },
-      };
-    }),
-  );
-}
+        uploader: await actor(g.uploaderId),
+      });
+    }
+    for (const ws of joined) {
+      const remaining = ws.expiresAt.getTime() - now.getTime();
+      const acked = visitBy.get(String(ws._id))?.ackedExpiry;
+      if (remaining <= EXPIRING_SOON_MS && !(acked && +acked === +ws.expiresAt)) {
+        items.push({
+          type: 'workspace-expiring',
+          workspaceId: ws._id,
+          workspaceName: ws.name,
+          expiresAt: ws.expiresAt,
+          createdAt: new Date(Math.min(now.getTime(), ws.expiresAt.getTime() - EXPIRING_SOON_MS)),
+          seen: false,
+        });
+      }
+    }
 
-// POST /workspace/notifications/seen   body: { workspaceIds: [...] }
-// Only ever touches the requester's own membership entries.
-export const markWorkspaceNotificationsSeen = async (req, res, next) => {
-  const raw = req.body?.workspaceIds;
-  const ids = Array.isArray(raw) ? raw.filter((id) => mongoose.isValidObjectId(id)) : [];
-  if (ids.length === 0) return res.status(204).end();
-
-  try {
-    await Workspace.updateMany(
-      { _id: { $in: ids }, 'members.userId': req.user._id },
-      { $set: { 'members.$[m].seenAt': new Date() } },
-      { arrayFilters: [{ 'm.userId': req.user._id, 'm.seenAt': null }] },
-    );
-    return res.status(204).end();
+    items.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    return res.status(200).json({ unreadCount: items.length, notifications: items });
   } catch (err) {
     next(err);
   }
 };
+
+// -------------------------------------------------------------------- admin
+
+const isAdmin = (req) => req.user.role === 'Admin' || req.user.role === 'Owner';
+
+// GET /workspace/admin/all — metadata only (no file names or contents).
+export const adminListWorkspaces = async (req, res, next) => {
+  if (!isAdmin(req)) return res.status(403).json({ error: 'Admins only.' });
+  try {
+    const rows = await Workspace.find({})
+      .sort({ updatedAt: -1 })
+      .limit(300)
+      .populate('ownerId', 'name email')
+      .lean();
+    return res.status(200).json(
+      rows.map((ws) => ({
+        _id: ws._id,
+        name: ws.name,
+        owner: ws.ownerId ? { name: ws.ownerId.name, email: ws.ownerId.email } : null,
+        status: ws.status,
+        cleanupPolicy: ws.cleanupPolicy,
+        memberCount: activeMembers(ws).length + 1,
+        size: ws.size,
+        expiresAt: ws.expiresAt,
+        purgeAfter: ws.purgeAfter,
+        purgedAt: ws.purgedAt,
+        cleanup: {
+          attempts: ws.cleanup?.attempts ?? 0,
+          lastError: ws.cleanup?.lastError ?? null,
+          lastAttemptAt: ws.cleanup?.lastAttemptAt ?? null,
+        },
+      })),
+    );
+  } catch (err) {
+    next(err);
+  }
+};
+
+// POST /workspace/admin/:id/retry-cleanup
+export const adminRetryCleanup = async (req, res, next) => {
+  if (!isAdmin(req)) return res.status(403).json({ error: 'Admins only.' });
+  try {
+    const ws = await Workspace.findOneAndUpdate(
+      { _id: req.params.id, status: 'expired' },
+      { $set: { 'cleanup.attempts': 0, 'cleanup.lockedUntil': null, 'cleanup.lastError': null } },
+    ).lean();
+    if (!ws) return res.status(404).json({ error: 'No expired workspace with that id.' });
+    // Archives are only purged once their retention is over.
+    const due = !ws.purgeAfter || new Date(ws.purgeAfter) <= new Date();
+    const ok = due ? await purgeWorkspace(ws._id) : false;
+    return res.status(200).json({ message: ok ? 'Cleanup completed' : 'Cleanup queued for the next sweep' });
+  } catch (err) {
+    next(err);
+  }
+};
+

@@ -2,41 +2,66 @@ import express from 'express';
 import rateLimit from 'express-rate-limit';
 import validateIdMiddleware from '../middlewares/validateIdMiddleware.js';
 import {
+  acceptInvitation,
   addMember,
+  adminListWorkspaces,
+  adminRetryCleanup,
   createWorkspace,
+  declineInvitation,
   deleteWorkspace,
-  deleteWorkspaceFile,
   getWorkspace,
-  getWorkspaceFile,
   getWorkspaceNotifications,
-  markWorkspaceNotificationsSeen,
-  listWorkspaceFiles,
+  listActivity,
   listWorkspaces,
+  reactivateWorkspace,
   removeMember,
-  renameWorkspaceFile,
+  searchWorkspaceFiles,
   transferOwnership,
   updateMember,
   updateWorkspace,
-  uploadWorkspaceFile,
 } from '../controllers/workspaceController.js';
+import {
+  createFolder,
+  deleteFolder,
+  deleteWorkspaceFile,
+  getWorkspaceFile,
+  importFromDrive,
+  listFolders,
+  listWorkspaceFiles,
+  moveWorkspaceFile,
+  renameFolder,
+  renameWorkspaceFile,
+  saveToDrive,
+  uploadWorkspaceFile,
+} from '../controllers/workspaceFileController.js';
 
 const router = express.Router();
 
-const createLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
-  limit: 20,
-  standardHeaders: 'draft-8',
-  legacyHeaders: false,
-  message: { error: 'Too many workspaces created. Please try again later.' },
-});
+const limiter = (limit, windowMs, error) =>
+  rateLimit({
+    windowMs,
+    limit,
+    standardHeaders: 'draft-8',
+    legacyHeaders: false,
+    message: { error },
+  });
+
+const HOUR = 60 * 60 * 1000;
+const createLimiter = limiter(20, HOUR, 'Too many workspaces created. Please try again later.');
+// Invitations raise notifications for other people, so cap them tightly.
+const inviteLimiter = limiter(60, HOUR, 'Too many invitations sent. Please try again later.');
+const uploadLimiter = limiter(120, HOUR, 'Too many uploads. Please try again later.');
 
 router.param('id', validateIdMiddleware);
 router.param('userId', validateIdMiddleware);
 router.param('fileId', validateIdMiddleware);
+router.param('folderId', validateIdMiddleware);
 
-// Must stay above '/:id' so "notifications" isn't parsed as an id
+// Fixed paths must stay above '/:id' so they aren't parsed as an id.
 router.get('/notifications', getWorkspaceNotifications);
-router.post('/notifications/seen', markWorkspaceNotificationsSeen);
+router.get('/search', searchWorkspaceFiles);
+router.get('/admin/all', adminListWorkspaces);
+router.post('/admin/:id/retry-cleanup', adminRetryCleanup);
 
 router.get('/', listWorkspaces);
 router.post('/', createLimiter, createWorkspace);
@@ -44,16 +69,28 @@ router.post('/', createLimiter, createWorkspace);
 router.get('/:id', getWorkspace);
 router.patch('/:id', updateWorkspace);
 router.delete('/:id', deleteWorkspace);
+router.post('/:id/reactivate', reactivateWorkspace);
+router.get('/:id/activity', listActivity);
 
-router.post('/:id/members', addMember);
+router.post('/:id/members', inviteLimiter, addMember);
 router.patch('/:id/members/:userId', updateMember);
 router.delete('/:id/members/:userId', removeMember);
 router.post('/:id/transfer', transferOwnership);
+router.post('/:id/invitation/accept', acceptInvitation);
+router.post('/:id/invitation/decline', declineInvitation);
+
+router.get('/:id/folders', listFolders);
+router.post('/:id/folders', createFolder);
+router.patch('/:id/folders/:folderId', renameFolder);
+router.delete('/:id/folders/:folderId', deleteFolder);
 
 router.get('/:id/files', listWorkspaceFiles);
-router.post('/:id/files', uploadWorkspaceFile);
+router.post('/:id/files', uploadLimiter, uploadWorkspaceFile);
+router.post('/:id/files/import', uploadLimiter, importFromDrive);
 router.get('/:id/files/:fileId', getWorkspaceFile);
 router.patch('/:id/files/:fileId', renameWorkspaceFile);
+router.patch('/:id/files/:fileId/move', moveWorkspaceFile);
+router.post('/:id/files/:fileId/save-to-drive', saveToDrive);
 router.delete('/:id/files/:fileId', deleteWorkspaceFile);
 
 export default router;

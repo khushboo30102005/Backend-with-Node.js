@@ -63,3 +63,20 @@ export const renameWorkspaceFileSchema = z.object({
     .max(255, 'File name cannot exceed 255 characters')
     .regex(/^[^<>/\\]*$/, 'File name contains invalid characters'),
 });
+
+export const reactivateSchema = z.object({ expiresAt });
+
+const folderName = z
+  .string('Please enter a folder name')
+  .trim()
+  .min(1, 'Folder name cannot be empty')
+  .max(100, 'Folder name cannot exceed 100 characters')
+  .regex(/^[^<>/\\]*$/, 'Folder name contains invalid characters');
+
+const nullableId = objectId.nullable().optional();
+
+export const createFolderSchema = z.object({ name: folderName, parentId: nullableId });
+export const renameFolderSchema = z.object({ name: folderName });
+export const moveFileSchema = z.object({ folderId: nullableId });
+export const importFileSchema = z.object({ fileId: objectId, folderId: nullableId });
+export const saveToDriveSchema = z.object({ dirId: nullableId });

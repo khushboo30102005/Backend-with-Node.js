@@ -1,9 +1,13 @@
-import { DeleteObjectsCommand } from '@aws-sdk/client-s3';
+import { DeleteObjectCommand, DeleteObjectsCommand } from '@aws-sdk/client-s3';
 import s3, { BUCKET_NAME } from '../config/b2.js';
 import Workspace from '../models/workspaceModel.js';
 import WorkspaceFile from '../models/workspaceFileModel.js';
 import WorkspaceVisit from '../models/workspaceVisitModel.js';
-import { expireIfDue } from '../utils/workspaceAccess.js';
+import WorkspaceFolder from '../models/workspaceFolderModel.js';
+import WorkspaceActivity from '../models/workspaceActivityModel.js';
+import User from '../models/userModel.js';
+import { logActivity } from '../utils/workspaceActivity.js';
+import { STALE_UPLOAD_MS, expireIfDue, isPending } from '../utils/workspaceAccess.js';
 
 const MAX_ATTEMPTS = 5;
 const LOCK_MS = 5 * 60 * 1000;
@@ -66,6 +70,8 @@ export async function purgeWorkspace(workspaceId) {
     }
 
     await WorkspaceVisit.deleteMany({ workspaceId });
+    await WorkspaceFolder.deleteMany({ workspaceId });
+    await WorkspaceActivity.deleteMany({ workspaceId });
     await Workspace.updateOne(
       { _id: workspaceId },
       {
@@ -96,8 +102,89 @@ export async function purgeWorkspace(workspaceId) {
   }
 }
 
+// Uploads that never finished (server crash / restart mid-stream) hold a
+// reserved quota and possibly a partial B2 object. Free both.
+export async function cleanupStaleUploads() {
+  const cutoff = new Date(Date.now() - STALE_UPLOAD_MS);
+  const stale = await WorkspaceFile.find({ isReady: false, createdAt: { $lt: cutoff } })
+    .limit(100)
+    .lean();
+  for (const f of stale) {
+    try {
+      await s3.send(
+        new DeleteObjectCommand({
+          Bucket: BUCKET_NAME,
+          Key: workspaceObjectKey(f.workspaceId, f),
+        }),
+      );
+      const del = await WorkspaceFile.deleteOne({ _id: f._id, isReady: false });
+      if (del.deletedCount) {
+        await Workspace.updateOne(
+          { _id: f.workspaceId, size: { $gte: f.size } },
+          { $inc: { size: -f.size } },
+        );
+      }
+    } catch (err) {
+      console.error(`[workspace-cleanup] stale upload ${f._id}:`, err.message);
+    }
+  }
+}
+
+// A workspace whose owner account was deleted must not be left unmanaged:
+// hand it to the longest-standing editor (else any active member). With
+// nobody to hand it to, close and purge it.
+export async function adoptOrphanedWorkspaces() {
+  const active = await Workspace.find({ status: 'active' })
+    .select('ownerId members updatedAt name')
+    .lean();
+  if (active.length === 0) return;
+  const ownerIds = [...new Set(active.map((w) => String(w.ownerId)))];
+  const gone = await User.find({ _id: { $in: ownerIds }, isDeleted: true })
+    .select('_id')
+    .lean();
+  const goneSet = new Set(gone.map((u) => String(u._id)));
+  if (goneSet.size === 0) return;
+
+  for (const ws of active.filter((w) => goneSet.has(String(w.ownerId)))) {
+    const eligible = ws.members
+      .filter((m) => !isPending(m) && !goneSet.has(String(m.userId)))
+      .sort(
+        (a, b) =>
+          (a.role === 'editor' ? 0 : 1) - (b.role === 'editor' ? 0 : 1) ||
+          new Date(a.joinedAt ?? a.addedAt) - new Date(b.joinedAt ?? b.addedAt),
+      );
+    const heir = eligible[0];
+    if (heir) {
+      const updated = await Workspace.findOneAndUpdate(
+        { _id: ws._id, ownerId: ws.ownerId, updatedAt: ws.updatedAt },
+        {
+          $set: {
+            ownerId: heir.userId,
+            members: ws.members.filter((m) => String(m.userId) !== String(heir.userId)),
+          },
+        },
+      ).lean();
+      if (updated) {
+        await logActivity(ws._id, null, 'owner_auto_transferred', {
+          targetUserId: heir.userId,
+          detail: 'Previous owner account was deleted',
+        });
+      }
+    } else {
+      await Workspace.updateOne(
+        { _id: ws._id, status: 'active' },
+        { $set: { status: 'expired', expiredAt: new Date(), purgeAfter: new Date() } },
+      );
+      await purgeWorkspace(ws._id);
+    }
+  }
+}
+
 export async function runSweep() {
   const now = new Date();
+
+  await cleanupStaleUploads().catch((e) => console.error('[workspace-cleanup]', e.message));
+  await adoptOrphanedWorkspaces().catch((e) => console.error('[workspace-cleanup]', e.message));
 
   // 1. Active workspaces whose time is up -> expired (access revoked).
   const due = await Workspace.find({ status: 'active', expiresAt: { $lte: now } })

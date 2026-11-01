@@ -1,9 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
-import { FaPlus, FaUsers, FaHdd, FaLock, FaHourglassHalf, FaSpinner } from 'react-icons/fa';
-import { listWorkspaces } from '../../apis/workspaceApi';
+import { FaPlus, FaUsers, FaHdd, FaLock, FaHourglassHalf, FaSpinner, FaRegFileAlt } from 'react-icons/fa';
+import {
+  acceptInvitation,
+  declineInvitation,
+  listWorkspaces,
+  searchWorkspaceFiles,
+} from '../../apis/workspaceApi';
+import { useNotifications } from '../../context/NotificationsContext';
+import { useSearch } from '../../context/SearchContext';
+import { useUser } from '../../context/UserContext';
+import AdminWorkspaces from './AdminWorkspaces';
 import { formatSize } from '../DetailsPopup';
-import { Notice, primaryBtn } from '../../settings/SettingsUI';
+import { Notice, primaryBtn, secondaryBtn } from '../../settings/SettingsUI';
 import CreateWorkspaceModal from './CreateWorkspaceModal';
 import {
   RoleBadge,
@@ -83,6 +92,47 @@ function WorkspacesPage() {
   const [error, setError] = useState('');
   const [tab, setTab] = useState('active');
   const [creating, setCreating] = useState(false);
+  const [fileHits, setFileHits] = useState([]);
+  const [inviteBusy, setInviteBusy] = useState(null);
+  const { user } = useUser();
+  const { notifications, refresh: refreshNotifications } = useNotifications();
+  const { query, setEnabled, setQuery } = useSearch();
+  const isAdmin = user?.role === 'Admin' || user?.role === 'Owner';
+  const invites = notifications.filter((n) => n.type === 'workspace-invite');
+
+  // The top-bar search finds workspaces by name and files inside them.
+  useEffect(() => {
+    setEnabled(true);
+    return () => {
+      setEnabled(false);
+      setQuery('');
+    };
+  }, [setEnabled, setQuery]);
+
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) {
+      setFileHits([]);
+      return undefined;
+    }
+    const t = setTimeout(() => {
+      searchWorkspaceFiles(q).then(setFileHits).catch(() => setFileHits([]));
+    }, 300);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  async function respond(n, accept) {
+    setInviteBusy(n.workspaceId);
+    try {
+      await (accept ? acceptInvitation(n.workspaceId) : declineInvitation(n.workspaceId));
+      await Promise.all([refreshNotifications(), load()]);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Could not respond to the invitation.');
+      refreshNotifications();
+    } finally {
+      setInviteBusy(null);
+    }
+  }
 
   const load = useCallback(async () => {
     try {
@@ -108,7 +158,10 @@ function WorkspacesPage() {
     return g;
   }, [items, now]);
 
-  const list = grouped[tab];
+  const q = query.trim().toLowerCase();
+  const list = grouped[tab].filter(
+    ({ ws }) => !q || ws.name.toLowerCase().includes(q) || (ws.description || '').toLowerCase().includes(q),
+  );
 
   return (
     <div className="max-w-6xl mx-auto w-full px-4 sm:px-6 py-5 sm:py-7">
@@ -123,6 +176,46 @@ function WorkspacesPage() {
           <FaPlus size={11} /> New workspace
         </button>
       </div>
+
+      {invites.length > 0 && (
+        <section className="mt-5 rounded-xl border border-primary/30 bg-primary/[0.06] p-4" aria-label="Invitations">
+          <p className="text-sm font-semibold text-text mb-3">Pending invitations ({invites.length})</p>
+          <ul className="flex flex-col gap-2">
+            {invites.map((n) => (
+              <li key={n.workspaceId} className="flex flex-wrap items-center gap-3 rounded-lg bg-surface border border-border px-3 py-2.5">
+                <div className="min-w-0 flex-1 basis-48">
+                  <p className="text-sm font-medium text-text truncate">{n.workspaceName}</p>
+                  <p className="text-xs text-text-muted">
+                    {n.addedBy.name} invited you as {n.role} · expires {formatDateTime(n.expiresAt)}
+                  </p>
+                </div>
+                <button className={primaryBtn} disabled={inviteBusy === n.workspaceId} onClick={() => respond(n, true)}>Accept</button>
+                <button className={secondaryBtn} disabled={inviteBusy === n.workspaceId} onClick={() => respond(n, false)}>Decline</button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {fileHits.length > 0 && (
+        <section className="mt-5" aria-label="Matching files">
+          <p className="text-xs font-semibold uppercase tracking-wide text-text-muted mb-2">Files in your workspaces</p>
+          <ul className="rounded-xl border border-border bg-surface divide-y divide-border shadow-card">
+            {fileHits.map((f) => (
+              <li key={f._id}>
+                <Link
+                  to={`/workspaces/${f.workspaceId}${f.folderId ? `?folder=${f.folderId}` : ''}`}
+                  className="flex items-center gap-3 px-4 py-2.5 hover:bg-surface-hover"
+                >
+                  <FaRegFileAlt className="text-text-muted flex-shrink-0" />
+                  <span className="min-w-0 flex-1 text-sm text-text truncate">{f.name}</span>
+                  <span className="text-xs text-text-muted truncate max-w-[40%]">{f.workspaceName}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <div role="tablist" className="mt-5 flex gap-1 border-b border-border overflow-x-auto">
         {TABS.map((t) => (
@@ -141,15 +234,29 @@ function WorkspacesPage() {
             </span>
           </button>
         ))}
+        {isAdmin && (
+          <button
+            role="tab"
+            aria-selected={tab === 'admin'}
+            onClick={() => setTab('admin')}
+            className={`px-3.5 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 -mb-px transition-colors cursor-pointer ml-auto ${
+              tab === 'admin' ? 'border-primary text-text' : 'border-transparent text-text-muted hover:text-text'
+            }`}
+          >
+            Admin
+          </button>
+        )}
       </div>
 
       {error && <div className="mt-4"><Notice>{error}</Notice></div>}
 
-      {items === null ? (
+      {tab === 'admin' ? (
+        <div className="mt-5"><AdminWorkspaces /></div>
+      ) : items === null ? (
         <div className="py-20 flex justify-center text-text-muted"><FaSpinner className="animate-spin" /></div>
       ) : list.length === 0 ? (
         <div className="mt-6 rounded-xl border border-dashed border-border py-14 px-6 text-center text-sm text-text-muted">
-          {EMPTY[tab]}
+          {q ? `No workspaces match “${query}”.` : EMPTY[tab]}
         </div>
       ) : (
         <div className="mt-5 grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">

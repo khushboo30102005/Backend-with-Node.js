@@ -11,7 +11,7 @@ console.log('Database Connected');
 const command = 'collMod';
 
 // collMod fails on collections that don't exist yet (fresh database), so create them first
-for (const name of ['users', 'directories', 'files', 'otps', 'shares', 'workspaces', 'workspacefiles', 'workspacevisits']) {
+for (const name of ['users', 'directories', 'files', 'otps', 'shares', 'workspaces', 'workspacefiles', 'workspacevisits', 'workspacefolders', 'workspaceactivities']) {
   const exists = await db.listCollections({ name }).hasNext();
   if (!exists) {
     await db.createCollection(name);
@@ -391,6 +391,8 @@ try {
               properties: {
                 userId: { bsonType: 'objectId' },
                 role: { bsonType: 'string', enum: ['editor', 'viewer'] },
+                status: { bsonType: 'string', enum: ['pending', 'active'] },
+                joinedAt: { bsonType: ['null', 'date'] },
                 addedAt: { bsonType: 'date' },
                 addedBy: { bsonType: ['null', 'objectId'] },
                 seenAt: { bsonType: ['null', 'date'] },
@@ -452,6 +454,7 @@ try {
           extension: { bsonType: 'string' },
           uploadedBy: { bsonType: 'objectId' },
           isReady: { bsonType: 'bool' },
+          folderId: { bsonType: ['null', 'objectId'] },
           createdAt: { bsonType: 'date' },
           updatedAt: { bsonType: 'date' },
         },
@@ -465,6 +468,65 @@ try {
   });
 
   await db.collection('workspacefiles').createIndex({ workspaceId: 1, createdAt: -1 });
+  await db.collection('workspacefiles').createIndex({ workspaceId: 1, folderId: 1 });
+  await db.collection('workspacefiles').createIndex({ isReady: 1, createdAt: 1 });
+
+  // =========================
+  // Workspace Folders Collection
+  // =========================
+  await db.command({
+    [command]: 'workspacefolders',
+    validator: {
+      $jsonSchema: {
+        bsonType: 'object',
+        required: ['_id', 'workspaceId', 'name', 'createdBy'],
+        properties: {
+          _id: { bsonType: 'objectId' },
+          __v: { bsonType: 'int' },
+          workspaceId: { bsonType: 'objectId' },
+          parentId: { bsonType: ['null', 'objectId'] },
+          name: { bsonType: 'string', minLength: 1, maxLength: 100 },
+          createdBy: { bsonType: 'objectId' },
+          createdAt: { bsonType: 'date' },
+          updatedAt: { bsonType: 'date' },
+        },
+        additionalProperties: false,
+      },
+    },
+    validationAction: 'error',
+    validationLevel: 'strict',
+  });
+  await db
+    .collection('workspacefolders')
+    .createIndex({ workspaceId: 1, parentId: 1, name: 1 }, { unique: true });
+
+  // =========================
+  // Workspace Activity Collection (audit trail)
+  // =========================
+  await db.command({
+    [command]: 'workspaceactivities',
+    validator: {
+      $jsonSchema: {
+        bsonType: 'object',
+        required: ['_id', 'workspaceId', 'type'],
+        properties: {
+          _id: { bsonType: 'objectId' },
+          __v: { bsonType: 'int' },
+          workspaceId: { bsonType: 'objectId' },
+          actorId: { bsonType: ['null', 'objectId'] },
+          type: { bsonType: 'string', maxLength: 40 },
+          targetName: { bsonType: 'string', maxLength: 255 },
+          targetUserId: { bsonType: ['null', 'objectId'] },
+          detail: { bsonType: 'string', maxLength: 255 },
+          createdAt: { bsonType: 'date' },
+        },
+        additionalProperties: false,
+      },
+    },
+    validationAction: 'error',
+    validationLevel: 'strict',
+  });
+  await db.collection('workspaceactivities').createIndex({ workspaceId: 1, createdAt: -1 });
 
   // =========================
   // Workspace Visits Collection (drives "new files" notifications)
@@ -481,6 +543,7 @@ try {
           workspaceId: { bsonType: 'objectId' },
           userId: { bsonType: 'objectId' },
           lastSeenAt: { bsonType: 'date' },
+          ackedExpiry: { bsonType: ['null', 'date'] },
         },
         additionalProperties: false,
       },

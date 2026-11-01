@@ -7,6 +7,9 @@ const workspaceVisitSchema = new Schema(
     workspaceId: { type: Schema.Types.ObjectId, required: true, ref: 'Workspace' },
     userId: { type: Schema.Types.ObjectId, required: true, ref: 'User' },
     lastSeenAt: { type: Date, required: true },
+    // The expiresAt the user already acknowledged (expiry-warning dismissal).
+    // Extending the workspace changes expiresAt, so the warning can return.
+    ackedExpiry: { type: Date, default: null },
   },
   { strict: 'throw' },
 );

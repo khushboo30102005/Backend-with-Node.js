@@ -10,7 +10,6 @@ import {
   getNotifications,
   getWorkspaceNotifications,
   markNotificationsSeen,
-  markWorkspaceNotificationsSeen,
 } from '../apis/notificationApi';
 
 // Source of truth is the server (Share.seenAt). This only caches it for the
@@ -45,19 +44,6 @@ export function NotificationsProvider({ children }) {
     setUnreadCount((s?.unreadCount ?? 0) + (w?.unreadCount ?? 0));
   }, []);
 
-  const markWorkspaceSeen = useCallback(
-    async (workspaceIds) => {
-      if (!workspaceIds || workspaceIds.length === 0) return;
-      try {
-        await markWorkspaceNotificationsSeen(workspaceIds);
-      } catch {
-        // Stays unread and retries on the next visit.
-      }
-      await refresh();
-    },
-    [refresh],
-  );
-
   // Mark the given shares as seen on the server, then re-sync.
   const markSeen = useCallback(
     async (shareIds) => {
@@ -88,8 +74,8 @@ export function NotificationsProvider({ children }) {
   }, [refresh]);
 
   const value = useMemo(
-    () => ({ notifications, unreadCount, refresh, markSeen, markWorkspaceSeen }),
-    [notifications, unreadCount, refresh, markSeen, markWorkspaceSeen],
+    () => ({ notifications, unreadCount, refresh, markSeen }),
+    [notifications, unreadCount, refresh, markSeen],
   );
 
   return (
@@ -107,7 +93,6 @@ export function useNotifications() {
       unreadCount: 0,
       refresh: () => {},
       markSeen: () => {},
-      markWorkspaceSeen: () => {},
     }
   );
 }

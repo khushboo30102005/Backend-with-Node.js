@@ -4,6 +4,10 @@ const memberSchema = new Schema(
   {
     userId: { type: Schema.Types.ObjectId, required: true, ref: 'User' },
     role: { type: String, enum: ['editor', 'viewer'], required: true },
+    // pending = invited, no access until they accept. Entries created before
+    // invitations existed have no status and count as active.
+    status: { type: String, enum: ['pending', 'active'], default: 'pending' },
+    joinedAt: { type: Date, default: null },
     addedAt: { type: Date, default: Date.now },
     addedBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
     // Notification state, same idea as Share.seenAt: null = the member hasn't

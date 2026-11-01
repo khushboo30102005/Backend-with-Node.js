@@ -7,9 +7,12 @@ import { formatDateTime } from './workspaceUtils';
 const q = (s) => <strong className="font-semibold break-all">“{s}”</strong>;
 
 // One sentence per audit-trail entry.
-function describe(a) {
-  const who = a.actor?.name ?? 'The system';
-  const target = a.target?.name ?? 'a member';
+// The viewer's own actions read "You added…" instead of showing their name.
+function describe(a, me) {
+  const isMe = (u) => u && String(u._id) === String(me);
+  const who = isMe(a.actor) ? 'You' : (a.actor?.name ?? 'The system');
+  const target = isMe(a.target) ? 'you' : (a.target?.name ?? 'a member');
+  const their = isMe(a.actor) ? 'your' : 'their';
   switch (a.type) {
     case 'workspace_created': return <>{who} created this workspace</>;
     case 'member_invited': return <>{who} invited {target} as {a.detail || 'a member'}</>;
@@ -22,7 +25,7 @@ function describe(a) {
     case 'owner_auto_transferred': return <>Ownership moved to {target} ({a.detail})</>;
     case 'file_uploaded': return <>{who} uploaded {q(a.targetName)}</>;
     case 'file_imported': return <>{who} added {q(a.targetName)} from My Drive</>;
-    case 'file_saved_to_drive': return <>{who} saved {q(a.targetName)} to their My Drive</>;
+    case 'file_saved_to_drive': return <>{who} saved {q(a.targetName)} to {their} My Drive</>;
     case 'file_renamed': return <>{who} renamed {q(a.detail)} to {q(a.targetName)}</>;
     case 'file_moved': return <>{who} moved {q(a.targetName)} to {a.detail}</>;
     case 'file_deleted': return <>{who} deleted {q(a.targetName)}</>;
@@ -72,7 +75,7 @@ function ActivityTab({ ws, onExpired }) {
         <ul className="rounded-xl border border-border bg-surface divide-y divide-border shadow-card">
           {items.map((a) => (
             <li key={a._id} className="px-4 py-3">
-              <p className="text-sm text-text">{describe(a)}</p>
+              <p className="text-sm text-text">{describe(a, ws.me)}</p>
               <p className="text-xs text-text-muted mt-0.5">{formatDateTime(a.createdAt)}</p>
             </li>
           ))}

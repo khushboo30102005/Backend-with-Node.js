@@ -217,7 +217,7 @@ function WorkspacesPage() {
         </section>
       )}
 
-      <div role="tablist" className="mt-5 flex gap-1 border-b border-border overflow-x-auto">
+      <div role="tablist" className="mt-5 flex gap-1 border-b border-border overflow-x-auto overflow-y-hidden">
         {TABS.map((t) => (
           <button
             key={t.key}

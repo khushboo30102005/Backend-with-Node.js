@@ -109,6 +109,22 @@ function WorkspaceDetail() {
     load();
   }, [load]);
 
+  // Keep members, roles and invitation status current: someone may accept or
+  // decline, or be removed, while this page stays open.
+  useEffect(() => {
+    const tick = () => {
+      if (!document.hidden) load();
+    };
+    const timer = setInterval(tick, 15000);
+    document.addEventListener('visibilitychange', tick);
+    window.addEventListener('focus', tick);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', tick);
+      window.removeEventListener('focus', tick);
+    };
+  }, [load]);
+
   const onExpired = useCallback((data) => {
     setExpired({ info: data?.workspace, message: data?.error });
   }, []);
@@ -182,7 +198,7 @@ function WorkspaceDetail() {
 
       <div role="tablist" className="mt-5 flex gap-1 border-b border-border overflow-x-auto overflow-y-hidden">
         {tabs.map((t) => (
-          <button key={t.key} role="tab" aria-selected={activeTab === t.key} onClick={() => setTab(t.key)}
+          <button key={t.key} role="tab" aria-selected={activeTab === t.key} onClick={() => { setTab(t.key); if (t.key === 'members') load(); }}
             className={`px-3.5 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 -mb-px transition-colors cursor-pointer ${activeTab === t.key ? 'border-primary text-text' : 'border-transparent text-text-muted hover:text-text'}`}>
             {t.label}
           </button>

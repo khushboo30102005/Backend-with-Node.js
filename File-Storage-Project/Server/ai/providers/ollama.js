@@ -21,7 +21,15 @@ export class OllamaProvider {
         body: body ? JSON.stringify(body) : undefined,
         signal: AbortSignal.timeout(timeoutMs),
       });
-    } catch {
+    } catch (err) {
+      if (err?.name === 'TimeoutError') {
+        throw new AiError(
+          'AI_TIMEOUT',
+          'The AI model took too long to respond. It may still be loading; try again in a minute.',
+          504,
+        );
+      }
+      console.log(`Ollama ${method} ${path} failed:`, err?.cause?.code || err?.message);
       throw new AiError('AI_OFFLINE', 'The AI service is offline or unreachable.', 503);
     }
     if (res.status === 404 && body?.model) {
@@ -32,6 +40,8 @@ export class OllamaProvider {
       );
     }
     if (!res.ok) {
+      const detail = await res.text().catch(() => '');
+      console.log(`Ollama ${method} ${path} returned ${res.status}:`, detail.slice(0, 300));
       throw new AiError('AI_OFFLINE', `The AI service returned an error (${res.status}).`, 503);
     }
     try {

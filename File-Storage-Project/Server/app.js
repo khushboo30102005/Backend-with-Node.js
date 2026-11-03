@@ -14,6 +14,7 @@ import storageRoutes from './routes/storageRoutes.js';
 import checkAuth from './middlewares/authMiddleware.js';
 import { apiLimiter } from './middlewares/rateLimitMiddleware.js';
 import trashRoutes from './routes/trashRoutes.js';
+import aiRoutes from './routes/aiRoutes.js';
 await connectDB();
 const app = express();
 const port = process.env.PORT || 4000;
@@ -48,6 +49,7 @@ app.use('/auth', authRoutes);
 app.use('/share', checkAuth, shareRoutes);
 app.use('/trash', checkAuth, trashRoutes);
 app.use('/storage', checkAuth, storageRoutes);
+app.use('/ai', checkAuth, aiRoutes);
 
 
 app.use((err, req, res, next) => {

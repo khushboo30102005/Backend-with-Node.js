@@ -7,6 +7,7 @@ import {
   FaUserCircle,
   FaTimes,
 } from 'react-icons/fa';
+import AiInsightsPanel from './AiInsightsPanel';
 
 export const formatSize = (bytes = 0) => {
   const KB = 1024;
@@ -30,7 +31,7 @@ function DetailRow({ label, value }) {
   );
 }
 
-function DetailsPopup({ item, breadcrumb = [], onClose }) {
+function DetailsPopup({ item, breadcrumb = [], onClose, showAi = false }) {
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') onClose();
@@ -58,7 +59,7 @@ function DetailsPopup({ item, breadcrumb = [], onClose }) {
       onClick={onClose}
     >
       <div
-        className="bg-surface rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.15)] w-full max-w-md overflow-hidden"
+        className="bg-surface rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.15)] w-full max-w-md max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -145,6 +146,12 @@ function DetailsPopup({ item, breadcrumb = [], onClose }) {
             </>
           )}
         </div>
+
+        {showAi && !isDirectory && !String(item.id).startsWith('temp-') && (
+          <div className="px-6 pt-4">
+            <AiInsightsPanel fileId={item.id} isOwner={!isSharedItem} />
+          </div>
+        )}
 
         {/* Footer */}
         <div className="flex justify-end px-6 py-4 mt-2 border-t border-gray-100 bg-gray-50/50">

@@ -183,7 +183,11 @@ function SharedWithMe() {
       )}
 
       {detailsItem && (
-        <DetailsPopup item={detailsItem} onClose={() => setDetailsItem(null)} />
+        <DetailsPopup
+          item={detailsItem}
+          onClose={() => setDetailsItem(null)}
+          showAi
+        />
       )}
 
       {loading ? (

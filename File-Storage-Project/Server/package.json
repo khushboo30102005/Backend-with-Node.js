@@ -9,7 +9,8 @@
     "start": "node app.js",
     "dev": "node --watch --env-file=.env app.js",
     "debug": "node --inspect --env-file=.env app.js",
-    "setup": "node --env-file=.env config/setup.js"
+    "setup": "node --env-file=.env config/setup.js",
+    "setup:ai": "node --env-file=.env config/setupAi.js"
   },
   "keywords": [],
   "author": "",
@@ -27,9 +28,11 @@
     "google-auth-library": "^11.0.0",
     "helmet": "^8.3.0",
     "jsdom": "^30.0.1",
+    "mammoth": "^1.13.0",
     "mongodb": "^7.7.0",
     "mongoose": "^9.6.3",
     "nodemailer": "^9.0.3",
+    "pdf-parse": "^1.1.1",
     "redis": "^6.2.0",
     "sharp": "^0.35.5",
     "zod": "^4.6.7"

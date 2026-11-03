@@ -1,3 +1,4 @@
+import { deleteInsightsForFiles } from '../ai/insightService.js';
 import mongoose from 'mongoose';
 import z from 'zod';
 import { DeleteObjectsCommand } from '@aws-sdk/client-s3';
@@ -319,6 +320,7 @@ export const permanentlyDeleteDirectory = async (req, res, next) => {
 
     await File.deleteMany({ _id: { $in: fileIds } });
     await Share.deleteMany({ resourceId: { $in: fileIds } });
+    await deleteInsightsForFiles(fileIds);
     await Directory.deleteMany({
       _id: { $in: [...dirs.map(({ _id }) => _id), directoryData._id] },
     });

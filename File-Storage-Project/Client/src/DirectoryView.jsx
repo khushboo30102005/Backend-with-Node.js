@@ -769,6 +769,7 @@ function DirectoryView({ dirId }) {
           item={detailsItem}
           breadcrumb={breadcrumb}
           onClose={() => setDetailsItem(null)}
+          showAi
         />
       )}
       {deleteConfirmItem && (

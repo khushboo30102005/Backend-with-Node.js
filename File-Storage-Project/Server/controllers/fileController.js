@@ -1,3 +1,4 @@
+import { deleteInsightsForFiles } from '../ai/insightService.js';
 import path from 'path';
 import { once } from 'events';
 import { PassThrough } from 'stream';
@@ -253,6 +254,7 @@ export const permanentlyDeleteFile = async (req, res, next) => {
     );
     await File.deleteOne({ _id: id });
     await Share.deleteMany({ resourceId: id });
+    await deleteInsightsForFiles([id]);
     await updateDirectorySize(file.parentDirId, -file.size);
     return res.status(200).json({ message: 'File permanently deleted.' });
   } catch (err) {

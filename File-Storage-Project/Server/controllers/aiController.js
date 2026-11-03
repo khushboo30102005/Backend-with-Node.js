@@ -213,7 +213,10 @@ export const searchFiles = async (req, res, next) => {
       if (score >= aiConfig.searchMinScore) scored.push({ i, file, score });
     }
     scored.sort((a, b) => b.score - a.score);
-    const top = scored.slice(0, 20);
+    // Relative cutoff: embeddings of unrelated texts cluster together, so only
+    // keep results close to the best match instead of everything above the floor.
+    const best = scored[0]?.score ?? 0;
+    const top = scored.filter((r) => r.score >= best - 0.12).slice(0, 20);
 
     const ownerIds = [
       ...new Set(

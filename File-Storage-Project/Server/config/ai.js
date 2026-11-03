@@ -26,7 +26,7 @@ export const aiConfig = {
   maxFileBytes: int(process.env.AI_MAX_FILE_BYTES, 10 * 1024 * 1024),
   maxPromptChars: int(process.env.AI_MAX_PROMPT_CHARS, 12000),
   maxQueue: int(process.env.AI_MAX_QUEUE, 50),
-  searchMinScore: num(process.env.AI_SEARCH_MIN_SCORE, 0.4),
+  searchMinScore: num(process.env.AI_SEARCH_MIN_SCORE, 0.5),
 
   ollama: {
     baseUrl: process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434',

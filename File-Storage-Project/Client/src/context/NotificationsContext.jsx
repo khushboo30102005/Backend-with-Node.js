@@ -8,6 +8,7 @@ import {
 } from 'react';
 import {
   getNotifications,
+  getWorkspaceNotifications,
   markNotificationsSeen,
 } from '../apis/notificationApi';
 
@@ -24,13 +25,23 @@ export function NotificationsProvider({ children }) {
   const [unreadCount, setUnreadCount] = useState(0);
 
   const refresh = useCallback(async () => {
-    try {
-      const data = await getNotifications();
-      setNotifications(data.notifications);
-      setUnreadCount(data.unreadCount);
-    } catch {
-      // Non-critical — keep whatever we had; auth failures are handled by the shell.
+    // File shares and workspace invitations are separate sources; one failing
+    // must not hide the other.
+    const [shares, spaces] = await Promise.allSettled([
+      getNotifications(),
+      getWorkspaceNotifications(),
+    ]);
+    if (shares.status === 'rejected' && spaces.status === 'rejected') {
+      return; // Non-critical — keep what we had; auth failures are handled by the shell.
     }
+    const s = shares.status === 'fulfilled' ? shares.value : null;
+    const w = spaces.status === 'fulfilled' ? spaces.value : null;
+    const merged = [
+      ...(s ? s.notifications.map((n) => ({ ...n, type: 'share' })) : []),
+      ...(w ? w.notifications : []),
+    ].sort((a, b) => Number(a.seen) - Number(b.seen) || new Date(b.createdAt) - new Date(a.createdAt));
+    setNotifications(merged);
+    setUnreadCount((s?.unreadCount ?? 0) + (w?.unreadCount ?? 0));
   }, []);
 
   // Mark the given shares as seen on the server, then re-sync.

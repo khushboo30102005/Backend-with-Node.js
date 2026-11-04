@@ -49,7 +49,7 @@ function StorageSettings() {
     );
   }
 
-  const { used, max, trashedBytes, trashedCount, fileCount, largeFiles } = data;
+  const { used, max, trashedBytes, trashedCount, fileCount, largeFiles, workspaceUsed = 0, workspaceMax = 0 } = data;
   const percent = max > 0 ? Math.min((used / max) * 100, 100) : 0;
   const remaining = Math.max(max - used, 0);
   const nearFull = percent >= 90;
@@ -88,6 +88,12 @@ function StorageSettings() {
           )}
         </div>
         <SettingsRow label="Files">{fileCount}</SettingsRow>
+        <SettingsRow label="Workspaces" hint="Files in workspaces you own. Counted separately from My Drive.">
+          <div className="flex flex-wrap items-center gap-3">
+            <span>{formatSize(workspaceUsed)}{workspaceMax > 0 && ` of ${formatSize(workspaceMax)}`}</span>
+            <Link to="/workspaces" className="text-primary font-semibold hover:underline">Open Workspaces</Link>
+          </div>
+        </SettingsRow>
         <SettingsRow label="In Trash" hint="Trashed items still count toward your storage.">
           <div className="flex flex-wrap items-center gap-3">
             <span>{formatSize(trashedBytes)} · {trashedCount} {trashedCount === 1 ? 'file' : 'files'}</span>

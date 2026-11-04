@@ -8,3 +8,8 @@ export const getNotifications = async () => {
 export const markNotificationsSeen = async (shareIds) => {
   await axiosWithCreds.post('/share/notifications/seen', { shareIds });
 };
+
+export const getWorkspaceNotifications = async () => {
+  const { data } = await axiosWithCreds.get('/workspace/notifications');
+  return data; // { unreadCount, notifications: [{ type: 'workspace', ... }] }
+};

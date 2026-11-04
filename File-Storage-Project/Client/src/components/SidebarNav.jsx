@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router';
-import { FaHome, FaUserFriends, FaTrash } from 'react-icons/fa';
+import { FaHome, FaUserFriends, FaTrash, FaHourglassHalf } from 'react-icons/fa';
 
 const navItems = [
   {
@@ -13,6 +13,12 @@ const navItems = [
     label: 'Shared with me',
     icon: FaUserFriends,
     match: (p) => p.startsWith('/shared'),
+  },
+  {
+    to: '/workspaces',
+    label: 'Workspaces',
+    icon: FaHourglassHalf,
+    match: (p) => p.startsWith('/workspaces'),
   },
   {
     to: '/trash',

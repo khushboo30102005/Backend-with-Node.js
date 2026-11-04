@@ -2,13 +2,15 @@ import mongoose from 'mongoose';
 import File from '../models/fileModel.js';
 import Directory from '../models/directoryModel.js';
 import User from '../models/userModel.js';
+import { ownerWorkspaceBytes } from './workspaceController.js';
+import { WORKSPACE_USER_MAX_BYTES } from '../utils/workspaceAccess.js';
 
 // GET /storage/summary — always scoped to the signed-in user (req.user).
 export const getStorageSummary = async (req, res, next) => {
   try {
     const userId = new mongoose.Types.ObjectId(req.user._id);
 
-    const [user, rootDir, totals, largeFiles] = await Promise.all([
+    const [user, rootDir, totals, largeFiles, workspaceUsed] = await Promise.all([
       User.findById(userId).select('maxStorageInBytes isDeleted').lean(),
       Directory.findById(req.user.rootDirId).select('size').lean(),
       File.aggregate([
@@ -26,6 +28,7 @@ export const getStorageSummary = async (req, res, next) => {
         .limit(8)
         .select('name size')
         .lean(),
+      ownerWorkspaceBytes(userId),
     ]);
 
     if (!user || user.isDeleted) {
@@ -42,6 +45,8 @@ export const getStorageSummary = async (req, res, next) => {
       trashedCount: trashed?.count || 0,
       trashedBytes: trashed?.size || 0,
       largeFiles,
+      workspaceUsed,
+      workspaceMax: WORKSPACE_USER_MAX_BYTES,
     });
   } catch (err) {
     next(err);

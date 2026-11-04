@@ -1,3 +1,4 @@
+import { deleteInsightsForUser } from '../ai/insightService.js';
 import mongoose, { Schema, Types } from 'mongoose';
 import * as z from 'zod';
 import bcrypt from 'bcrypt';
@@ -399,6 +400,7 @@ export const permanentlyDeleteUser = async (req, res, next) => {
     }
     await deleteAllSessionsForUser(userId);
     await deleteAvatar(targetUser.picture);
+    await deleteInsightsForUser(userId);
     await File.deleteMany({ userId });
     await Directory.deleteMany({ userId });
     await User.findByIdAndDelete(userId);

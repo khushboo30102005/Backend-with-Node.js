@@ -1,10 +1,12 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
-import { FaBars, FaSearch, FaTimes } from 'react-icons/fa';
+import { FaBars, FaSearch, FaTimes, FaMagic } from 'react-icons/fa';
 import { useSearch } from '../context/SearchContext';
 import Brand from './Brand';
 import ProfileMenu from './ProfileMenu';
 import NotificationsBell from './NotificationsBell';
+import SmartSearchModal from './SmartSearchModal';
+import { getAiStatus } from '../apis/aiApi';
 
 function SearchField() {
   const { query, setQuery, enabled } = useSearch();
@@ -50,6 +52,15 @@ function SearchField() {
 
 function TopBar({ onOpenMenu }) {
   const { enabled } = useSearch();
+  const [aiEnabled, setAiEnabled] = useState(false);
+  const [aiSearchOpen, setAiSearchOpen] = useState(false);
+
+  // Show the Smart search button only when the server has AI turned on
+  useEffect(() => {
+    getAiStatus()
+      .then((s) => setAiEnabled(Boolean(s?.enabled)))
+      .catch(() => setAiEnabled(false));
+  }, []);
 
   // Ctrl/Cmd + K focuses whichever search field is currently visible
   useEffect(() => {
@@ -95,6 +106,17 @@ function TopBar({ onOpenMenu }) {
           </div>
 
           <div className="ml-auto flex items-center gap-0.5 sm:gap-1.5">
+            {aiEnabled && (
+              <button
+                type="button"
+                onClick={() => setAiSearchOpen(true)}
+                aria-label="Smart search"
+                title="Smart search (AI)"
+                className="flex items-center justify-center w-10 h-10 rounded-lg text-primary hover:bg-surface-hover transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/30"
+              >
+                <FaMagic size={16} />
+              </button>
+            )}
             <NotificationsBell />
             <ProfileMenu variant="topbar" />
           </div>
@@ -105,6 +127,7 @@ function TopBar({ onOpenMenu }) {
       <div className="md:hidden flex-shrink-0 px-4 pt-3">
         <SearchField />
       </div>
+      {aiSearchOpen && <SmartSearchModal onClose={() => setAiSearchOpen(false)} />}
     </>
   );
 }

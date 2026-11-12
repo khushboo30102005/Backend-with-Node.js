@@ -24,7 +24,7 @@ let cached = null;
 
 // The ONLY place that knows which provider class exists. Business logic calls
 // getProvider() and uses the shared contract; add a new provider here.
-export function getProvider() {
+export function  getProvider() {
   if (!aiConfig.enabled) {
     throw new AiError('AI_DISABLED', 'AI features are turned off on this server.', 503);
   }

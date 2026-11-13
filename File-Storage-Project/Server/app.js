@@ -16,6 +16,9 @@ import { apiLimiter } from './middlewares/rateLimitMiddleware.js';
 import trashRoutes from './routes/trashRoutes.js';
 import aiRoutes from './routes/aiRoutes.js';
 import workspaceRoutes from './routes/workspaceRoutes.js';
+import paymentRoutes from './routes/paymentRoutes.js';
+import { handleWebhook } from './controllers/paymentController.js';
+import { startSubscriptionSweeper } from './services/subscriptionService.js';
 import { startWorkspaceSweeper } from './services/workspaceCleanupService.js';
 await connectDB();
 const app = express();
@@ -27,6 +30,15 @@ const port = process.env.PORT || 4000;
 app.get('/health', (req, res) => {
   res.set('Cache-Control', 'no-store').json({ status: 'ok' });
 });
+
+// Razorpay webhook. Must come BEFORE express.json(): the signature is computed
+// over the exact raw bytes, so the body has to stay an unparsed Buffer here.
+// It is server-to-server (no cookies/CORS) and authenticated by its signature.
+app.post(
+  '/payments/webhook',
+  express.raw({ type: () => true, limit: '256kb' }),
+  handleWebhook,
+);
 
 app.use(
   cors({
@@ -53,6 +65,7 @@ app.use('/trash', checkAuth, trashRoutes);
 app.use('/storage', checkAuth, storageRoutes);
 app.use('/ai', checkAuth, aiRoutes);
 app.use('/workspace', checkAuth, workspaceRoutes);
+app.use('/payments', checkAuth, paymentRoutes);
 
 
 app.use((err, req, res, next) => {
@@ -63,4 +76,5 @@ app.use((err, req, res, next) => {
 app.listen(port, () => {
   console.log(`Server Started`);
   startWorkspaceSweeper();
+  startSubscriptionSweeper();
 });

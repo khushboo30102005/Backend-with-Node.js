@@ -11,7 +11,7 @@ console.log('Database Connected');
 const command = 'collMod';
 
 // collMod fails on collections that don't exist yet (fresh database), so create them first
-for (const name of ['users', 'directories', 'files', 'otps', 'shares', 'workspaces', 'workspacefiles', 'workspacevisits', 'workspacefolders', 'workspaceactivities']) {
+for (const name of ['users', 'directories', 'files', 'otps', 'shares', 'workspaces', 'workspacefiles', 'workspacevisits', 'workspacefolders', 'workspaceactivities', 'subscriptions', 'payments', 'webhookevents']) {
   const exists = await db.listCollections({ name }).hasNext();
   if (!exists) {
     await db.createCollection(name);
@@ -555,6 +555,22 @@ try {
   await db
     .collection('workspacevisits')
     .createIndex({ workspaceId: 1, userId: 1 }, { unique: true });
+
+  // =========================
+  // Payments / subscriptions (indexes mirror the Mongoose models exactly)
+  // =========================
+  await db.collection('subscriptions').createIndex({ userId: 1 }, { unique: true });
+  await db.collection('subscriptions').createIndex({ status: 1, expiresAt: 1 });
+  await db.collection('payments').createIndex({ razorpayOrderId: 1 }, { unique: true });
+  await db.collection('payments').createIndex(
+    { razorpayPaymentId: 1 },
+    { unique: true, partialFilterExpression: { razorpayPaymentId: { $type: 'string' } } },
+  );
+  await db.collection('payments').createIndex({ userId: 1, createdAt: -1 });
+  await db.collection('webhookevents').createIndex({ eventId: 1 }, { unique: true });
+  await db
+    .collection('webhookevents')
+    .createIndex({ createdAt: 1 }, { expireAfterSeconds: 60 * 60 * 24 * 30 });
 
   console.log('MongoDB validation rules applied successfully.');
 } catch (error) {

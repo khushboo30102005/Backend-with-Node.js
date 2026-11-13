@@ -112,6 +112,12 @@ function SidebarFooter({ collapsed = false }) {
             >
               Manage storage <FaArrowRight size={10} />
             </Link>
+            <Link
+              to="/pricing"
+              className="mt-1 inline-flex items-center gap-1.5 text-[13px] font-medium text-[#7da2ff] hover:text-[#a3bdff] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 rounded"
+            >
+              Plans &amp; pricing <FaArrowRight size={10} />
+            </Link>
           </div>
         </div>
       </div>

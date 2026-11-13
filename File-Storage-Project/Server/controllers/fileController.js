@@ -15,6 +15,7 @@ import Share from '../models/shareModel.js';
 import { updateDirectorySize } from '../utils/updateDirectorySize.js';
 import { getFileAccess, canPerform } from '../utils/fileAccess.js';
 import mongoose from 'mongoose';
+import { getEffectiveStorageLimit } from '../services/subscriptionService.js';
 
 export const uploadFile = async (req, res, next) => {
   const user = req.targetUser;
@@ -42,8 +43,10 @@ export const uploadFile = async (req, res, next) => {
       return res.status(400).json({ error: 'Invalid filesize' });
     }
 
-    const availableStorage =
-      user.maxStorageInBytes - (rootDir ? rootDir.size : 0);
+    // The limit comes from MongoDB (after applying any expired Premium), never
+    // from the cached session, so plan changes apply immediately.
+    const storageLimit = await getEffectiveStorageLimit(user._id);
+    const availableStorage = storageLimit - (rootDir ? rootDir.size : 0);
     const contentLength = parseInt(req.headers['content-length'], 10);
 
     if (

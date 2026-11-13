@@ -27,6 +27,7 @@ import {
 } from '../utils/avatar.js';
 import { JSDOM } from 'jsdom';
 import { clearSessionCookieOptions } from '../config/cookie.js';
+import { expireIfDue } from '../services/subscriptionService.js';
 import DOMPurify from 'dompurify';
 
 const window = new JSDOM('').window;
@@ -155,6 +156,7 @@ export const login = async (req, res, next) => {
 
 export const getCurrentUser = async (req, res, next) => {
   try {
+    await expireIfDue(req.user._id); // downgrade first if Premium has run out
     const user = await User.findById(req.user._id).lean();
 
     if (!user || user.isDeleted) {

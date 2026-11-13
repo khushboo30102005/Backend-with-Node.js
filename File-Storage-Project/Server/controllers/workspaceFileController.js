@@ -30,6 +30,7 @@ import { authorize, firstZodError } from '../utils/workspaceHttp.js';
 import { logActivity } from '../utils/workspaceActivity.js';
 import { workspaceObjectKey } from '../services/workspaceCleanupService.js';
 import { ownerWorkspaceBytes } from './workspaceController.js';
+import { getEffectiveStorageLimit } from '../services/subscriptionService.js';
 import {
   createFolderSchema,
   importFileSchema,
@@ -478,7 +479,7 @@ export const saveToDrive = async (req, res, next) => {
     if (!dir) return res.status(404).json({ error: 'Destination folder not found.' });
 
     const root = await Directory.findById(req.user.rootDirId).select('size').lean();
-    if ((root?.size ?? 0) + src.size > req.user.maxStorageInBytes) {
+    if ((root?.size ?? 0) + src.size > (await getEffectiveStorageLimit(req.user._id))) {
       return res.status(413).json({ error: 'Not enough space in your My Drive.' });
     }
 

@@ -9,6 +9,7 @@ import { emailSchema, otpSchema, setPasswordWithOtpSchema} from '../validator/au
 import * as z from 'zod';
 import { setInitialPassword } from '../services/setPasswordService.js';
 import { sessionCookieOptions } from '../config/cookie.js';
+import { getFreeStorageBytes } from '../config/plans.js';
 import { isStoredAvatar } from '../utils/avatar.js';
 
 export const sendOTP = async (req, res, next) => {
@@ -178,7 +179,7 @@ export const loginWithGoogle = async (req, res, next) => {
         userId: userId.toString(),
         rootDirId: rootDirId.toString(),
         role: 'User',
-        maxStorageInBytes: 1 * 1024 ** 3,
+        maxStorageInBytes: getFreeStorageBytes(),
       });
 
       // Redis uses seconds

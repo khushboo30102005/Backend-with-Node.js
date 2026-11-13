@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import File from '../models/fileModel.js';
 import Directory from '../models/directoryModel.js';
 import User from '../models/userModel.js';
+import { expireIfDue } from '../services/subscriptionService.js';
 import { ownerWorkspaceBytes } from './workspaceController.js';
 import { WORKSPACE_USER_MAX_BYTES } from '../utils/workspaceAccess.js';
 
@@ -9,6 +10,7 @@ import { WORKSPACE_USER_MAX_BYTES } from '../utils/workspaceAccess.js';
 export const getStorageSummary = async (req, res, next) => {
   try {
     const userId = new mongoose.Types.ObjectId(req.user._id);
+    await expireIfDue(userId); // downgrade first if Premium has run out
 
     const [user, rootDir, totals, largeFiles, workspaceUsed] = await Promise.all([
       User.findById(userId).select('maxStorageInBytes isDeleted').lean(),

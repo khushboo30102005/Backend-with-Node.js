@@ -5,12 +5,14 @@ import {
   FaDatabase,
   FaRegBell,
   FaSlidersH,
+  FaCrown,
 } from 'react-icons/fa';
 
 const items = [
   { to: '/settings/profile', label: 'Profile', icon: FaUser },
   { to: '/settings/security', label: 'Security', icon: FaShieldAlt },
   { to: '/settings/storage', label: 'Storage', icon: FaDatabase },
+  { to: '/settings/subscription', label: 'Subscription', icon: FaCrown },
   { to: '/settings/notifications', label: 'Notifications', icon: FaRegBell },
   { to: '/settings/preferences', label: 'Preferences', icon: FaSlidersH },
 ];

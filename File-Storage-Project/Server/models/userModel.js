@@ -1,5 +1,6 @@
 import mongoose, { model, Schema } from 'mongoose';
 import bcrypt from 'bcrypt';
+import { getFreeStorageBytes } from '../config/plans.js';
 
 const userSchema = new Schema(
   {
@@ -46,7 +47,7 @@ const userSchema = new Schema(
     maxStorageInBytes: {
       type:Number,
       required: true,
-      default: 1 * 1024 ** 3,
+      default: () => getFreeStorageBytes(),
     },
   },
   { strict: 'throw' },

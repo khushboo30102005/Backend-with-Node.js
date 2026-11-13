@@ -22,6 +22,8 @@ import SecuritySettings from './settings/SecuritySettings';
 import StorageSettings from './settings/StorageSettings';
 import NotificationSettings from './settings/NotificationSettings';
 import PreferencesSettings from './settings/PreferencesSettings';
+import SubscriptionSettings from './settings/SubscriptionSettings';
+import PricingPage from './PricingPage';
 
 function NotFound() {
   return (
@@ -61,6 +63,7 @@ const router = createBrowserRouter([
       { path: 'workspaces', element: <WorkspacesPage /> },
       { path: 'workspaces/:id', element: <WorkspaceDetail /> },
       { path: 'trash', element: <TrashPage /> },
+      { path: 'pricing', element: <PricingPage /> },
       {
         path: 'settings',
         element: <SettingsLayout />,
@@ -69,6 +72,7 @@ const router = createBrowserRouter([
           { path: 'profile', element: <ProfileSettings /> },
           { path: 'security', element: <SecuritySettings /> },
           { path: 'storage', element: <StorageSettings /> },
+          { path: 'subscription', element: <SubscriptionSettings /> },
           { path: 'notifications', element: <NotificationSettings /> },
           { path: 'preferences', element: <PreferencesSettings /> },
         ],

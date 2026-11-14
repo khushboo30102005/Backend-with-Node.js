@@ -1,4 +1,5 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { splitFileName } from '../utils/fileName';
 
 function RenameModal({
   renameType,
@@ -7,19 +8,24 @@ function RenameModal({
   onClose,
   onRenameSubmit,
   error,
+  extension,
 }) {
   const inputRef = useRef(null);
+  const isFile = renameType === 'file';
+  // A file's extension can't be changed: only the name before it is editable,
+  // and the original extension is always sent back with it.
+  const [fileExt] = useState(() =>
+    isFile ? splitFileName(renameValue, extension).ext : '',
+  );
+  const inputValue =
+    fileExt && renameValue.endsWith(fileExt)
+      ? renameValue.slice(0, -fileExt.length)
+      : renameValue;
 
   useEffect(() => {
     if (inputRef.current) {
       inputRef.current.focus();
-
-      const dotIndex = renameValue.lastIndexOf('.');
-      if (dotIndex > 0) {
-        inputRef.current.setSelectionRange(0, dotIndex);
-      } else {
-        inputRef.current.select();
-      }
+      inputRef.current.select();
     }
 
     const handleKeyDown = (e) => {
@@ -55,14 +61,25 @@ function RenameModal({
           Rename {renameType === 'file' ? 'File' : 'Folder'}
         </h2>
         <form className="flex flex-col gap-2" onSubmit={onRenameSubmit}>
-          <input
-            ref={inputRef}
-            type="text"
-            className="px-3 py-2.5 border border-border rounded-lg text-sm bg-surface text-text transition-colors duration-150 focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/12"
-            placeholder="Enter new name"
-            value={renameValue}
-            onChange={(e) => setRenameValue(e.target.value)}
-          />
+          <div className="flex items-stretch gap-2">
+            <input
+              ref={inputRef}
+              type="text"
+              className="flex-1 min-w-0 px-3 py-2.5 border border-border rounded-lg text-sm bg-surface text-text transition-colors duration-150 focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/12"
+              placeholder="Enter new name"
+              aria-label={fileExt ? 'File name (without extension)' : 'New name'}
+              value={inputValue}
+              onChange={(e) => setRenameValue(e.target.value + fileExt)}
+            />
+            {fileExt && (
+              <span
+                className="flex items-center px-3 border border-border rounded-lg text-sm text-text-muted bg-surface-muted select-none"
+                title="The file extension can't be changed"
+              >
+                {fileExt}
+              </span>
+            )}
+          </div>
           {error && (
             <p className="text-danger text-[13px] -mt-1 mb-0">{error}</p>
           )}

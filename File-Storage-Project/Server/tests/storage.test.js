@@ -25,6 +25,8 @@ const Share = createFakeModel('Share');
 const Workspace = createFakeModel('Workspace');
 const WorkspaceFile = createFakeModel('WorkspaceFile');
 const WorkspaceActivity = createFakeModel('WorkspaceActivity');
+// Share-based access checks that the file's owner account is active.
+const User = createFakeModel('User', { defaults: { isDeleted: false } });
 const { s3, Upload } = createFakeS3();
 const limits = new Map(); // userId -> storage limit in bytes
 
@@ -35,6 +37,7 @@ model('../models/shareModel.js', Share);
 model('../models/workspaceModel.js', Workspace);
 model('../models/workspaceFileModel.js', WorkspaceFile);
 model('../models/workspaceActivityModel.js', WorkspaceActivity);
+model('../models/userModel.js', User);
 mock.module(import.meta.resolve('../config/b2.js'), {
   defaultExport: s3,
   namedExports: { BUCKET_NAME: 'test-bucket' },
@@ -92,7 +95,7 @@ before(async () => {
 after(() => server.close());
 
 beforeEach(() => {
-  for (const m of [Directory, File, Share, Workspace, WorkspaceFile, WorkspaceActivity]) m.reset();
+  for (const m of [Directory, File, Share, Workspace, WorkspaceFile, WorkspaceActivity, User]) m.reset();
   s3.reset();
   redis.flush();
   sessions.clear();
@@ -117,6 +120,8 @@ function makeDir(user, parentId, name) {
 }
 
 const bytes = (n, fill = 7) => Buffer.alloc(n, fill);
+// n bytes that really are a PDF (its signature, then filler).
+const pdfBytes = (n) => Buffer.concat([Buffer.from('%PDF-1.7\n'), bytes(n - 9)]);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // Raw HTTP so tests control Content-Length, chunking and disconnects.
@@ -229,7 +234,7 @@ test('normal upload: stored once, every ancestor charged the exact size, nothing
   const a = makeDir(u, u.rootId, 'Folder A');
   const b = makeDir(u, a, 'Folder B');
 
-  const res = await upload(u, { dirId: b, data: bytes(1234), filename: 'report.pdf' });
+  const res = await upload(u, { dirId: b, data: pdfBytes(1234), filename: 'report.pdf' });
   assert.equal(res.status, 201);
   assert.deepEqual(res.body, { message: 'File Uploaded' }); // response format unchanged
 
@@ -811,4 +816,235 @@ test('M8: deleting a workspace file releases its quota together with the record'
   assert.equal((await request(u, { method: 'DELETE', path: `/workspace/${ws._id}/files/${wf._id}` })).status, 200);
   assert.equal(WorkspaceFile.get(wf._id), null);
   assert.equal(Workspace.get(ws._id).size, 0, 'released exactly once');
+});
+
+// ================================================ file-type protection
+//
+// Uploads are checked against their real content (magic bytes) and stored
+// with a server-derived MIME type; renames can change a file's name but never
+// its extension.
+
+const sig = (head, n = 256) => Buffer.concat([Buffer.from(head), bytes(Math.max(0, n - head.length), 0x20)]);
+const pngBytes = (n = 256) => sig([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], n);
+const jpegBytes = (n = 256) => sig([0xff, 0xd8, 0xff, 0xe0], n);
+const exeBytes = (n = 256) => Buffer.concat([Buffer.from('MZ'), Buffer.alloc(n - 2)]); // PE/DOS header
+const zipBytes = (n = 256) => sig([0x50, 0x4b, 0x03, 0x04], n);
+
+const rename = (user, id, newFilename) =>
+  request(user, { method: 'PATCH', path: `/file/${id}`, json: { newFilename } });
+
+async function uploadOne(user, filename, data) {
+  const res = await upload(user, { data, filename });
+  assert.equal(res.status, 201, `${filename}: ${JSON.stringify(res.body)}`);
+  return userFiles(user).find((f) => f.name === filename) ?? userFiles(user).at(-1);
+}
+
+test('file type: an upload whose content does not match its extension is rejected and leaves nothing behind', async () => {
+  const u = makeUser(100_000);
+  const cases = [
+    ['invoice.pdf', exeBytes()], // executable disguised as a PDF
+    ['photo.jpg', pngBytes()], // a different image format
+    ['report.docx', pdfBytes(300)], // not an Office (zip) container
+    ['notes.txt', exeBytes()], // binary content behind a text extension
+    ['data.json', Buffer.from([0x7b, 0x00, 0x00, 0x7d])], // NUL bytes in "text"
+    ['setup.exe', pdfBytes(300)], // .exe that is not an executable
+    ['payload.dat', exeBytes()], // executable behind an unrelated extension
+    ['doc.pdf.', exeBytes()], // trailing dot can't hide the real extension
+    ['doc.pdf  ', exeBytes()], // nor can trailing spaces
+  ];
+  for (const [filename, data] of cases) {
+    const res = await upload(u, { data, filename });
+    assert.equal(res.status, 415, `${filename} should be rejected`);
+    assert.equal(res.body.code, 'FILE_TYPE_MISMATCH');
+  }
+  assert.equal(userFiles(u).length, 0, 'no file record');
+  assert.equal(s3.objects.size, 0, 'no stored object');
+  assert.equal(sizeOf(u.rootId), 0, 'nothing charged');
+  assertAccounting(u); // and no reservation left behind
+});
+
+test('file type: a mismatch is caught even when the signature arrives split across chunks', async () => {
+  const u = makeUser(100_000);
+  const bad = exeBytes(6000);
+  let res = await upload(u, {
+    filename: 'split.pdf',
+    filesize: bad.length,
+    chunks: [bad.subarray(0, 1), bad.subarray(1, 3000), bad.subarray(3000)],
+  });
+  assert.equal(res.status, 415);
+
+  const good = pdfBytes(6000);
+  res = await upload(u, {
+    filename: 'split.pdf',
+    filesize: good.length,
+    chunks: [good.subarray(0, 2), good.subarray(2, 3000), good.subarray(3000)],
+  });
+  assert.equal(res.status, 201);
+  const [file] = userFiles(u);
+  assert.deepEqual(s3.objects.get(`${file._id}.pdf`), good, 'every byte stored, in order');
+  assertAccounting(u);
+});
+
+test('file type: matching uploads succeed and keep the validated extension and a server-derived MIME type', async () => {
+  const u = makeUser(100_000);
+  const cases = [
+    ['Photo.PNG', pngBytes(), '.png', 'image/png'],
+    ['scan.jpeg', jpegBytes(), '.jpeg', 'image/jpeg'],
+    ['report.pdf', pdfBytes(500), '.pdf', 'application/pdf'],
+    ['sheet.xlsx', zipBytes(), '.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+    ['notes.txt', Buffer.from('hello world\n'), '.txt', 'text/plain; charset=utf-8'],
+    ['page.html', Buffer.from('<h1>hi</h1>'), '.html', 'text/plain; charset=utf-8'], // never served as a page
+    ['tool.exe', exeBytes(), '.exe', 'application/octet-stream'],
+    ['archive.custom', bytes(64), '.custom', 'application/octet-stream'], // unknown type: allowed
+    ['README', Buffer.from('# readme'), '', 'application/octet-stream'], // no extension
+    ['notes.v2 final', Buffer.from('text'), '', 'application/octet-stream'], // ".v2 final" is not an extension
+    ['empty.pdf', Buffer.alloc(0), '.pdf', 'application/pdf'], // nothing to mismatch
+  ];
+  for (const [filename, data, extension, mime] of cases) {
+    // The client claims an executable MIME type; it must be ignored.
+    const res = await upload(u, { data, filename, headers: { 'content-type': 'application/x-msdownload' } });
+    assert.equal(res.status, 201, `${filename}: ${JSON.stringify(res.body)}`);
+    const file = userFiles(u).find((f) => f.name === filename.trim());
+    assert.ok(file, `${filename} recorded`);
+    assert.equal(file.extension, extension, `${filename} extension`);
+    assert.equal(s3.contentTypes.get(`${file._id}${extension}`), mime, `${filename} MIME type`);
+  }
+  assertAccounting(u);
+});
+
+test('rename: the name can change but the extension cannot', async () => {
+  const u = makeUser(100_000);
+  const file = await uploadOne(u, 'report.pdf', pdfBytes(400));
+
+  for (const newFilename of ['report.exe', 'report', 'report.pdf.exe', 'report.pd', '.pdf', '   ', '', 42, null]) {
+    const res = await rename(u, file._id, newFilename);
+    assert.equal(res.status, 400, `${JSON.stringify(newFilename)} should be rejected`);
+    assert.equal(res.body.code, 'INVALID_FILE_NAME');
+  }
+  assert.equal(File.get(file._id).name, 'report.pdf', 'nothing changed');
+
+  const valid = [
+    ['Q3 summary.pdf', 'Q3 summary.pdf'],
+    ['final.exe.pdf', 'final.exe.pdf'], // the real extension is still .pdf
+    ['Upper.PDF', 'Upper.pdf'], // the stored extension is kept exactly
+    ['  spaced.pdf.  ', 'spaced.pdf'], // trailing dots/spaces are dropped
+  ];
+  for (const [newFilename, expected] of valid) {
+    const res = await rename(u, file._id, newFilename);
+    assert.equal(res.status, 200, `${newFilename}: ${JSON.stringify(res.body)}`);
+    assert.equal(File.get(file._id).name, expected);
+    assert.equal(File.get(file._id).extension, '.pdf', 'extension untouched');
+  }
+  assert.ok(s3.objects.has(`${file._id}.pdf`), 'stored object still found by its key');
+  assertAccounting(u);
+});
+
+test('rename: an extension cannot be added to a file that has none', async () => {
+  const u = makeUser(100_000);
+  const file = await uploadOne(u, 'LICENSE', Buffer.from('MIT'));
+  assert.equal((await rename(u, file._id, 'LICENSE.exe')).status, 400);
+  assert.equal((await rename(u, file._id, 'COPYING')).status, 200);
+  assert.equal(File.get(file._id).name, 'COPYING');
+  assert.equal(File.get(file._id).extension, '');
+});
+
+test('rename: an editor of a shared file is held to the same rule', async () => {
+  const owner = makeUser(100_000);
+  const editor = makeUser(100_000);
+  const file = await uploadOne(owner, 'plan.docx', zipBytes());
+  User.insert({ _id: owner._id, name: 'Owner', isDeleted: false });
+  Share.insert({ resourceId: file._id, ownerId: owner._id, sharedWithUserId: editor._id, permission: 'editor' });
+
+  assert.equal((await rename(editor, file._id, 'plan.exe')).status, 400);
+  const res = await rename(editor, file._id, 'plan v2.docx');
+  assert.equal(res.status, 200, JSON.stringify(res.body));
+  assert.equal(File.get(file._id).name, 'plan v2.docx');
+  assert.equal(File.get(file._id).extension, '.docx');
+});
+
+test('rename: moving, trashing and restoring a renamed file keep its name and extension', async () => {
+  const u = makeUser(100_000);
+  const a = makeDir(u, u.rootId, 'Folder A');
+  const file = await uploadOne(u, 'photo.png', pngBytes());
+  assert.equal((await rename(u, file._id, 'holiday.png')).status, 200);
+
+  let res = await request(u, { method: 'PATCH', path: `/file/${file._id}/move`, json: { newParentId: String(a) } });
+  assert.equal(res.status, 200);
+  res = await request(u, { method: 'DELETE', path: `/file/${file._id}` });
+  assert.equal(res.status, 200);
+  res = await request(u, { method: 'PATCH', path: `/file/${file._id}/restore` });
+  assert.equal(res.status, 200);
+
+  const after = File.get(file._id);
+  assert.equal(after.name, 'holiday.png');
+  assert.equal(after.extension, '.png');
+  assert.equal(String(after.parentDirId), String(a));
+  assertAccounting(u);
+});
+
+// ------------------------------------------------------------ workspaces
+
+function makeWorkspace(owner) {
+  return Workspace.insert({
+    name: 'Team space', ownerId: owner._id, members: [], status: 'active',
+    expiresAt: new Date(Date.now() + 86_400_000), cleanupPolicy: 'delete', size: 0,
+    cleanup: { attempts: 0, lastError: null, lastAttemptAt: null, lockedUntil: null },
+  });
+}
+
+const wsUpload = (user, ws, filename, data, headers = {}) =>
+  request(user, {
+    path: `/workspace/${ws._id}/files`,
+    headers: { 'content-type': 'application/octet-stream', filename, filesize: String(data.length), ...headers },
+    body: data,
+  });
+
+test('workspace upload: mismatched content is rejected and its quota released', async () => {
+  const u = makeUser(100_000);
+  const ws = makeWorkspace(u);
+  for (const [filename, data] of [['brief.pdf', exeBytes()], ['logo.png', jpegBytes()], ['run.dat', exeBytes()]]) {
+    const res = await wsUpload(u, ws, filename, data);
+    assert.equal(res.status, 415, `${filename} should be rejected`);
+    assert.equal(res.body.code, 'FILE_TYPE_MISMATCH');
+  }
+  assert.equal(WorkspaceFile.docs.size, 0, 'no file record');
+  assert.equal(s3.objects.size, 0, 'no stored object');
+  assert.equal(Workspace.get(ws._id).size, 0, 'quota released');
+});
+
+test('workspace upload: matching content is stored with its validated extension and MIME type', async () => {
+  const u = makeUser(100_000);
+  const ws = makeWorkspace(u);
+  const res = await wsUpload(u, ws, 'brief.pdf', pdfBytes(300), { 'content-type': 'text/html' });
+  assert.equal(res.status, 201, JSON.stringify(res.body));
+  const [wf] = [...WorkspaceFile.docs.values()];
+  assert.equal(wf.extension, '.pdf');
+  assert.equal(wf.isReady, true);
+  assert.equal(s3.contentTypes.get(`workspaces/${ws._id}/${wf._id}.pdf`), 'application/pdf');
+});
+
+test('workspace rename: the name can change but the extension cannot', async () => {
+  const u = makeUser(100_000);
+  const { ws, wf } = makeWorkspaceFile(u, 400); // "shared.pdf"
+  const renameWs = (newFilename) =>
+    request(u, { method: 'PATCH', path: `/workspace/${ws._id}/files/${wf._id}`, json: { newFilename } });
+
+  for (const newFilename of ['shared.exe', 'shared', 'shared.pdf.html']) {
+    const res = await renameWs(newFilename);
+    assert.equal(res.status, 400, `${newFilename} should be rejected`);
+  }
+  assert.equal(WorkspaceFile.get(wf._id).name, 'shared.pdf');
+
+  const res = await renameWs('Final brief.PDF');
+  assert.equal(res.status, 200, JSON.stringify(res.body));
+  assert.equal(WorkspaceFile.get(wf._id).name, 'Final brief.pdf');
+  assert.equal(WorkspaceFile.get(wf._id).extension, '.pdf');
+
+  // Copying it to My Drive keeps the validated extension.
+  const saved = await request(u, { path: `/workspace/${ws._id}/files/${wf._id}/save-to-drive`, json: {} });
+  assert.equal(saved.status, 201);
+  const [copy] = userFiles(u);
+  assert.equal(copy.name, 'Final brief.pdf');
+  assert.equal(copy.extension, '.pdf');
+  assertAccounting(u);
 });

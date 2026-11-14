@@ -1,5 +1,4 @@
 import { deleteInsightsForFiles } from '../ai/insightService.js';
-import path from 'path';
 import { PassThrough } from 'stream';
 import { Upload } from '@aws-sdk/lib-storage';
 import {
@@ -25,6 +24,14 @@ import {
   reserveStorage,
   touchReservation,
 } from '../services/storageQuotaService.js';
+import {
+  FileTypeError,
+  createSniffer,
+  getExtension,
+  mimeTypeFor,
+  normalizeFileName,
+  resolveRename,
+} from '../utils/fileType.js';
 
 // POST /file/:parentDirId — streams the request body to B2.
 //
@@ -60,7 +67,8 @@ export const uploadFile = async (req, res, next) => {
       return res.status(404).json({ error: 'Parent directory not found!' });
     }
 
-    const filename = req.headers.filename || 'untitled';
+    // Trailing dots/spaces are dropped so they can't hide the real extension.
+    const filename = normalizeFileName(req.headers.filename) || 'untitled';
     // A plain decimal byte count only ("", "1e3", "0x10" and "+5" are what
     // Number() would quietly accept).
     const rawSize = req.headers.filesize;
@@ -82,7 +90,10 @@ export const uploadFile = async (req, res, next) => {
       return res.status(400).json({ error: 'Invalid upload id.' });
     }
 
-    const extension = path.extname(filename);
+    // Derived on the server; the content is checked against it while
+    // streaming (utils/fileType.js) and it is stored as the file's permanent
+    // extension.
+    const extension = getExtension(filename);
     const fileId = new mongoose.Types.ObjectId();
     const key = `${fileId}${extension}`;
 
@@ -107,6 +118,7 @@ export const uploadFile = async (req, res, next) => {
     let totalFileLength = 0;
     limitedBody = new PassThrough();
     const body = limitedBody;
+    const sniffer = createSniffer(extension);
 
     const writerPromise = (async () => {
       try {
@@ -115,7 +127,14 @@ export const uploadFile = async (req, res, next) => {
         for await (const chunk of req.iterator({ destroyOnReturn: false })) {
           totalFileLength += chunk.length;
           if (totalFileLength > filesize) throw new Error('FILESIZE_EXCEEDED');
-          if (!body.write(chunk)) await drainOrClose(body);
+          // Nothing reaches B2 until the leading bytes match the extension.
+          for (const part of sniffer.push(chunk)) {
+            if (!body.write(part)) await drainOrClose(body);
+            if (body.destroyed) throw new Error('UPLOAD_ABORTED');
+          }
+        }
+        for (const part of sniffer.finish()) {
+          if (!body.write(part)) await drainOrClose(body);
           if (body.destroyed) throw new Error('UPLOAD_ABORTED');
         }
         body.end();
@@ -132,7 +151,8 @@ export const uploadFile = async (req, res, next) => {
         Bucket: BUCKET_NAME,
         Key: objectKey,
         Body: limitedBody,
-        ContentType: req.headers['content-type'] || 'application/octet-stream',
+        // Never the client's Content-Type: derived from the validated extension.
+        ContentType: mimeTypeFor(extension),
       },
     });
 
@@ -178,7 +198,7 @@ export const uploadFile = async (req, res, next) => {
     if (err.message === 'FILESIZE_MISMATCH') {
       return res.status(400).json({ error: SIZE_MISMATCH_MESSAGE });
     }
-    if (err instanceof QuotaError) {
+    if (err instanceof QuotaError || err instanceof FileTypeError) {
       return res.status(err.status).json({ error: err.message, ...(err.code && { code: err.code }) });
     }
     next(err);
@@ -381,8 +401,14 @@ export const updateFile = async (req, res, next) => {
       return res.status(403).json({ error: 'You do not have permission to rename this file.' });
     }
 
+    // The extension is fixed at upload: only the part before it can change.
+    const renamed = resolveRename(req.body?.newFilename, access.file.extension);
+    if (renamed.error) {
+      return res.status(400).json({ error: renamed.error, code: 'INVALID_FILE_NAME' });
+    }
+
     const file = await File.findById(id);
-    file.name = req.body.newFilename;
+    file.name = renamed.name;
     await file.save();
 
     return res.status(200).json({ message: 'Renamed' });

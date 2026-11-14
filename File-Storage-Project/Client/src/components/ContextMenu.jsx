@@ -126,7 +126,7 @@ function ContextMenu({
         entry('share', FaShareAlt, 'Share', () => openShareModal(item)),
       canRename &&
         entry('rename', FaPen, 'Rename', () =>
-          openRenameModal('file', item.id, item.name),
+          openRenameModal('file', item.id, item.name, item.extension),
         ),
       canMove &&
         entry('move', FaArrowsAlt, 'Move', () => openMoveModal([item])),

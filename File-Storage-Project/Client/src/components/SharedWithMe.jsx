@@ -26,6 +26,7 @@ function SharedWithMe() {
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [renameId, setRenameId] = useState(null);
   const [renameValue, setRenameValue] = useState('');
+  const [renameExtension, setRenameExtension] = useState(undefined);
 
   useEffect(() => {
     load();
@@ -116,9 +117,10 @@ function SharedWithMe() {
 
   // Only reachable for editor-permission files — Rename is the one write
   // action Editors have.
-  function openRenameModal(type, id, currentName) {
+  function openRenameModal(type, id, currentName, extension) {
     setRenameId(id);
     setRenameValue(currentName);
+    setRenameExtension(extension);
     setShowRenameModal(true);
   }
 
@@ -172,6 +174,7 @@ function SharedWithMe() {
         <RenameModal
           renameType="file"
           renameValue={renameValue}
+          extension={renameExtension}
           setRenameValue={setRenameValue}
           onClose={() => {
             setShowRenameModal(false);

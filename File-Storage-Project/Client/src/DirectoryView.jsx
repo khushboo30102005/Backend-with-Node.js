@@ -113,6 +113,7 @@ function DirectoryView({ dirId }) {
   const [renameType, setRenameType] = useState(null);
   const [renameId, setRenameId] = useState(null);
   const [renameValue, setRenameValue] = useState('');
+  const [renameExtension, setRenameExtension] = useState(undefined);
 
   const [detailsItem, setDetailsItem] = useState(null);
   const [deleteConfirmItem, setDeleteConfirmItem] = useState(null);
@@ -454,10 +455,11 @@ function DirectoryView({ dirId }) {
     }
   }
 
-  function openRenameModal(type, id, currentName) {
+  function openRenameModal(type, id, currentName, extension) {
     setRenameType(type);
     setRenameId(id);
     setRenameValue(currentName);
+    setRenameExtension(extension);
     setShowRenameModal(true);
   }
 
@@ -727,6 +729,7 @@ function DirectoryView({ dirId }) {
         <RenameModal
           renameType={renameType}
           renameValue={renameValue}
+          extension={renameExtension}
           setRenameValue={setRenameValue}
           onClose={() => {
             setShowRenameModal(false);

@@ -2,8 +2,10 @@
 // Objects live in a Map; nothing is sent over the network.
 export function createFakeS3() {
   const objects = new Map(); // key -> Buffer
+  const contentTypes = new Map(); // key -> ContentType the object was stored with
   const s3 = {
     objects,
+    contentTypes,
     uploadDelayMs: 0, // hold every upload open this long after the body ends
     failUploadsAfterBytes: null, // simulate B2 failing mid-upload
     failCopy: false,
@@ -11,6 +13,7 @@ export function createFakeS3() {
     failDeleteWhen: null, // optional (keys) => bool: only matching deletes fail
     reset() {
       objects.clear();
+      contentTypes.clear();
       s3.uploadDelayMs = 0;
       s3.failUploadsAfterBytes = null;
       s3.failCopy = false;
@@ -75,6 +78,7 @@ export function createFakeS3() {
       if (s3.uploadDelayMs) await new Promise((r) => setTimeout(r, s3.uploadDelayMs));
       if (this.aborted) throw new Error('upload aborted');
       objects.set(this.params.Key, Buffer.concat(chunks));
+      contentTypes.set(this.params.Key, this.params.ContentType);
       return { Key: this.params.Key };
     }
     async abort() {

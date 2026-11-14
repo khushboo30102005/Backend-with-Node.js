@@ -37,6 +37,7 @@ import { Notice, dangerBtn, inputClass, primaryBtn, secondaryBtn } from '../../s
 import DrivePickerModal from './DrivePickerModal';
 import Modal from './Modal';
 import { formatDateTime } from './workspaceUtils';
+import { splitFileName } from '../../utils/fileName';
 
 // Indents folders under their parents for the "Move to…" list.
 function folderTree(all) {
@@ -68,6 +69,8 @@ function FilesTab({ ws, readOnly, onExpired }) {
   const [viewer, setViewer] = useState(null);
   const [dialog, setDialog] = useState(null); // {kind, item?}
   const [value, setValue] = useState('');
+  // Rename-file only: the fixed extension shown after the editable name.
+  const [fileExt, setFileExt] = useState('');
   const [allFolders, setAllFolders] = useState([]);
   const [moveTo, setMoveTo] = useState('');
   const inputRef = useRef(null);
@@ -143,7 +146,9 @@ function FilesTab({ ws, readOnly, onExpired }) {
   }
 
   const openDialog = async (kind, item) => {
-    setValue(kind === 'rename-file' || kind === 'rename-folder' ? item.name : '');
+    const split = kind === 'rename-file' ? splitFileName(item.name, item.extension) : null;
+    setValue(split ? split.base : kind === 'rename-folder' ? item.name : '');
+    setFileExt(split ? split.ext : '');
     setMoveTo(folderId);
     setDialog({ kind, item });
     if (kind === 'move') {
@@ -161,7 +166,7 @@ function FilesTab({ ws, readOnly, onExpired }) {
     setDialog(null);
     try {
       if (kind === 'new-folder') await createWorkspaceFolder(ws._id, value, folderId);
-      if (kind === 'rename-file') await renameWorkspaceFile(ws._id, item._id, value);
+      if (kind === 'rename-file') await renameWorkspaceFile(ws._id, item._id, value + fileExt);
       if (kind === 'rename-folder') await renameWorkspaceFolder(ws._id, item._id, value);
       if (kind === 'move') await moveWorkspaceFile(ws._id, item._id, moveTo);
       if (kind === 'delete-file') await deleteWorkspaceFile(ws._id, item._id);
@@ -307,7 +312,14 @@ function FilesTab({ ws, readOnly, onExpired }) {
       {['new-folder', 'rename-file', 'rename-folder'].includes(dialog?.kind) && (
         <Modal title={dialog.kind === 'new-folder' ? 'New folder' : 'Rename'} onClose={() => setDialog(null)}>
           <form onSubmit={submitDialog} className="flex flex-col gap-3">
-            <input className={inputClass} value={value} onChange={(e) => setValue(e.target.value)} autoFocus required maxLength={dialog.kind === 'rename-file' ? 255 : 100} placeholder={dialog.kind === 'new-folder' ? 'Folder name' : ''} />
+            <div className="flex items-stretch gap-2">
+              <input className={inputClass} value={value} onChange={(e) => setValue(e.target.value)} autoFocus required maxLength={dialog.kind === 'rename-file' ? 255 - fileExt.length : 100} placeholder={dialog.kind === 'new-folder' ? 'Folder name' : ''} aria-label={dialog.kind === 'rename-file' && fileExt ? 'File name (without extension)' : undefined} />
+              {dialog.kind === 'rename-file' && fileExt && (
+                <span className="flex items-center px-3 border border-border rounded-lg text-sm text-text-muted bg-surface-muted select-none" title="The file extension can't be changed">
+                  {fileExt}
+                </span>
+              )}
+            </div>
             <div className="flex justify-end gap-2">
               <button type="button" className={secondaryBtn} onClick={() => setDialog(null)}>Cancel</button>
               <button type="submit" className={primaryBtn}>{dialog.kind === 'new-folder' ? 'Create' : 'Rename'}</button>

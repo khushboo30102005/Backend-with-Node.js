@@ -24,6 +24,14 @@ import {
   reserveStorage,
 } from '../services/storageQuotaService.js';
 import { getFileAccess } from '../utils/fileAccess.js';
+import {
+  FileTypeError,
+  createSniffer,
+  getExtension,
+  mimeTypeFor,
+  normalizeFileName,
+  resolveRename,
+} from '../utils/fileType.js';
 import { runInTransaction } from '../utils/transaction.js';
 import {
   MAX_FOLDERS,
@@ -335,7 +343,9 @@ export const uploadWorkspaceFile = async (req, res, next) => {
     if (!access) return;
     wsId = access.workspace._id;
 
-    const filename = path.basename(String(req.headers.filename || 'untitled')).slice(0, 255) || 'untitled';
+    const filename =
+      normalizeFileName(path.basename(String(req.headers.filename || 'untitled')).slice(0, 255)) ||
+      'untitled';
     const filesize = Number(req.headers.filesize);
     if (!Number.isFinite(filesize) || filesize < 0) {
       return res.status(400).json({ error: 'Invalid filesize' });
@@ -347,7 +357,8 @@ export const uploadWorkspaceFile = async (req, res, next) => {
     if (denied) return res.status(denied.status).json({ error: denied.error });
     reserved = filesize;
 
-    const extension = path.extname(filename);
+    // Derived on the server and checked against the content while streaming.
+    const extension = getExtension(filename);
     fileDoc = await WorkspaceFile.create({
       workspaceId: wsId,
       folderId: folder?._id ?? null,
@@ -360,17 +371,25 @@ export const uploadWorkspaceFile = async (req, res, next) => {
 
     let total = 0;
     const body = new PassThrough();
+    const sniffer = createSniffer(extension);
     const writer = (async () => {
-      for await (const chunk of req) {
-        total += chunk.length;
-        if (total > filesize) {
-          const err = new Error('FILESIZE_EXCEEDED');
-          body.destroy(err);
-          throw err;
+      try {
+        for await (const chunk of req) {
+          total += chunk.length;
+          if (total > filesize) throw new Error('FILESIZE_EXCEEDED');
+          // Nothing reaches B2 until the leading bytes match the extension.
+          for (const part of sniffer.push(chunk)) {
+            if (!body.write(part)) await once(body, 'drain');
+          }
         }
-        if (!body.write(chunk)) await once(body, 'drain');
+        for (const part of sniffer.finish()) {
+          if (!body.write(part)) await once(body, 'drain');
+        }
+        body.end();
+      } catch (err) {
+        body.destroy(err);
+        throw err;
       }
-      body.end();
     })();
 
     const upload = new Upload({
@@ -379,7 +398,8 @@ export const uploadWorkspaceFile = async (req, res, next) => {
         Bucket: BUCKET_NAME,
         Key: key,
         Body: body,
-        ContentType: req.headers['content-type'] || 'application/octet-stream',
+        // Never the client's Content-Type: derived from the validated extension.
+        ContentType: mimeTypeFor(extension),
       },
     });
     await Promise.all([writer, upload.done()]);
@@ -397,6 +417,9 @@ export const uploadWorkspaceFile = async (req, res, next) => {
     if (res.headersSent) return;
     if (err.message === 'FILESIZE_EXCEEDED' || err.message === 'FILESIZE_MISMATCH') {
       return res.status(400).json({ error: 'Uploaded file size does not match the declared size.' });
+    }
+    if (err instanceof FileTypeError) {
+      return res.status(err.status).json({ error: err.message, code: err.code });
     }
     if (err.message === 'WORKSPACE_EXPIRED') {
       return res
@@ -588,13 +611,22 @@ export const renameWorkspaceFile = async (req, res, next) => {
   try {
     const access = await authorize(req, res, 'rename', { write: true });
     if (!access) return;
+    const current = await findFile(access.workspace._id, req.params.fileId).lean();
+    if (!current) return res.status(404).json({ error: 'File not found!' });
+
+    // The extension is fixed at upload: only the part before it can change.
+    const renamed = resolveRename(parsed.data.newFilename, current.extension);
+    if (renamed.error) {
+      return res.status(400).json({ error: renamed.error, code: 'INVALID_FILE_NAME' });
+    }
+
     const before = await WorkspaceFile.findOneAndUpdate(
-      { _id: req.params.fileId, workspaceId: access.workspace._id, isReady: true },
-      { $set: { name: parsed.data.newFilename } },
+      { _id: current._id, workspaceId: access.workspace._id, isReady: true },
+      { $set: { name: renamed.name } },
     ).lean();
     if (!before) return res.status(404).json({ error: 'File not found!' });
     await logActivity(access.workspace._id, req.user._id, 'file_renamed', {
-      targetName: parsed.data.newFilename,
+      targetName: renamed.name,
       detail: before.name,
     });
     return res.status(200).json({ message: 'Renamed' });

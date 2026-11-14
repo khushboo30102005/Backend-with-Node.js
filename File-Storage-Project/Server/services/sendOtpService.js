@@ -1,17 +1,14 @@
-import OTP from '../models/otpModel.js';
 import nodemailer from 'nodemailer';
-export async function sendOtpService(email) {
-  const otp = Math.floor(1000 + Math.random() * 9000).toString();
-  await OTP.findOneAndUpdate(
-    { email },
-    { otp, createdAt: Date.now() },
-    { upsert: true },
-  );
+import { OTP_TTL_SECONDS } from './otpService.js';
+
+// Emails an already-generated OTP. Storage/hashing lives in otpService.js;
+// the plaintext code exists only in memory and in the email itself.
+export async function sendOtpEmail(email, otp) {
   const html = `
       <div style="font-family: sans-serif">
       <h1>Hello</h1>
       <h2>Your StorageApp verification code is: ${otp}.</h2>
-      <p>This code will expire in 10 minutes.</p>
+      <p>This code will expire in ${OTP_TTL_SECONDS / 60} minutes.</p>
       <p>If you didn't request this code, you can safely ignore this email.</p>
       <p>Thanks, The StorageApp Team.</p>
     </div>
@@ -28,7 +25,7 @@ export async function sendOtpService(email) {
   });
 
   try {
-    const info = await transporter.sendMail({
+    await transporter.sendMail({
       from: `"Storage App" <${process.env.SMTP_USER}>`,
       to: email,
       subject: 'StorageApp Verification Code',
@@ -37,5 +34,6 @@ export async function sendOtpService(email) {
     return { success: true, message: `OTP sent successfully on ${email}.` };
   } catch (error) {
     console.log(error.message);
+    return { success: false, message: 'Could not send the OTP email.' };
   }
 }

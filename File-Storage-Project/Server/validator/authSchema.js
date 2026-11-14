@@ -1,5 +1,9 @@
 import * as z from 'zod';
 
+const otpField = z
+  .string('Please enter a valid 6-digit OTP.')
+  .regex(/^\d{6}$/, 'Please enter a valid 6-digit OTP.');
+
 export const emailSchema = z.object({
   email: z.email('Please enter a valid email.'),
 });
@@ -15,16 +19,12 @@ export const registerSchema = loginSchema.extend({
     .min(3, 'Name should be at least 3 character long.')
     .max(100, 'Name can max 100 characters.')
     .trim(),
-  otp: z
-    .string('please enter a valid 4 digit otp String.')
-    .regex(/^\d{4}$/, 'please enter a valid 4 digit otp.'),
+  otp: otpField,
 });
 
 export const otpSchema = z.object({
   email: z.email('Please enter a valid email.'),
-  otp: z
-    .string('please enter a valid 4 digit otp String.')
-    .regex(/^\d{4}$/, 'please enter a valid 4 digit otp.'),
+  otp: otpField,
 });
 
 export const createDirectorySchema = z.object({
@@ -73,18 +73,14 @@ export const setPasswordSchema = z
 export const setPasswordWithOtpSchema = z
   .object({
     email: z.email('Please enter a valid email.'),
-    otp: z
-      .string('please enter a valid 4 digit otp String.')
-      .regex(/^\d{4}$/, 'please enter a valid 4 digit otp.'),
+    otp: otpField,
     ...passwordFields,
   })
   .refine(passwordsMatch, mismatch);
 
 export const changePasswordSchema = z
   .object({
-    otp: z
-      .string('please enter a valid 4 digit otp String.')
-      .regex(/^\d{4}$/, 'please enter a valid 4 digit otp.'),
+    otp: otpField,
     ...passwordFields,
   })
   .refine(passwordsMatch, mismatch);

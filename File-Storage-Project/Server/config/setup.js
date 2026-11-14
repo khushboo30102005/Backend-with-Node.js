@@ -142,6 +142,24 @@ try {
             bsonType: ['null', 'date'],
           },
 
+          // In-flight upload reservations (root directories only).
+          pendingUploads: {
+            bsonType: 'array',
+            items: {
+              bsonType: 'object',
+              required: ['id', 'bytes', 'at'],
+              properties: {
+                id: { bsonType: 'string' },
+                bytes: { bsonType: ['int', 'long', 'double'] },
+                fileId: { bsonType: ['null', 'objectId'] },
+                objectKey: { bsonType: ['null', 'string'] },
+                uploadId: { bsonType: ['null', 'string'] },
+                at: { bsonType: 'date' },
+              },
+              additionalProperties: false,
+            },
+          },
+
           createdAt: {
             bsonType: 'date',
           },
@@ -268,6 +286,11 @@ try {
     validationAction: 'error',
     validationLevel: 'strict',
   });
+
+  // Upload-reservation sweeper (mirrors directoryModel.js)
+  await db
+    .collection('directories')
+    .createIndex({ 'pendingUploads.at': 1 }, { sparse: true });
 
   // OTP unique email index
   await db.collection('otps').createIndex({ email: 1 }, { unique: true });

@@ -28,13 +28,18 @@ import {
   changePassword,
 } from '../controllers/userController.js';
 import { authLimiter, avatarLimiter } from '../middlewares/rateLimitMiddleware.js';
+import {
+  changePasswordRateLimit,
+  loginRateLimit,
+  verifyOtpRateLimit,
+} from '../middlewares/otpRateLimitMiddleware.js';
 import { searchUsers } from '../controllers/shareController.js';
 
 const router = express.Router();
 
-router.post('/user/register',authLimiter, register);
+router.post('/user/register',authLimiter, verifyOtpRateLimit, register);
 
-router.post('/user/login',authLimiter, login);
+router.post('/user/login',authLimiter, loginRateLimit, login);
 
 router.get('/user', checkAuth, getCurrentUser);
 
@@ -100,6 +105,6 @@ router.get('/users/search', checkAuth, searchUsers);
 
 router.post('/user/set-password', checkAuth, authLimiter, setPassword);
 
-router.post('/user/change-password', checkAuth, authLimiter, changePassword);
+router.post('/user/change-password', checkAuth, authLimiter, changePasswordRateLimit, changePassword);
 
 export default router;

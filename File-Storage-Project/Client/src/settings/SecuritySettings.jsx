@@ -85,7 +85,7 @@ function ChangePasswordForm({ email }) {
   async function handleSubmit(e) {
     e.preventDefault();
     if (submitting) return;
-    if (!/^\d{4}$/.test(otp)) return setError('Enter the 4-digit code sent to your email.');
+    if (!/^\d{6}$/.test(otp)) return setError('Enter the 6-digit code sent to your email.');
     if (newPassword.length < 4) return setError('Password must be at least 4 characters long.');
     if (newPassword.length > 72) return setError('Password cannot exceed 72 characters.');
     if (newPassword !== confirmPassword) return setError('Passwords do not match.');
@@ -111,7 +111,7 @@ function ChangePasswordForm({ email }) {
       {!otpSent ? (
         <div className="flex flex-col items-start gap-2">
           <p className="text-[13px] text-text-muted">
-            For your security, we'll email a 4-digit code to {email} before you
+            For your security, we'll email a 6-digit code to {email} before you
             can change your password.
           </p>
           <button
@@ -134,7 +134,7 @@ function ChangePasswordForm({ email }) {
                 id="cp-otp"
                 inputMode="numeric"
                 autoComplete="one-time-code"
-                maxLength={4}
+                maxLength={6}
                 className={inputClass}
                 value={otp}
                 onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}

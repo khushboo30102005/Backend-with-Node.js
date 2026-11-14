@@ -238,6 +238,20 @@ export const reportFailure = async (req, res, next) => {
 // POST /payments/webhook — mounted in app.js BEFORE express.json() with a raw
 // body parser, because the signature covers the exact bytes Razorpay sent.
 // ---------------------------------------------------------------------------
+// Total refunded so far on a payment, in paise. Uses the payment's running
+// total (amount_refunded) so several partial refunds that add up to the full
+// amount still count as a full refund. Falls back to this refund's own amount
+// if the payment entity is missing or belongs to a different payment.
+export function refundedTotal(refund, paymentEntity) {
+  if (
+    paymentEntity?.id === refund?.payment_id &&
+    paymentEntity?.amount_refunded != null
+  ) {
+    return Number(paymentEntity.amount_refunded);
+  }
+  return Number(refund?.amount) || 0;
+}
+
 async function processWebhookEvent(evt) {
   const entity = evt?.payload?.payment?.entity;
 
@@ -280,10 +294,10 @@ async function processWebhookEvent(evt) {
       if (!refund?.payment_id) return;
       const payment = await Payment.findOne({ razorpayPaymentId: refund.payment_id }).lean();
       if (!payment) return;
-      if (Number(refund.amount) >= payment.amount) {
+      if (refundedTotal(refund, entity) >= payment.amount) {
         await revokePremiumForRefund(payment.razorpayOrderId);
       } else {
-        console.warn('[payments] partial refund ignored for', payment.razorpayOrderId);
+        console.warn('[payments] partial refund (not yet full) for', payment.razorpayOrderId);
       }
       return;
     }

@@ -1,6 +1,5 @@
 import { deleteInsightsForFiles } from '../ai/insightService.js';
 import path from 'path';
-import { once } from 'events';
 import { PassThrough } from 'stream';
 import { Upload } from '@aws-sdk/lib-storage';
 import {
@@ -16,14 +15,38 @@ import { updateDirectorySize } from '../utils/updateDirectorySize.js';
 import { getFileAccess, canPerform } from '../utils/fileAccess.js';
 import mongoose from 'mongoose';
 import { getEffectiveStorageLimit } from '../services/subscriptionService.js';
+import {
+  QuotaError,
+  RESERVATION_HEARTBEAT_MS,
+  UPLOAD_ID_PATTERN,
+  commitReservation,
+  releaseReservation,
+  reserveStorage,
+  touchReservation,
+} from '../services/storageQuotaService.js';
 
+// POST /file/:parentDirId — streams the request body to B2.
+//
+// Storage accounting (audit H3 / M1):
+//   1. The declared size is reserved atomically against the quota BEFORE any
+//      byte is stored (services/storageQuotaService.js), so parallel uploads
+//      can't overshoot the limit.
+//   2. Every byte is counted while streaming; more than declared aborts at
+//      once, fewer than declared is rejected after the stream ends.
+//   3. Only then is the file document created, with the verified size, and
+//      the reservation turned into used storage. Any failure releases the
+//      reservation and removes the B2 object, so no record or object is left
+//      with a size that doesn't match what was stored.
 export const uploadFile = async (req, res, next) => {
   const user = req.targetUser;
-  const rootDir = await Directory.findById(user.rootDirId).select('size').lean();
   const parentDirId = req.params.parentDirId || user.rootDirId.toString();
 
-  let insertedFile;
-  let objectKey;
+  let reservation = null;
+  let objectKey = null;
+  let s3Upload = null;
+  let limitedBody = null;
+  let heartbeat = null;
+  let committed = false;
 
   try {
     const parentDirData = await Directory.findOne({
@@ -37,59 +60,72 @@ export const uploadFile = async (req, res, next) => {
     }
 
     const filename = req.headers.filename || 'untitled';
-    const filesize = Number(req.headers.filesize);
+    // A plain decimal byte count only ("", "1e3", "0x10" and "+5" are what
+    // Number() would quietly accept).
+    const rawSize = req.headers.filesize;
+    const filesize = /^\d{1,16}$/.test(rawSize ?? '') ? Number(rawSize) : NaN;
 
-    if (!Number.isFinite(filesize) || filesize < 0) {
+    if (!Number.isSafeInteger(filesize)) {
       return res.status(400).json({ error: 'Invalid filesize' });
     }
+
+    // When the client states a body length, it must be the declared size.
+    // (Chunked bodies are checked byte by byte below instead.)
+    const rawLength = req.headers['content-length'];
+    if (rawLength !== undefined && Number(rawLength) !== filesize) {
+      return res.status(400).json({ error: SIZE_MISMATCH_MESSAGE });
+    }
+
+    const uploadId = req.headers['upload-id'] ?? null;
+    if (uploadId !== null && !UPLOAD_ID_PATTERN.test(uploadId)) {
+      return res.status(400).json({ error: 'Invalid upload id.' });
+    }
+
+    const extension = path.extname(filename);
+    const fileId = new mongoose.Types.ObjectId();
+    const key = `${fileId}${extension}`;
 
     // The limit comes from MongoDB (after applying any expired Premium), never
     // from the cached session, so plan changes apply immediately.
     const storageLimit = await getEffectiveStorageLimit(user._id);
-    const availableStorage = storageLimit - (rootDir ? rootDir.size : 0);
-    const contentLength = parseInt(req.headers['content-length'], 10);
-
-    if (
-      (contentLength && contentLength > availableStorage) ||
-      filesize > availableStorage
-    ) {
-      return res.status(413).json({ error: 'Not enough storage space available.' });
-    }
-
-    const extension = path.extname(filename);
-
-    // create() (not insertOne) so Mongoose's timestamps option actually
-    // populates createdAt/updatedAt on the new document.
-    insertedFile = await File.create({
-      extension,
-      name: filename,
-      size: filesize,
-      parentDirId: parentDirData._id,
-      userId: req.targetUser._id,
+    reservation = await reserveStorage({
+      rootDirId: user.rootDirId,
+      bytes: filesize,
+      limit: storageLimit,
+      fileId,
+      objectKey: key,
+      uploadId,
     });
+    objectKey = key;
 
-    const fileId = insertedFile._id.toString();
-    objectKey = `${fileId}${extension}`;
+    heartbeat = setInterval(() => {
+      touchReservation(reservation).catch(() => {});
+    }, RESERVATION_HEARTBEAT_MS);
+    heartbeat.unref();
 
     let totalFileLength = 0;
-    const limitedBody = new PassThrough();
+    limitedBody = new PassThrough();
+    const body = limitedBody;
 
     const writerPromise = (async () => {
-      for await (const chunk of req) {
-        totalFileLength += chunk.length;
-        if (totalFileLength > filesize) {
-          const err = new Error('FILESIZE_EXCEEDED');
-          limitedBody.destroy(err);
-          throw err;
+      try {
+        // destroyOnReturn: false keeps the socket open when we stop reading
+        // early, so the 400 below can still reach the client.
+        for await (const chunk of req.iterator({ destroyOnReturn: false })) {
+          totalFileLength += chunk.length;
+          if (totalFileLength > filesize) throw new Error('FILESIZE_EXCEEDED');
+          if (!body.write(chunk)) await drainOrClose(body);
+          if (body.destroyed) throw new Error('UPLOAD_ABORTED');
         }
-        if (!limitedBody.write(chunk)) {
-          await once(limitedBody, 'drain');
-        }
+        body.end();
+      } catch (err) {
+        // Also stops the B2 upload when the client disconnects mid-stream.
+        body.destroy();
+        throw err;
       }
-      limitedBody.end();
     })();
 
-    const s3Upload = new Upload({
+    s3Upload = new Upload({
       client: s3,
       params: {
         Bucket: BUCKET_NAME,
@@ -101,24 +137,70 @@ export const uploadFile = async (req, res, next) => {
 
     await Promise.all([writerPromise, s3Upload.done()]);
 
-    await updateDirectorySize(parentDirId, totalFileLength);
+    if (totalFileLength !== filesize) throw new Error('FILESIZE_MISMATCH');
+
+    // Creates the file document (File.create, so timestamps are set) with the
+    // verified size and turns the reservation into used storage.
+    await commitReservation(reservation, {
+      _id: fileId,
+      extension,
+      name: filename,
+      size: totalFileLength,
+      parentDirId: parentDirData._id,
+      userId: req.targetUser._id,
+    });
+    committed = true;
 
     return res.status(201).json({ message: 'File Uploaded' });
   } catch (err) {
-    if (insertedFile) {
-      await File.deleteOne({ _id: insertedFile._id }).catch(() => {});
+    if (!committed) {
+      // Unblocks the writer if B2 failed while it was waiting to write.
+      limitedBody?.destroy();
+      if (s3Upload) await s3Upload.abort().catch(() => {});
+      if (objectKey) {
+        await s3
+          .send(new DeleteObjectCommand({ Bucket: BUCKET_NAME, Key: objectKey }))
+          .catch((e) => console.error(`[storage] could not delete ${objectKey}:`, e.message));
+      }
+      if (reservation) {
+        await releaseReservation(reservation).catch((e) =>
+          // The sweeper reclaims it once the heartbeat has stopped.
+          console.error('[storage] could not release reservation:', e.message),
+        );
+      }
     }
-    if (objectKey) {
-      await s3
-        .send(new DeleteObjectCommand({ Bucket: BUCKET_NAME, Key: objectKey }))
-        .catch(() => {});
-    }
+    // (If the client already disconnected, writing the response is a no-op.)
+    if (res.headersSent) return;
     if (err.message === 'FILESIZE_EXCEEDED') {
       return res.status(400).json({ error: 'Uploaded file exceeds declared size.' });
     }
+    if (err.message === 'FILESIZE_MISMATCH') {
+      return res.status(400).json({ error: SIZE_MISMATCH_MESSAGE });
+    }
+    if (err instanceof QuotaError) {
+      return res.status(err.status).json({ error: err.message, ...(err.code && { code: err.code }) });
+    }
     next(err);
+  } finally {
+    clearInterval(heartbeat);
   }
 };
+
+const SIZE_MISMATCH_MESSAGE = 'Uploaded file size does not match the declared size.';
+
+// Waits until the stream can take more data, or until it was destroyed (B2
+// failed or the upload was aborted). `once(stream, 'drain')` alone would wait
+// forever in the second case.
+const drainOrClose = (stream) =>
+  new Promise((resolve) => {
+    const done = () => {
+      stream.off('drain', done);
+      stream.off('close', done);
+      resolve();
+    };
+    stream.on('drain', done);
+    stream.on('close', done);
+  });
 
 // Types the in-app viewer previews. B2 may store these with a generic
 // content type, so force one the browser can render inline.
@@ -249,13 +331,24 @@ export const permanentlyDeleteFile = async (req, res, next) => {
   }
 
   try {
+    // B2 first: deleting a missing key succeeds, so a retry after a failure
+    // here is safe and nothing in the database has changed yet.
     await s3.send(
       new DeleteObjectCommand({
         Bucket: BUCKET_NAME,
         Key: `${id}${file.extension}`,
       }),
     );
-    await File.deleteOne({ _id: id });
+    // Only the request that actually removes the document gives the storage
+    // back, so a double click or retry can't subtract the size twice.
+    const { deletedCount } = await File.deleteOne({
+      _id: id,
+      userId: req.targetUser._id,
+      isTrashed: true,
+    });
+    if (!deletedCount) {
+      return res.status(404).json({ error: 'Trashed file not found!' });
+    }
     await Share.deleteMany({ resourceId: id });
     await deleteInsightsForFiles([id]);
     await updateDirectorySize(file.parentDirId, -file.size);
@@ -327,8 +420,15 @@ export const moveFile = async (req, res, next) => {
       return res.status(200).json({ message: 'File Moved!' }); // no-op
     }
 
-    file.parentDirId = newParentId;
-    await file.save();
+    // Conditional on the parent we read, so two concurrent moves of the same
+    // file can't both adjust folder sizes.
+    const moved = await File.updateOne(
+      { _id: file._id, userId: user._id, parentDirId: oldParentId, isTrashed: { $ne: true } },
+      { $set: { parentDirId: newParentId } },
+    );
+    if (!moved.modifiedCount) {
+      return res.status(409).json({ error: 'The file changed. Please try again.' });
+    }
 
     await updateDirectorySize(oldParentId, -file.size);
     await updateDirectorySize(newParentId, file.size);

@@ -17,7 +17,12 @@ import WorkspaceFolder from '../models/workspaceFolderModel.js';
 import WorkspaceVisit from '../models/workspaceVisitModel.js';
 import Directory from '../models/directoryModel.js';
 import File from '../models/fileModel.js';
-import { updateDirectorySize } from '../utils/updateDirectorySize.js';
+import {
+  QuotaError,
+  commitReservation,
+  releaseReservation,
+  reserveStorage,
+} from '../services/storageQuotaService.js';
 import { getFileAccess } from '../utils/fileAccess.js';
 import {
   MAX_FOLDERS,
@@ -461,8 +466,9 @@ export const saveToDrive = async (req, res, next) => {
   const parsed = saveToDriveSchema.safeParse(req.body ?? {});
   if (!parsed.success) return res.status(400).json({ error: firstZodError(parsed) });
 
-  let newFile;
-  let key;
+  let reservation = null;
+  let key = null;
+  let committed = false;
   try {
     const access = await authorize(req, res, 'view');
     if (!access) return;
@@ -478,19 +484,26 @@ export const saveToDrive = async (req, res, next) => {
     }).lean();
     if (!dir) return res.status(404).json({ error: 'Destination folder not found.' });
 
-    const root = await Directory.findById(req.user.rootDirId).select('size').lean();
-    if ((root?.size ?? 0) + src.size > (await getEffectiveStorageLimit(req.user._id))) {
-      return res.status(413).json({ error: 'Not enough space in your My Drive.' });
+    // Reserve the space atomically before copying (same mechanism as uploads),
+    // so parallel saves can't exceed the personal quota.
+    const fileId = new mongoose.Types.ObjectId();
+    const newKey = `${fileId}${src.extension}`;
+    try {
+      reservation = await reserveStorage({
+        rootDirId: req.user.rootDirId,
+        bytes: src.size,
+        limit: await getEffectiveStorageLimit(req.user._id),
+        fileId,
+        objectKey: newKey,
+      });
+    } catch (err) {
+      if (err instanceof QuotaError && err.status === 413) {
+        return res.status(413).json({ error: 'Not enough space in your My Drive.' });
+      }
+      throw err;
     }
+    key = newKey;
 
-    newFile = await File.create({
-      name: src.name,
-      size: src.size,
-      extension: src.extension,
-      userId: req.user._id,
-      parentDirId: dir._id,
-    });
-    key = `${newFile._id}${src.extension}`;
     await s3.send(
       new CopyObjectCommand({
         Bucket: BUCKET_NAME,
@@ -498,12 +511,25 @@ export const saveToDrive = async (req, res, next) => {
         CopySource: `${BUCKET_NAME}/${encodeURIComponent(workspaceObjectKey(wsId, src))}`,
       }),
     );
-    await updateDirectorySize(dir._id, src.size);
+    await commitReservation(reservation, {
+      _id: fileId,
+      name: src.name,
+      size: src.size,
+      extension: src.extension,
+      userId: req.user._id,
+      parentDirId: dir._id,
+    });
+    committed = true;
     await logActivity(wsId, req.user._id, 'file_saved_to_drive', { targetName: src.name });
     return res.status(201).json({ message: 'Saved to My Drive' });
   } catch (err) {
-    if (newFile) await File.deleteOne({ _id: newFile._id }).catch(() => {});
-    if (key) await s3.send(new DeleteObjectCommand({ Bucket: BUCKET_NAME, Key: key })).catch(() => {});
+    if (!committed) {
+      if (key) await s3.send(new DeleteObjectCommand({ Bucket: BUCKET_NAME, Key: key })).catch(() => {});
+      if (reservation) await releaseReservation(reservation).catch(() => {});
+    }
+    if (err instanceof QuotaError) {
+      return res.status(err.status).json({ error: err.message });
+    }
     next(err);
   }
 };

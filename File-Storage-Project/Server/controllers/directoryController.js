@@ -318,11 +318,22 @@ export const permanentlyDeleteDirectory = async (req, res, next) => {
 
     const fileIds = files.map(({ _id }) => _id);
 
+    // Only the request that removes the directory itself continues, so a
+    // double click or retry can't give the same storage back twice.
+    const { deletedCount } = await Directory.deleteOne({
+      _id: directoryData._id,
+      userId: user._id,
+      isTrashed: true,
+    });
+    if (!deletedCount) {
+      return res.status(404).json({ message: 'Trashed directory not found.' });
+    }
+
     await File.deleteMany({ _id: { $in: fileIds } });
     await Share.deleteMany({ resourceId: { $in: fileIds } });
     await deleteInsightsForFiles(fileIds);
     await Directory.deleteMany({
-      _id: { $in: [...dirs.map(({ _id }) => _id), directoryData._id] },
+      _id: { $in: dirs.map(({ _id }) => _id) },
     });
 
     // The directory's own `size` is the total of everything inside it,
@@ -401,26 +412,28 @@ export const moveDirectory = async (req, res, next) => {
 
     const descendants = await collectDescendants(directory._id);
 
-    const bulkOps = [
-      {
-        updateOne: {
-          filter: { _id: directory._id },
-          update: { parentDirId: newParentId, path: newPath },
-        },
-      },
-      ...descendants.map((desc) => {
-        const oldPrefixLength = directory.path.length;
-        const suffix = desc.path.slice(oldPrefixLength);
-        return {
-          updateOne: {
-            filter: { _id: desc._id },
-            update: { path: [...newPath, ...suffix] },
-          },
-        };
-      }),
-    ];
+    // Move the directory itself first, conditional on the parent we read, so
+    // two concurrent moves can't both rewrite paths and adjust sizes.
+    const moved = await Directory.updateOne(
+      { _id: directory._id, userId: user._id, parentDirId: oldParentId, isTrashed: { $ne: true } },
+      { $set: { parentDirId: newParentId, path: newPath } },
+    );
+    if (!moved.modifiedCount) {
+      return res.status(409).json({ error: 'The folder changed. Please try again.' });
+    }
 
-    await Directory.bulkWrite(bulkOps);
+    const bulkOps = descendants.map((desc) => {
+      const oldPrefixLength = directory.path.length;
+      const suffix = desc.path.slice(oldPrefixLength);
+      return {
+        updateOne: {
+          filter: { _id: desc._id },
+          update: { path: [...newPath, ...suffix] },
+        },
+      };
+    });
+
+    if (bulkOps.length) await Directory.bulkWrite(bulkOps);
 
     await updateDirectorySize(oldParentId, -size);
     await updateDirectorySize(newParentId, size);

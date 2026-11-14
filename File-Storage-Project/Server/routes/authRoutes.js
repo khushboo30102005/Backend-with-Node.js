@@ -7,6 +7,10 @@ import {
   verifyOTP,
 } from '../controllers/authController.js';
 import { authLimiter, otpSendLimiter } from '../middlewares/rateLimitMiddleware.js';
+import {
+  sendOtpRateLimit,
+  verifyOtpRateLimit,
+} from '../middlewares/otpRateLimitMiddleware.js';
 import { sessionCookieOptions } from '../config/cookie.js';
 
 const router = express.Router();
@@ -29,14 +33,14 @@ router.get('/cookie-test/verify', (req, res) => {
   res.json({ enabled: req.cookies?.cookie_test === '1' });
 });
 
-router.post('/send-otp', otpSendLimiter, sendOTP);
+router.post('/send-otp', otpSendLimiter, sendOtpRateLimit, sendOTP);
 
-router.post('/verify-otp', authLimiter, verifyOTP);
+router.post('/verify-otp', authLimiter, verifyOtpRateLimit, verifyOTP);
 
 router.post('/google', authLimiter, loginWithGoogle);
 
-router.post('/verify-login-otp', authLimiter, verifyLoginOTP);
+router.post('/verify-login-otp', authLimiter, verifyOtpRateLimit, verifyLoginOTP);
 
-router.post('/set-password', authLimiter, setPasswordWithOtp);
+router.post('/set-password', authLimiter, verifyOtpRateLimit, setPasswordWithOtp);
 
 export default router;

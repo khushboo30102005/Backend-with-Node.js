@@ -1,25 +1,51 @@
 import mongoose, { Types } from 'mongoose';
 import Directory from '../models/directoryModel.js';
-import OTP from '../models/otpModel.js';
 import User from '../models/userModel.js';
 import { verifyIdToken } from '../services/googleAuthService.js';
-import { sendOtpService } from '../services/sendOtpService.js';
+import { sendOtpEmail } from '../services/sendOtpService.js';
+import {
+  checkEmailOtp,
+  consumeEmailOtp,
+  consumePendingLogin,
+  issueEmailOtp,
+  otpFailureMessage,
+} from '../services/otpService.js';
 import redisClient from '../config/redis.js';
 import { emailSchema, otpSchema, setPasswordWithOtpSchema} from '../validator/authSchema.js';
 import * as z from 'zod';
 import { setInitialPassword } from '../services/setPasswordService.js';
-import { sessionCookieOptions } from '../config/cookie.js';
+import {
+  clearSessionCookieOptions,
+  PENDING_LOGIN_COOKIE,
+  sessionCookieOptions,
+} from '../config/cookie.js';
 import { getFreeStorageBytes } from '../config/plans.js';
 import { isStoredAvatar } from '../utils/avatar.js';
+import { normalizeEmail } from '../utils/otpCrypto.js';
+
+const DELETED_ACCOUNT_ERROR =
+  'Your account has been deleted. Contact app owner to recover.';
 
 export const sendOTP = async (req, res, next) => {
   const { success, data } = emailSchema.safeParse(req.body);
   if (!success) {
     return res.status(400).json({ error: 'Invalid email' });
   }
-  const { email } = data;
-  const result = await sendOtpService(email);
-  res.json(result);
+  const email = normalizeEmail(data.email);
+  try {
+    // Deleted accounts may not receive codes (registration with a new email
+    // still works: no user is found).
+    const existing = await User.findOne({ email }).select('isDeleted').lean();
+    if (existing?.isDeleted) {
+      return res.status(403).json({ error: DELETED_ACCOUNT_ERROR });
+    }
+    const otp = await issueEmailOtp(email);
+    const result = await sendOtpEmail(email, otp);
+    if (!result.success) return res.status(502).json({ error: result.message });
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
 };
 
 export const verifyOTP = async (req, res, next) => {
@@ -27,14 +53,26 @@ export const verifyOTP = async (req, res, next) => {
   if (!success) {
     return res.status(400).json({ error: 'Invalid or expired OTP.' });
   }
-  const { email, otp } = data;
-  const otpRecord = await OTP.findOne({ email, otp });
-  if (!otpRecord) {
-    return res.status(400).json({ error: 'Invalid or expired OTP.' });
+  const email = normalizeEmail(data.email);
+  try {
+    const existing = await User.findOne({ email }).select('isDeleted').lean();
+    if (existing?.isDeleted) {
+      return res.status(403).json({ error: DELETED_ACCOUNT_ERROR });
+    }
+    // Pre-check only: the code stays valid for the final register /
+    // set-password submit, which consumes it. Wrong guesses still count.
+    const result = await checkEmailOtp(email, data.otp);
+    if (!result.ok) {
+      return res.status(400).json({ error: otpFailureMessage(result) });
+    }
+    return res.json({ message: 'OTP Verified' });
+  } catch (err) {
+    next(err);
   }
-  return res.json({ message: 'OTP Verified' });
 };
 
+// Step 2 of password login. Requires the pending-login cookie issued by
+// POST /user/login after a correct password; an OTP alone is not enough.
 export const verifyLoginOTP = async (req, res, next) => {
   const { success, data } = otpSchema.safeParse(req.body);
   if (!success) {
@@ -42,16 +80,42 @@ export const verifyLoginOTP = async (req, res, next) => {
   }
   const { email, otp } = data;
   try {
-    const otpRecord = await OTP.findOne({ email, otp });
-    if (!otpRecord) {
-      return res.status(400).json({ error: 'Invalid or expired OTP.' });
-    }
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(404).json({
-        error: 'User not found.',
+    const token = req.signedCookies?.[PENDING_LOGIN_COOKIE];
+    if (!token) {
+      return res.status(401).json({
+        error: 'Login session expired. Please sign in with your password again.',
       });
     }
+    const result = await consumePendingLogin(token, email, otp);
+    if (!result.ok) {
+      if (result.reason === 'locked') {
+        res.clearCookie(PENDING_LOGIN_COOKIE, clearSessionCookieOptions);
+      }
+      return res.status(400).json({ error: otpFailureMessage(result) });
+    }
+    res.clearCookie(PENDING_LOGIN_COOKIE, clearSessionCookieOptions);
+
+    // Re-check the account: it may have been deleted (or its email changed)
+    // between the password step and now.
+    const user = await User.findById(result.userId);
+    if (!user || normalizeEmail(user.email) !== normalizeEmail(email)) {
+      return res.status(401).json({ error: 'Invalid or expired OTP.' });
+    }
+    if (user.isDeleted) {
+      return res.status(403).json({ error: DELETED_ACCOUNT_ERROR });
+    }
+
+    // Keep at most 2 concurrent sessions. Done here, after both factors,
+    // so a correct password alone can no longer evict a signed-in device.
+    const allSessions = await redisClient.ft.search(
+      'userIdIdx',
+      `@userId:{${user.id}}`,
+      { RETURN: [] },
+    );
+    if (allSessions.total >= 2) {
+      await redisClient.del(allSessions.documents[0].id);
+    }
+
     const sessionId = crypto.randomUUID();
     const redisKey = `session:${sessionId}`;
 
@@ -65,7 +129,6 @@ export const verifyLoginOTP = async (req, res, next) => {
     const sessionExpiryTime = 60 * 1000 * 60 * 24 * 7;
     await redisClient.expire(redisKey, sessionExpiryTime / 1000);
     res.cookie('sid', sessionId, sessionCookieOptions(sessionExpiryTime));
-    await otpRecord.deleteOne();
     return res.json({ message: 'Logged in' });
   } catch (error) {
     console.log(error);
@@ -215,22 +278,25 @@ export const setPasswordWithOtp = async (req, res, next) => {
       error: Object.values(z.flattenError(error).fieldErrors).flat()[0],
     });
   }
-  const { email, otp, newPassword } = data;
+  const { otp, newPassword } = data;
+  const email = normalizeEmail(data.email);
   try {
-    // 1. Prove ownership of the email first
-    const otpRecord = await OTP.findOne({ email, otp });
-    if (!otpRecord) {
-      return res.status(400).json({ error: 'Invalid or expired OTP.' });
+    // 1. Prove ownership of the email first (single use: consumed here)
+    const otpResult = await consumeEmailOtp(email, otp);
+    if (!otpResult.ok) {
+      return res.status(400).json({ error: otpFailureMessage(otpResult) });
     }
     // 2. Same rules as the logged-in flow (never overwrites)
-    const user = await User.findOne({ email }).select('_id');
+    const user = await User.findOne({ email }).select('_id isDeleted');
     if (!user) return res.status(404).json({ error: 'User not found.' });
+    if (user.isDeleted) {
+      return res.status(403).json({ error: DELETED_ACCOUNT_ERROR });
+    }
 
     const result = await setInitialPassword(user._id, newPassword);
     if (result.error) {
       return res.status(result.status).json({ error: result.error });
     }
-    await otpRecord.deleteOne(); // single use
     return res.status(200).json({ message: result.message });
   } catch (err) {
     next(err);

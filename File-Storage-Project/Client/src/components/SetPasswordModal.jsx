@@ -91,8 +91,8 @@ function SetPasswordModal({ email, onClose, onSuccess }) {
   }
 
   async function handleVerifyOtp() {
-    if (!/^\d{4}$/.test(otp)) {
-      setError('Enter the 4-digit code sent to your email.');
+    if (!/^\d{6}$/.test(otp)) {
+      setError('Enter the 6-digit code sent to your email.');
       return;
     }
     setError('');
@@ -221,10 +221,10 @@ function SetPasswordModal({ email, onClose, onSuccess }) {
                         type="text"
                         inputMode="numeric"
                         autoComplete="one-time-code"
-                        maxLength={4}
+                        maxLength={6}
                         disabled={otpVerified}
                         className={`${inputClass} pr-[96px] disabled:opacity-60`}
-                        placeholder="4-digit code"
+                        placeholder="6-digit code"
                         value={otp}
                         onChange={(e) =>
                           setOtp(e.target.value.replace(/\D/g, ''))
@@ -233,7 +233,7 @@ function SetPasswordModal({ email, onClose, onSuccess }) {
                       <button
                         type="button"
                         onClick={handleVerifyOtp}
-                        disabled={verifying || otpVerified || otp.length !== 4}
+                        disabled={verifying || otpVerified || otp.length !== 6}
                         className={smallBtn}
                       >
                         {verifying

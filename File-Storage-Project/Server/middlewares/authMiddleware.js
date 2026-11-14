@@ -12,6 +12,15 @@ export default async function checkAuth(req, res, next) {
   if (!session) {
     return res.status(401).json({ error: 'Not logged in!' });
   }
+  // Sessions are deleted when an account is soft-deleted, but a session can
+  // be created concurrently with (or survive) a deletion. Re-check the account
+  // on every request so a deleted user can never act with an old session.
+  const account = await User.findById(session.userId).select('isDeleted').lean();
+  if (!account || account.isDeleted) {
+    await redisClient.del(`session:${sid}`);
+    res.clearCookie('sid', clearSessionCookieOptions);
+    return res.status(401).json({ error: 'Not logged in!' });
+  }
   req.user = {
     _id: session.userId,
     rootDirId: session.rootDirId,

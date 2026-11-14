@@ -200,3 +200,19 @@ test('verify: malformed payloads are rejected before any lookup', async () => {
     assert.equal(res.code, 400);
   }
 });
+
+test('refund total: partial refunds that add up to the full amount count as full', async () => {
+  const { refundedTotal } = await import('../controllers/paymentController.js');
+  const refund = (amount) => ({ payment_id: 'pay_ABC123', amount });
+
+  // Second of two ₹49.50 refunds on a ₹99 payment: running total is 9900.
+  assert.equal(refundedTotal(refund(4950), { id: 'pay_ABC123', amount_refunded: 9900 }), 9900);
+  // First partial refund: running total is still below the full amount.
+  assert.equal(refundedTotal(refund(4950), { id: 'pay_ABC123', amount_refunded: 4950 }), 4950);
+  // No payment entity in the payload: fall back to this refund's amount.
+  assert.equal(refundedTotal(refund(9900), undefined), 9900);
+  // Payment entity for a different payment is ignored.
+  assert.equal(refundedTotal(refund(4950), { id: 'pay_OTHER1', amount_refunded: 9900 }), 4950);
+  // Garbage input never throws.
+  assert.equal(refundedTotal(undefined, undefined), 0);
+});

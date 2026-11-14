@@ -223,8 +223,8 @@ const Register = () => {
                 name="otp"
                 value={otp}
                 onChange={(e) => setOtp(e.target.value)}
-                placeholder="4-digit OTP"
-                maxLength={4}
+                placeholder="6-digit OTP"
+                maxLength={6}
                 disabled={otpVerified || countdown === 0}
                 required
               />

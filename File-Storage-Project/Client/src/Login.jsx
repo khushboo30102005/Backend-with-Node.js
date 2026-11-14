@@ -251,8 +251,8 @@ const Login = () => {
                     type="text"
                     value={otp}
                     onChange={(e) => setOtp(e.target.value)}
-                    maxLength={4}
-                    placeholder="4-digit OTP"
+                    maxLength={6}
+                    placeholder="6-digit OTP"
                     disabled={otpVerified}
                     autoFocus
                   />

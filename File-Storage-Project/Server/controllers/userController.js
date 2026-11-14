@@ -5,8 +5,14 @@ import bcrypt from 'bcrypt';
 import User from '../models/userModel.js';
 import Directory from '../models/directoryModel.js';
 import File from '../models/fileModel.js';
-import OTP from '../models/otpModel.js';
-import { sendOtpService } from '../services/sendOtpService.js';
+import { sendOtpEmail } from '../services/sendOtpService.js';
+import {
+  consumeEmailOtp,
+  createPendingLogin,
+  otpFailureMessage,
+  PENDING_LOGIN_TTL_SECONDS,
+} from '../services/otpService.js';
+import { normalizeEmail } from '../utils/otpCrypto.js';
 import redisClient from '../config/redis.js';
 import { setInitialPassword } from '../services/setPasswordService.js';
 import { deleteAllSessionsForUser } from '../services/delRedisSessionsService.js';
@@ -26,7 +32,11 @@ import {
   resolvePicture,
 } from '../utils/avatar.js';
 import { JSDOM } from 'jsdom';
-import { clearSessionCookieOptions } from '../config/cookie.js';
+import {
+  clearSessionCookieOptions,
+  PENDING_LOGIN_COOKIE,
+  sessionCookieOptions,
+} from '../config/cookie.js';
 import { expireIfDue } from '../services/subscriptionService.js';
 import DOMPurify from 'dompurify';
 
@@ -46,12 +56,12 @@ export const register = async (req, res, next) => {
       error: Object.values(z.flattenError(error).fieldErrors).flat()[0],
     });
   }
-  const { name, email, password, otp } = data;
-  const otpRecord = await OTP.findOne({ email, otp });
-  if (!otpRecord) {
-    return res.status(400).json({ error: 'Invalid or expired OTP.' });
+  const { name, password, otp } = data;
+  const email = normalizeEmail(data.email);
+  const otpResult = await consumeEmailOtp(email, otp); // single use
+  if (!otpResult.ok) {
+    return res.status(400).json({ error: otpFailureMessage(otpResult) });
   }
-  await otpRecord.deleteOne();
   const foundUser = await User.findOne({ email }).lean();
   if (foundUser?.isDeleted) {
     return res.status(403).json({
@@ -110,7 +120,8 @@ export const login = async (req, res, next) => {
     return res.status(400).json({ error: 'Invalid Credentials' });
   }
 
-  const { email, password } = data;
+  const { password } = data;
+  const email = normalizeEmail(data.email);
   try {
     const user = await User.findOne({ email });
 
@@ -134,19 +145,19 @@ export const login = async (req, res, next) => {
       return res.status(404).json({ error: 'Invalid Credentials' });
     }
 
-    const allSessions = await redisClient.ft.search(
-      'userIdIdx',
-      `@userId:{${user.id}}`,
-      {
-        RETURN: [],
-      },
-    );
-
-    if (allSessions.total >= 2) {
-      await redisClient.del(allSessions.documents[0].id);
+    // Password verified: open a short-lived, single-use pending login whose
+    // OTP is the only one /auth/verify-login-otp accepts. Session eviction
+    // (max 2 devices) now happens there, after the OTP is verified.
+    const { token, otp } = await createPendingLogin(user);
+    const result = await sendOtpEmail(user.email, otp);
+    if (!result.success) {
+      return res.status(502).json({ error: result.message });
     }
-
-    const result = await sendOtpService(email);
+    res.cookie(
+      PENDING_LOGIN_COOKIE,
+      token,
+      sessionCookieOptions(PENDING_LOGIN_TTL_SECONDS * 1000),
+    );
 
     res.json({ message: result });
   } catch (error) {
@@ -287,13 +298,12 @@ export const changePassword = async (req, res, next) => {
         error: 'No password is set yet. Use "Set password" instead.',
       });
     }
-    const otpRecord = await OTP.findOne({ email: user.email, otp });
-    if (!otpRecord) {
-      return res.status(400).json({ error: 'Invalid or expired OTP.' });
+    const otpResult = await consumeEmailOtp(user.email, otp); // single use
+    if (!otpResult.ok) {
+      return res.status(400).json({ error: otpFailureMessage(otpResult) });
     }
     user.password = newPassword; // pre('save') hashes it
     await user.save();
-    await otpRecord.deleteOne(); // single use
 
     const keep = `session:${req.signedCookies.sid}`;
     const all = await redisClient.ft.search(

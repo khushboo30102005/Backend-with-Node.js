@@ -23,3 +23,6 @@ export const clearSessionCookieOptions = {
   sameSite,
   secure,
 };
+// Short-lived, signed, httpOnly cookie carrying the opaque pending-login token
+// issued after a correct password (see services/otpService.js).
+export const PENDING_LOGIN_COOKIE = 'pending_login';

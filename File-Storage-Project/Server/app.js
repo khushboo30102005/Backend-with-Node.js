@@ -20,6 +20,7 @@ import paymentRoutes from './routes/paymentRoutes.js';
 import { handleWebhook } from './controllers/paymentController.js';
 import { startSubscriptionSweeper } from './services/subscriptionService.js';
 import { startWorkspaceSweeper } from './services/workspaceCleanupService.js';
+import { startStorageReservationSweeper } from './services/storageQuotaService.js';
 await connectDB();
 const app = express();
 const port = process.env.PORT || 4000;
@@ -77,4 +78,5 @@ app.listen(port, () => {
   console.log(`Server Started`);
   startWorkspaceSweeper();
   startSubscriptionSweeper();
+  startStorageReservationSweeper();
 });

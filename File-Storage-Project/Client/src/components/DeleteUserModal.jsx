@@ -34,17 +34,25 @@ function DeleteUserModal({ user, onClose, onSoftDelete, onHardDelete }) {
                 </span>
               </button>
 
-              <button
-                className="flex flex-col items-start gap-1 px-4 py-3.5 rounded-[10px] border border-border bg-white cursor-pointer text-left transition-all duration-150 hover:border-red-300 hover:bg-red-50"
-                onClick={() => setStep('confirmHard')}
-              >
-                <span className="font-bold text-sm text-danger">
-                  Permanent Delete
-                </span>
-                <span className="text-[13px] text-text-muted">
-                  Removes the user and their data completely.
-                </span>
-              </button>
+              {onHardDelete ? (
+                <button
+                  className="flex flex-col items-start gap-1 px-4 py-3.5 rounded-[10px] border border-border bg-white cursor-pointer text-left transition-all duration-150 hover:border-red-300 hover:bg-red-50"
+                  onClick={() => setStep('confirmHard')}
+                >
+                  <span className="font-bold text-sm text-danger">
+                    Permanent Delete
+                  </span>
+                  <span className="text-[13px] text-text-muted">
+                    Removes the user and their data completely.
+                  </span>
+                </button>
+              ) : (
+                <p className="text-[13px] text-text-muted px-1">
+                  To remove a user permanently, soft-delete them first. An
+                  Owner can then delete them permanently from "Show Deleted
+                  Users".
+                </p>
+              )}
             </div>
             <div className="flex justify-end gap-2.5">
               <button

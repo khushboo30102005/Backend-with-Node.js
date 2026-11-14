@@ -1,5 +1,5 @@
 import express from 'express';
-import rateLimit from 'express-rate-limit';
+import { perUserLimiter } from '../middlewares/rateLimitMiddleware.js';
 import validateIdMiddleware from '../middlewares/validateIdMiddleware.js';
 import {
   acceptInvitation,
@@ -37,20 +37,15 @@ import {
 
 const router = express.Router();
 
-const limiter = (limit, windowMs, error) =>
-  rateLimit({
-    windowMs,
-    limit,
-    standardHeaders: 'draft-8',
-    legacyHeaders: false,
-    message: { error },
-  });
+// Counted per signed-in user in Redis (audit M5); mounted behind checkAuth.
+const limiter = (name, limit, windowMs, message) =>
+  perUserLimiter({ name, limit, windowMs, message });
 
 const HOUR = 60 * 60 * 1000;
-const createLimiter = limiter(20, HOUR, 'Too many workspaces created. Please try again later.');
+const createLimiter = limiter('ws-create', 20, HOUR, 'Too many workspaces created. Please try again later.');
 // Invitations raise notifications for other people, so cap them tightly.
-const inviteLimiter = limiter(60, HOUR, 'Too many invitations sent. Please try again later.');
-const uploadLimiter = limiter(120, HOUR, 'Too many uploads. Please try again later.');
+const inviteLimiter = limiter('ws-invite', 60, HOUR, 'Too many invitations sent. Please try again later.');
+const uploadLimiter = limiter('ws-upload', 120, HOUR, 'Too many uploads. Please try again later.');
 
 router.param('id', validateIdMiddleware);
 router.param('userId', validateIdMiddleware);

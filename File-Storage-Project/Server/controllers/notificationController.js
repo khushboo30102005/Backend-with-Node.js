@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import Share from '../models/shareModel.js';
 import { resolvePicture } from '../utils/avatar.js';
+import { withActiveOwners } from '../utils/fileAccess.js';
 
 // Notifications are derived from the Share collection itself — no second
 // source of truth to drift out of sync. A share the user has not yet seen
@@ -13,9 +14,11 @@ function load(filter, limit) {
   return Share.find(filter)
     .sort({ createdAt: -1 })
     .limit(limit)
-    .populate('resourceId', 'name isTrashed')
+    .populate('resourceId', 'name isTrashed userId')
     .populate('ownerId', 'name picture')
-    .lean();
+    .lean()
+    // No notifications for files of a soft-deleted owner (M7).
+    .then((shares) => withActiveOwners(shares, (s) => s.resourceId?.userId));
 }
 
 // GET /share/notifications

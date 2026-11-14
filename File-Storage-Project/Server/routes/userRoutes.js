@@ -27,7 +27,11 @@ import {
   removePicture,
   changePassword,
 } from '../controllers/userController.js';
-import { authLimiter, avatarLimiter } from '../middlewares/rateLimitMiddleware.js';
+import {
+  authLimiter,
+  avatarLimiter,
+  userSearchLimiter,
+} from '../middlewares/rateLimitMiddleware.js';
 import {
   changePasswordRateLimit,
   loginRateLimit,
@@ -89,10 +93,11 @@ router.get('/users/deleted', checkAuth, checkIsOwnerUser, getDeletedUsers);
 
 router.delete('/users/:userId', checkAuth, checkIsAdminUser, deleteUser);
 
+// Permanent deletion is Owner-only and requires a prior soft delete (H4).
 router.delete(
   '/users/:userId/hard',
   checkAuth,
-  checkIsAdminUser,
+  checkIsOwnerUser,
   permanentlyDeleteUser,
 );
 
@@ -101,7 +106,8 @@ router.patch('/users/:userId/recover', checkAuth, checkIsOwnerUser, recoverUser)
 router.patch('/users/:userId/role', checkAuth, checkNotRegularUser, changeUserRole);
 
 
-router.get('/users/search', checkAuth, searchUsers);
+// Exact email match only, rate limited per account (M6).
+router.get('/users/search', checkAuth, userSearchLimiter, searchUsers);
 
 router.post('/user/set-password', checkAuth, authLimiter, setPassword);
 

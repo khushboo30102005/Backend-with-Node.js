@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { FaSearch, FaUserCircle } from 'react-icons/fa';
 import { searchUsers } from '../../apis/userApi';
+import { isCompleteEmail } from '../../utils/email';
 import { inputClass } from '../../settings/SettingsUI';
 
-// Debounced email search (same /users/search endpoint the Share dialog uses).
+// Debounced exact-email lookup (same /users/search endpoint the Share dialog
+// uses); it only runs once a complete address has been typed.
 // Calls onPick(user) and clears itself; `excludeIds` hides people already added.
-function MemberPicker({ excludeIds = [], onPick, placeholder = 'Search people by email…' }) {
+function MemberPicker({ excludeIds = [], onPick, placeholder = 'Enter their full email address…' }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [searching, setSearching] = useState(false);
@@ -15,7 +17,7 @@ function MemberPicker({ excludeIds = [], onPick, placeholder = 'Search people by
   useEffect(() => {
     clearTimeout(timer.current);
     const q = query.trim();
-    if (q.length < 3) {
+    if (!isCompleteEmail(q)) {
       setResults([]);
       return;
     }
@@ -44,7 +46,7 @@ function MemberPicker({ excludeIds = [], onPick, placeholder = 'Search people by
         value={query}
         onChange={(e) => setQuery(e.target.value)}
       />
-      {query.trim().length >= 3 && (
+      {isCompleteEmail(query) && (
         <ul className="absolute z-20 left-0 right-0 mt-1 max-h-56 overflow-y-auto rounded-lg border border-border bg-surface shadow-card-hover">
           {searching && <li className="px-3 py-2.5 text-xs text-text-muted">Searching…</li>}
           {!searching && results.length === 0 && (

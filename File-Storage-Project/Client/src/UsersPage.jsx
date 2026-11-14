@@ -165,12 +165,20 @@ export default function UsersPage() {
     }
   };
 
+  // Owner only, and only for users that are already soft-deleted (the
+  // server enforces both). A failed purge can simply be retried.
   const hardDeleteUser = async (user) => {
+    const confirmed = confirm(
+      `Permanently delete ${user.email}? All of their files, folders, shares and workspaces they own (unless handed to a member) will be removed. This cannot be undone.`,
+    );
+    if (!confirmed) return;
     try {
       await hardDeleteUserById(user._id);
-      loadUsers();
+      loadDeletedUsers();
     } catch (err) {
       console.error('Permanent delete error:', err);
+      alert(err.response?.data?.error || 'Permanent delete failed');
+      loadDeletedUsers();
     }
   };
 
@@ -180,6 +188,7 @@ export default function UsersPage() {
       loadDeletedUsers();
     } catch (err) {
       console.error('Recover error:', err);
+      alert(err.response?.data?.error || 'Recover failed');
     }
   };
 
@@ -269,12 +278,21 @@ export default function UsersPage() {
                       <span className="truncate">{user.email}</span>
                     </td>
                     <td className={cellBase} data-label="Recover">
-                      <button
-                        className={buttonBase}
-                        onClick={() => recoverUser(user)}
-                      >
-                        Recover
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          className={buttonBase}
+                          onClick={() => recoverUser(user)}
+                        >
+                          Recover
+                        </button>
+                        <button
+                          className={dangerButton}
+                          onClick={() => hardDeleteUser(user)}
+                          disabled={ROLE_RANKS[userRole] <= ROLE_RANKS[user.role]}
+                        >
+                          Delete permanently
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -295,8 +313,10 @@ export default function UsersPage() {
               <tbody className="max-[640px]:block">
                 {users.map((user) => {
                   const isSelf = userEmail === user.email;
+                  // Mirrors the server rule: only users ranked strictly
+                  // below you can be changed, deleted or logged out.
                   const locked =
-                    isSelf || ROLE_RANKS[userRole] < ROLE_RANKS[user.role];
+                    isSelf || ROLE_RANKS[userRole] <= ROLE_RANKS[user.role];
                   return (
                     <tr key={user._id} className={rowClassFor(isSelf)}>
                       <td className={nameCell}>
@@ -320,10 +340,8 @@ export default function UsersPage() {
                           onClick={() => logoutUser(user)}
                           disabled={
                             !user.isLoggedIn ||
-                            (userRole === 'Manager' &&
-                              (user.role === 'Admin' ||
-                                user.role === 'Owner')) ||
-                            (userRole === 'Admin' && user.role === 'Owner')
+                            (!isSelf &&
+                              ROLE_RANKS[userRole] <= ROLE_RANKS[user.role])
                           }
                         >
                           Logout
@@ -357,7 +375,8 @@ export default function UsersPage() {
                               {Object.keys(ROLE_RANKS)
                                 .filter(
                                   (r) =>
-                                    ROLE_RANKS[r] <= ROLE_RANKS[userRole] ||
+                                    ROLE_RANKS[r] < ROLE_RANKS[userRole] ||
+                                    userRole === 'Owner' ||
                                     r === user.role,
                                 )
                                 .map((r) => (
@@ -393,7 +412,6 @@ export default function UsersPage() {
             user={deleteModalUser}
             onClose={() => setDeleteModalUser(null)}
             onSoftDelete={softDeleteUser}
-            onHardDelete={hardDeleteUser}
           />
         )}
       </div>

@@ -5,19 +5,7 @@
      <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <link rel="icon" type="image/png" href="/application.png" />
 
-    <script>
-      try {
-        // Stored value is 'light' | 'dark' | (absent = follow system).
-        var p = localStorage.getItem('theme');
-        var t =
-          p === 'light' || p === 'dark'
-            ? p
-            : matchMedia('(prefers-color-scheme: dark)').matches
-              ? 'dark'
-              : 'light';
-        document.documentElement.setAttribute('data-theme', t);
-      } catch (e) {}
-    </script>
+    <script src="/theme-init.js"></script>
     <title>StorageApp</title>
   </head>
   <body>

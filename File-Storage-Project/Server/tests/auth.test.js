@@ -479,7 +479,7 @@ test('H1: a session for a hard-deleted (missing) user is rejected', async () => 
 });
 
 test('H1: Google sign-in still rejects deleted users and works for active ones', async () => {
-  googleTokens.set('alice-token', { sub: 'g1', name: 'Alice', email: alice.email, picture: 'p' });
+  googleTokens.set('alice-token', { sub: 'g1', name: 'Alice', email: alice.email, email_verified: true, picture: 'p' });
   const a = agent();
   const ok = await a.post('/auth/google', { idToken: 'alice-token' });
   assert.equal(ok.status, 200);

@@ -4,7 +4,7 @@ import Share from '../models/shareModel.js';
 import User from '../models/userModel.js';
 import FileInsight from '../models/fileInsightModel.js';
 import { aiConfig } from '../config/ai.js';
-import { getFileAccess } from '../utils/fileAccess.js';
+import { getFileAccess, withActiveOwners } from '../utils/fileAccess.js';
 import { AiError, sendAiError } from '../ai/errors.js';
 import { getProvider, assertConsent, providerHost } from '../ai/providers/index.js';
 import { isSupportedExtension } from '../ai/extract.js';
@@ -171,9 +171,12 @@ export const searchFiles = async (req, res, next) => {
     assertConsent(provider, req.body?.confirmExternal);
 
     const me = req.user._id;
-    const shares = await Share.find({ sharedWithUserId: me })
-      .select('resourceId permission ownerId')
-      .lean();
+    // Shares from soft-deleted owners grant nothing (M7).
+    const shares = await withActiveOwners(
+      await Share.find({ sharedWithUserId: me })
+        .select('resourceId permission ownerId')
+        .lean(),
+    );
     const shareByFile = new Map(shares.map((s) => [String(s.resourceId), s]));
 
     const insights = await FileInsight.find({

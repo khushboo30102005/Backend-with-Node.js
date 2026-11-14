@@ -4,6 +4,7 @@ import s3, { BUCKET_NAME } from '../config/b2.js';
 import Directory from '../models/directoryModel.js';
 import File from '../models/fileModel.js';
 import { updateDirectorySize } from '../utils/updateDirectorySize.js';
+import { runInTransaction } from '../utils/transaction.js';
 
 // ---------------------------------------------------------------------------
 // My Drive quota reservations.
@@ -160,23 +161,32 @@ export async function commitReservation(reservation, fileDoc) {
   if (fileDoc.size !== reservation.bytes) {
     throw new Error('commitReservation: size does not match the reservation');
   }
-  const created = await File.create(fileDoc);
+  // One transaction (M8): the file document, the claimed reservation and the
+  // folder sizes commit together. Before, a failure after the claim left a
+  // file document that the caller's cleanup could not see (it deletes the B2
+  // object and releases a reservation that no longer existed), i.e. a file
+  // with no stored bytes and storage that was never given back. Now a failure
+  // rolls all of it back and the caller's cleanup is exactly right.
+  return runInTransaction(async () => {
+    const created = await File.create(fileDoc);
 
-  // Claim the entry. Its bytes stay in root.size, now as used storage.
-  const claimed = await Directory.updateOne(
-    { _id: reservation.rootDirId, 'pendingUploads.id': reservation.id },
-    { $pull: { pendingUploads: { id: reservation.id } } },
-  );
-  if (!claimed.modifiedCount) {
-    await File.deleteOne({ _id: created._id }).catch(() => {});
-    throw new QuotaError(410, 'The upload took too long and was cancelled. Please try again.', 'RESERVATION_EXPIRED');
-  }
+    // Claim the entry. Its bytes stay in root.size, now as used storage.
+    const claimed = await Directory.updateOne(
+      { _id: reservation.rootDirId, 'pendingUploads.id': reservation.id },
+      { $pull: { pendingUploads: { id: reservation.id } } },
+    );
+    if (!claimed.modifiedCount) {
+      // Rolled back with the transaction; explicit for servers without one.
+      await File.deleteOne({ _id: created._id }).catch(() => {});
+      throw new QuotaError(410, 'The upload took too long and was cancelled. Please try again.', 'RESERVATION_EXPIRED');
+    }
 
-  // The root was charged at reservation time; charge the folders in between.
-  await updateDirectorySize(fileDoc.parentDirId, fileDoc.size, {
-    stopAt: reservation.rootDirId,
+    // The root was charged at reservation time; charge the folders in between.
+    await updateDirectorySize(fileDoc.parentDirId, fileDoc.size, {
+      stopAt: reservation.rootDirId,
+    });
+    return created;
   });
-  return created;
 }
 
 // ---------------------------------------------------------------------------

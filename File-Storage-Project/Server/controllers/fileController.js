@@ -13,6 +13,7 @@ import File from '../models/fileModel.js';
 import Share from '../models/shareModel.js';
 import { updateDirectorySize } from '../utils/updateDirectorySize.js';
 import { getFileAccess, canPerform } from '../utils/fileAccess.js';
+import { runInTransaction } from '../utils/transaction.js';
 import mongoose from 'mongoose';
 import { getEffectiveStorageLimit } from '../services/subscriptionService.js';
 import {
@@ -339,19 +340,27 @@ export const permanentlyDeleteFile = async (req, res, next) => {
         Key: `${id}${file.extension}`,
       }),
     );
-    // Only the request that actually removes the document gives the storage
-    // back, so a double click or retry can't subtract the size twice.
-    const { deletedCount } = await File.deleteOne({
-      _id: id,
-      userId: req.targetUser._id,
-      isTrashed: true,
+    // Database steps in one transaction (M8): the document, its shares, its
+    // insights and the storage it used go together. Previously a failure
+    // after deleteOne left the storage charged forever (the file was gone,
+    // so a retry could not release it).
+    const deleted = await runInTransaction(async () => {
+      // Only the request that actually removes the document gives the
+      // storage back, so a double click or retry can't subtract it twice.
+      const { deletedCount } = await File.deleteOne({
+        _id: id,
+        userId: req.targetUser._id,
+        isTrashed: true,
+      });
+      if (!deletedCount) return false;
+      await Share.deleteMany({ resourceId: id });
+      await deleteInsightsForFiles([id]);
+      await updateDirectorySize(file.parentDirId, -file.size);
+      return true;
     });
-    if (!deletedCount) {
+    if (!deleted) {
       return res.status(404).json({ error: 'Trashed file not found!' });
     }
-    await Share.deleteMany({ resourceId: id });
-    await deleteInsightsForFiles([id]);
-    await updateDirectorySize(file.parentDirId, -file.size);
     return res.status(200).json({ message: 'File permanently deleted.' });
   } catch (err) {
     next(err);
@@ -420,18 +429,23 @@ export const moveFile = async (req, res, next) => {
       return res.status(200).json({ message: 'File Moved!' }); // no-op
     }
 
-    // Conditional on the parent we read, so two concurrent moves of the same
-    // file can't both adjust folder sizes.
-    const moved = await File.updateOne(
-      { _id: file._id, userId: user._id, parentDirId: oldParentId, isTrashed: { $ne: true } },
-      { $set: { parentDirId: newParentId } },
-    );
-    if (!moved.modifiedCount) {
+    // The move and both folder-size updates commit together (M8).
+    const moved = await runInTransaction(async () => {
+      // Conditional on the parent we read, so two concurrent moves of the
+      // same file can't both adjust folder sizes.
+      const result = await File.updateOne(
+        { _id: file._id, userId: user._id, parentDirId: oldParentId, isTrashed: { $ne: true } },
+        { $set: { parentDirId: newParentId } },
+      );
+      if (!result.modifiedCount) return false;
+
+      await updateDirectorySize(oldParentId, -file.size);
+      await updateDirectorySize(newParentId, file.size);
+      return true;
+    });
+    if (!moved) {
       return res.status(409).json({ error: 'The file changed. Please try again.' });
     }
-
-    await updateDirectorySize(oldParentId, -file.size);
-    await updateDirectorySize(newParentId, file.size);
 
     return res.status(200).json({ message: 'File Moved!' });
   } catch (err) {

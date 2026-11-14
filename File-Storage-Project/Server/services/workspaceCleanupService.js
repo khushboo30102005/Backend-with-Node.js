@@ -180,6 +180,92 @@ export async function adoptOrphanedWorkspaces() {
   }
 }
 
+/**
+ * Detaches a user who is being permanently deleted from every workspace
+ * (audit finding H4). Workspaces they own are handed to the longest-standing
+ * eligible member (same rule as adoptOrphanedWorkspaces); with nobody to
+ * inherit them they are purged and removed. Their memberships elsewhere and
+ * their visit records are removed. Other members' workspaces and files are
+ * never deleted. Safe to call repeatedly; throws if a purge could not finish
+ * so the caller can retry instead of leaving half-deleted data behind.
+ */
+export async function releaseWorkspacesOfUser(userId) {
+  const uid = String(userId);
+  const owned = await Workspace.find({ ownerId: userId })
+    .select('_id ownerId members status')
+    .lean();
+
+  for (const ws of owned) {
+    if (ws.status === 'active') {
+      const candidateIds = ws.members
+        .filter((m) => !isPending(m) && String(m.userId) !== uid)
+        .map((m) => m.userId);
+      const usable = candidateIds.length
+        ? await User.find({ _id: { $in: candidateIds }, isDeleted: false })
+            .select('_id')
+            .lean()
+        : [];
+      const usableSet = new Set(usable.map((u) => String(u._id)));
+      const heir = ws.members
+        .filter((m) => usableSet.has(String(m.userId)) && !isPending(m))
+        .sort(
+          (a, b) =>
+            (a.role === 'editor' ? 0 : 1) - (b.role === 'editor' ? 0 : 1) ||
+            new Date(a.joinedAt ?? a.addedAt) - new Date(b.joinedAt ?? b.addedAt),
+        )[0];
+      if (heir) {
+        const moved = await Workspace.findOneAndUpdate(
+          { _id: ws._id, ownerId: userId, status: 'active' },
+          {
+            $set: {
+              ownerId: heir.userId,
+              members: ws.members.filter(
+                (m) => String(m.userId) !== String(heir.userId) && String(m.userId) !== uid,
+              ),
+            },
+          },
+        ).lean();
+        if (!moved) {
+          // Changed underneath us (e.g. expired or transferred concurrently).
+          throw new Error(`workspace ${ws._id} changed during hand-off; retry`);
+        }
+        await logActivity(ws._id, null, 'owner_auto_transferred', {
+          targetUserId: heir.userId,
+          detail: 'Previous owner account was deleted',
+        });
+        continue;
+      }
+      await Workspace.updateOne(
+        { _id: ws._id, status: 'active' },
+        { $set: { status: 'expired', expiredAt: new Date(), purgeAfter: new Date() } },
+      );
+    }
+
+    if (ws.status !== 'purged') {
+      await purgeWorkspace(ws._id);
+    }
+    // Only a fully purged workspace (no files left) is removed. Anything else
+    // means the purge failed or is running elsewhere: stop and let the caller retry.
+    const { deletedCount } = await Workspace.deleteOne({
+      _id: ws._id,
+      ownerId: userId,
+      status: 'purged',
+    });
+    if (!deletedCount) {
+      const still = await Workspace.exists({ _id: ws._id, ownerId: userId });
+      if (still) {
+        throw new Error(`workspace ${ws._id} could not be purged yet`);
+      }
+    }
+  }
+
+  await Workspace.updateMany(
+    { 'members.userId': userId },
+    { $pull: { members: { userId } } },
+  );
+  await WorkspaceVisit.deleteMany({ userId });
+}
+
 export async function runSweep() {
   const now = new Date();
 

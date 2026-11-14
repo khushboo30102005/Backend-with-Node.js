@@ -77,6 +77,12 @@ function matches(doc, filter = {}) {
           return values.some((v) => v != null && cmp(v, arg) > 0);
         case '$gte':
           return values.some((v) => v != null && cmp(v, arg) >= 0);
+        case '$regex': {
+          const re = new RegExp(arg, cond.$options || '');
+          return values.some((v) => typeof v === 'string' && re.test(v));
+        }
+        case '$options':
+          return true; // read by $regex
         case '$exists':
           return values.some((v) => v !== undefined) === Boolean(arg);
         case '$elemMatch': {
@@ -150,7 +156,10 @@ function applyUpdate(doc, update, filter) {
   doc.updatedAt = new Date();
 }
 
-export function createFakeModel(name, { defaults = {}, hidden = [] } = {}) {
+// Fake models by name, so populate() can follow `refs`.
+const registry = new Map();
+
+export function createFakeModel(name, { defaults = {}, hidden = [], refs = {} } = {}) {
   const docs = new Map(); // hex id -> stored doc
   const failures = []; // { method, error, when? }
 
@@ -195,8 +204,19 @@ export function createFakeModel(name, { defaults = {}, hidden = [] } = {}) {
   };
 
   // Thenable query: chain methods are recorded, the operation runs on await.
+  // populate(path, select) on lean results: replaces the id with a copy of
+  // the referenced document (or null), like Mongoose. Select is ignored.
+  const populateDoc = (doc, paths) => {
+    for (const path of paths) {
+      const ref = registry.get(refs[path]);
+      if (!ref || doc[path] == null) continue;
+      doc[path] = ref.get(doc[path]);
+    }
+    return doc;
+  };
+
   const query = (run, { many = false } = {}) => {
-    const state = { select: '', lean: false, limit: null };
+    const state = { select: '', lean: false, limit: null, populate: [] };
     const q = {
       select(s) {
         state.select = typeof s === 'string' ? s : '';
@@ -216,7 +236,8 @@ export function createFakeModel(name, { defaults = {}, hidden = [] } = {}) {
       session() {
         return q;
       },
-      populate() {
+      populate(path) {
+        if (typeof path === 'string') state.populate.push(path);
         return q;
       },
       exec() {
@@ -228,11 +249,15 @@ export function createFakeModel(name, { defaults = {}, hidden = [] } = {}) {
           let result = run();
           if (many) {
             if (state.limit) result = result.slice(0, state.limit);
-            return result.map((d) => (state.lean ? project(d, state.select) : hydrate(project(d, state.select))));
+            return result.map((d) =>
+              state.lean
+                ? populateDoc(project(d, state.select), state.populate)
+                : hydrate(project(d, state.select)),
+            );
           }
           if (!result) return null;
           const out = project(result, state.select);
-          return state.lean ? out : hydrate(out);
+          return state.lean ? populateDoc(out, state.populate) : hydrate(out);
         })().then(onOk, onErr);
       },
     };
@@ -315,6 +340,8 @@ export function createFakeModel(name, { defaults = {}, hidden = [] } = {}) {
     },
     async updateMany(filter, update) {
       await tick();
+      const err = takeFailure('updateMany', [filter, update]);
+      if (err) throw err;
       const list = find(filter);
       for (const d of list) applyUpdate(d, update, filter);
       return { matchedCount: list.length, modifiedCount: list.length };
@@ -330,6 +357,8 @@ export function createFakeModel(name, { defaults = {}, hidden = [] } = {}) {
     },
     async deleteMany(filter) {
       await tick();
+      const err = takeFailure('deleteMany', [filter]);
+      if (err) throw err;
       const list = find(filter);
       for (const d of list) docs.delete(norm(d._id));
       return { deletedCount: list.length };
@@ -345,6 +374,8 @@ export function createFakeModel(name, { defaults = {}, hidden = [] } = {}) {
     },
     async bulkWrite(ops) {
       await tick();
+      const err = takeFailure('bulkWrite', [ops]);
+      if (err) throw err;
       for (const op of ops) {
         if (!op.updateOne) throw new Error('fakeMongo: only updateOne bulk ops are supported');
         const doc = find(op.updateOne.filter)[0];
@@ -356,6 +387,42 @@ export function createFakeModel(name, { defaults = {}, hidden = [] } = {}) {
       await tick();
       return [];
     },
+    /** Test helpers for createFakeTransactions(). */
+    snapshot() {
+      return new Map([...docs].map(([k, v]) => [k, clone(v)]));
+    },
+    restore(snap) {
+      docs.clear();
+      for (const [k, v] of snap) docs.set(k, v);
+    },
   };
+  registry.set(name, model);
   return model;
+}
+
+// Stand-in for utils/transaction.js. Transactions run one at a time (a
+// stand-in for MongoDB's isolation and write-conflict retries), and a
+// callback that throws has every listed model restored to the state before it
+// started, like an aborted transaction. `stats` lets tests check that an
+// operation really ran inside a transaction.
+export function createFakeTransactions(models) {
+  const stats = { committed: 0, aborted: 0 };
+  let queue = Promise.resolve();
+  async function runInTransaction(fn) {
+    const turn = queue.then(async () => {
+      const snaps = models.map((m) => m.snapshot());
+      try {
+        const result = await fn();
+        stats.committed++;
+        return result;
+      } catch (err) {
+        models.forEach((m, i) => m.restore(snaps[i]));
+        stats.aborted++;
+        throw err;
+      }
+    });
+    queue = turn.catch(() => {});
+    return turn;
+  }
+  return { runInTransaction, resetTransactionSupport() {}, stats };
 }

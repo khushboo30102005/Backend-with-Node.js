@@ -1,5 +1,5 @@
 import express from 'express';
-import rateLimit from 'express-rate-limit';
+import { perUserLimiter } from '../middlewares/rateLimitMiddleware.js';
 import validateIdMiddleware from '../middlewares/validateIdMiddleware.js';
 import {
   getAiStatus,
@@ -14,12 +14,10 @@ import { scheduleRecovery } from '../ai/insightService.js';
 // Mounted in app.js behind checkAuth:  app.use('/ai', checkAuth, aiRoutes);
 const router = express.Router();
 
-const aiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
+const aiLimiter = perUserLimiter({
+  name: 'ai',
   limit: 60,
-  standardHeaders: 'draft-8',
-  legacyHeaders: false,
-  message: { error: 'Too many AI requests. Please try again later.' },
+  message: 'Too many AI requests. Please try again later.',
 });
 
 router.param('id', validateIdMiddleware);

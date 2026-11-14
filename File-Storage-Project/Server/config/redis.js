@@ -1,14 +1,15 @@
 import { createClient } from 'redis';
+import { reconnectDelay } from './redisRetry.js';
 
 const redisClient = createClient({
   url: process.env.REDIS_URL,
+  // Hosted Redis drops idle connections; a periodic PING keeps the socket
+  // alive and surfaces a dead connection quickly so reconnecting starts.
+  pingInterval: 60 * 1000,
   socket: {
     connectTimeout: 15000,
-    // retry quickly at first, then back off to at most 2s; give up after ~30s
-    reconnectStrategy: (retries) => {
-      if (retries > 30) return new Error('Redis unreachable');
-      return Math.min(retries * 200, 2000);
-    },
+    // Exponential backoff with jitter, retrying forever (M10).
+    reconnectStrategy: (retries) => reconnectDelay(retries),
   },
 });
 
@@ -19,6 +20,16 @@ redisClient.on('error', (err) => {
     console.log('Redis Client Error:', err.code || err.message);
     lastLogged = Date.now();
   }
+});
+
+let wasDown = false;
+redisClient.on('reconnecting', () => {
+  if (!wasDown) console.log('Redis connection lost; reconnecting with backoff');
+  wasDown = true;
+});
+redisClient.on('ready', () => {
+  if (wasDown) console.log('Redis reconnected');
+  wasDown = false;
 });
 
 await redisClient.connect();

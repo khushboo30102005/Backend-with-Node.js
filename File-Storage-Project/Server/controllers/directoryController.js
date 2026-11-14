@@ -11,6 +11,7 @@ import {
 } from '../validator/authSchema.js';
 import s3, { BUCKET_NAME } from '../config/b2.js';
 import { updateDirectorySize } from '../utils/updateDirectorySize.js';
+import { runInTransaction } from '../utils/transaction.js';
 
 // Collects every directory and file nested under `rootId` (not including
 // `rootId` itself). Shared by trash, restore and permanent delete.
@@ -214,28 +215,34 @@ export const deleteDirectory = async (req, res, next) => {
   }
 
   try {
-    const directoryData = await Directory.findOne({
-      _id: id,
-      userId: user._id,
-      isTrashed: { $ne: true },
-    }).select('_id');
-    if (!directoryData) {
+    // One transaction (M8): the folder and its whole subtree go to Trash
+    // together, never half of it.
+    const trashed = await runInTransaction(async () => {
+      const directoryData = await Directory.findOne({
+        _id: id,
+        userId: user._id,
+        isTrashed: { $ne: true },
+      }).select('_id');
+      if (!directoryData) return false;
+
+      const { files, dirs } = await collectSubtree(directoryData._id);
+      const now = new Date();
+
+      await Directory.updateMany(
+        { _id: { $in: [directoryData._id, ...dirs.map((d) => d._id)] } },
+        { isTrashed: true, trashedAt: now },
+      );
+      await File.updateMany(
+        { _id: { $in: files.map((f) => f._id) } },
+        { isTrashed: true, trashedAt: now },
+      );
+      return true;
+    });
+    if (!trashed) {
       return res
         .status(403)
         .json({ message: 'You are not authorized to delete this directory!' });
     }
-
-    const { files, dirs } = await collectSubtree(directoryData._id);
-    const now = new Date();
-
-    await Directory.updateMany(
-      { _id: { $in: [directoryData._id, ...dirs.map((d) => d._id)] } },
-      { isTrashed: true, trashedAt: now },
-    );
-    await File.updateMany(
-      { _id: { $in: files.map((f) => f._id) } },
-      { isTrashed: true, trashedAt: now },
-    );
 
     return res.json({ message: 'Directory moved to trash.' });
   } catch (error) {
@@ -249,25 +256,30 @@ export const restoreDirectory = async (req, res, next) => {
   const { id } = req.params;
 
   try {
-    const directoryData = await Directory.findOne({
-      _id: id,
-      userId: user._id,
-      isTrashed: true,
-    }).select('_id');
-    if (!directoryData) {
+    // All-or-nothing, like moving to Trash (M8).
+    const restored = await runInTransaction(async () => {
+      const directoryData = await Directory.findOne({
+        _id: id,
+        userId: user._id,
+        isTrashed: true,
+      }).select('_id');
+      if (!directoryData) return false;
+
+      const { files, dirs } = await collectSubtree(directoryData._id);
+
+      await Directory.updateMany(
+        { _id: { $in: [directoryData._id, ...dirs.map((d) => d._id)] } },
+        { isTrashed: false, trashedAt: null },
+      );
+      await File.updateMany(
+        { _id: { $in: files.map((f) => f._id) } },
+        { isTrashed: false, trashedAt: null },
+      );
+      return true;
+    });
+    if (!restored) {
       return res.status(404).json({ error: 'Trashed directory not found.' });
     }
-
-    const { files, dirs } = await collectSubtree(directoryData._id);
-
-    await Directory.updateMany(
-      { _id: { $in: [directoryData._id, ...dirs.map((d) => d._id)] } },
-      { isTrashed: false, trashedAt: null },
-    );
-    await File.updateMany(
-      { _id: { $in: files.map((f) => f._id) } },
-      { isTrashed: false, trashedAt: null },
-    );
 
     return res.json({ message: 'Directory restored.' });
   } catch (error) {
@@ -318,28 +330,39 @@ export const permanentlyDeleteDirectory = async (req, res, next) => {
 
     const fileIds = files.map(({ _id }) => _id);
 
-    // Only the request that removes the directory itself continues, so a
-    // double click or retry can't give the same storage back twice.
-    const { deletedCount } = await Directory.deleteOne({
-      _id: directoryData._id,
-      userId: user._id,
-      isTrashed: true,
+    // The B2 objects are gone at this point; every database step below is one
+    // transaction (M8). Before, a failure after removing the directory
+    // document left its files, shares and insights orphaned and the storage
+    // never given back, with no way to retry because the directory itself was
+    // already gone. Now either all of it commits, or nothing does and the
+    // folder stays in Trash so the user can try again (deleting B2 keys that
+    // are already missing succeeds).
+    const deleted = await runInTransaction(async () => {
+      // Only the request that removes the directory itself continues, so a
+      // double click or retry can't give the same storage back twice.
+      const { deletedCount } = await Directory.deleteOne({
+        _id: directoryData._id,
+        userId: user._id,
+        isTrashed: true,
+      });
+      if (!deletedCount) return false;
+
+      await File.deleteMany({ _id: { $in: fileIds } });
+      await Share.deleteMany({ resourceId: { $in: fileIds } });
+      await deleteInsightsForFiles(fileIds);
+      await Directory.deleteMany({
+        _id: { $in: dirs.map(({ _id }) => _id) },
+      });
+
+      // The directory's own `size` is the total of everything inside it,
+      // so every ancestor above it loses exactly that amount.
+      if (directoryData.parentDirId) {
+        await updateDirectorySize(directoryData.parentDirId, -directoryData.size);
+      }
+      return true;
     });
-    if (!deletedCount) {
+    if (!deleted) {
       return res.status(404).json({ message: 'Trashed directory not found.' });
-    }
-
-    await File.deleteMany({ _id: { $in: fileIds } });
-    await Share.deleteMany({ resourceId: { $in: fileIds } });
-    await deleteInsightsForFiles(fileIds);
-    await Directory.deleteMany({
-      _id: { $in: dirs.map(({ _id }) => _id) },
-    });
-
-    // The directory's own `size` is the total of everything inside it,
-    // so every ancestor above it loses exactly that amount.
-    if (directoryData.parentDirId) {
-      await updateDirectorySize(directoryData.parentDirId, -directoryData.size);
     }
 
     return res.json({ message: 'Directory permanently deleted.' });
@@ -410,33 +433,41 @@ export const moveDirectory = async (req, res, next) => {
       return all;
     }
 
-    const descendants = await collectDescendants(directory._id);
+    // One transaction (M8): the folder, every descendant's path and both
+    // ancestor chains' sizes change together. A failure half-way used to
+    // leave descendants with stale paths (wrong breadcrumbs, and a cycle
+    // check that no longer matched the real tree) and sizes off for good.
+    const moved = await runInTransaction(async () => {
+      const descendants = await collectDescendants(directory._id);
 
-    // Move the directory itself first, conditional on the parent we read, so
-    // two concurrent moves can't both rewrite paths and adjust sizes.
-    const moved = await Directory.updateOne(
-      { _id: directory._id, userId: user._id, parentDirId: oldParentId, isTrashed: { $ne: true } },
-      { $set: { parentDirId: newParentId, path: newPath } },
-    );
-    if (!moved.modifiedCount) {
+      // Move the directory itself first, conditional on the parent we read,
+      // so two concurrent moves can't both rewrite paths and adjust sizes.
+      const result = await Directory.updateOne(
+        { _id: directory._id, userId: user._id, parentDirId: oldParentId, isTrashed: { $ne: true } },
+        { $set: { parentDirId: newParentId, path: newPath } },
+      );
+      if (!result.modifiedCount) return false;
+
+      const bulkOps = descendants.map((desc) => {
+        const oldPrefixLength = directory.path.length;
+        const suffix = desc.path.slice(oldPrefixLength);
+        return {
+          updateOne: {
+            filter: { _id: desc._id },
+            update: { path: [...newPath, ...suffix] },
+          },
+        };
+      });
+
+      if (bulkOps.length) await Directory.bulkWrite(bulkOps);
+
+      await updateDirectorySize(oldParentId, -size);
+      await updateDirectorySize(newParentId, size);
+      return true;
+    });
+    if (!moved) {
       return res.status(409).json({ error: 'The folder changed. Please try again.' });
     }
-
-    const bulkOps = descendants.map((desc) => {
-      const oldPrefixLength = directory.path.length;
-      const suffix = desc.path.slice(oldPrefixLength);
-      return {
-        updateOne: {
-          filter: { _id: desc._id },
-          update: { path: [...newPath, ...suffix] },
-        },
-      };
-    });
-
-    if (bulkOps.length) await Directory.bulkWrite(bulkOps);
-
-    await updateDirectorySize(oldParentId, -size);
-    await updateDirectorySize(newParentId, size);
 
     return res.status(200).json({ message: 'Directory Moved!' });
   } catch (err) {

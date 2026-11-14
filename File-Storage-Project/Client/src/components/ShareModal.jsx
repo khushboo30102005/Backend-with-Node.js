@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { FaTimes, FaSearch, FaUserCircle } from 'react-icons/fa';
 import { searchUsers, fetchUser } from '../apis/userApi';
+import { isCompleteEmail } from '../utils/email';
 import {
   shareFile,
   getFileShares,
@@ -62,7 +63,7 @@ function ShareModal({ file, onClose }) {
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
     const trimmed = query.trim();
-    if (trimmed.length < 3) {
+    if (!isCompleteEmail(trimmed)) {
       setResults([]);
       setHasSearched(false);
       return;
@@ -227,12 +228,12 @@ function ShareModal({ file, onClose }) {
                   type="text"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search by email address..."
+                  placeholder="Enter their full email address..."
                   className="w-full pl-8 pr-3 py-2 rounded-lg border border-border text-sm bg-surface text-text focus:outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/12"
                 />
               </div>
 
-              {query.trim().length >= 3 && (
+              {isCompleteEmail(query) && (
                 <div className="mt-1.5 bg-surface border border-border rounded-lg max-h-[180px] overflow-y-auto">
                   {searching ? (
                     <p className="text-xs text-text-muted px-3 py-2.5">

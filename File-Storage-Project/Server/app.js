@@ -9,10 +9,13 @@ import directoryRoutes from './routes/directoryRoutes.js';
 import fileRoutes from './routes/fileRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import authRoutes from './routes/authRoutes.js';
+import cookieProbeRoutes from './routes/cookieProbeRoutes.js';
 import shareRoutes from './routes/shareRoutes.js';
 import storageRoutes from './routes/storageRoutes.js';
 import checkAuth from './middlewares/authMiddleware.js';
 import { apiLimiter } from './middlewares/rateLimitMiddleware.js';
+import { trustProxyHops } from './config/proxy.js';
+import { csrfProtection, issueCsrfToken } from './middlewares/csrfMiddleware.js';
 import trashRoutes from './routes/trashRoutes.js';
 import aiRoutes from './routes/aiRoutes.js';
 import workspaceRoutes from './routes/workspaceRoutes.js';
@@ -49,13 +52,24 @@ app.use(
 );
 app.use(cookieParser(process.env.SESSION_SECRET)); // this middleware parses the cookie send by the client, because it has secretKey, it can also verify signedCookie.
 app.use(express.json());
-// Requests pass through two proxies in production (Vercel rewrite, then Render),
-// so trust 2 hops. With 1, every user would share Vercel's IP in the rate limiters.
-app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS) || 1);
+// Requests pass through several proxies in production (Vercel rewrite, then
+// Render's edge). The hop count decides which X-Forwarded-For entry becomes
+// req.ip for the per-IP rate limiters; see config/proxy.js before changing it.
+app.set('trust proxy', trustProxyHops());
 
 app.use(helmet());
 
+// Stateless cookie probe for the sign-in pages: before the global limiter so
+// it can neither be blocked by, nor use up, the shared API budget.
+app.use('/auth/cookie-test', cookieProbeRoutes);
+
 app.use(apiLimiter);
+
+// CSRF (M4): the React app fetches a token here and sends it back in the
+// X-CSRF-Token header on every state-changing request. The Razorpay webhook
+// above is registered earlier and is therefore not affected.
+app.get('/auth/csrf-token', issueCsrfToken);
+app.use(csrfProtection);
 
 app.use('/directory', checkAuth, directoryRoutes);
 app.use('/file', checkAuth, fileRoutes);

@@ -7,16 +7,36 @@ export function createFakeS3() {
     uploadDelayMs: 0, // hold every upload open this long after the body ends
     failUploadsAfterBytes: null, // simulate B2 failing mid-upload
     failCopy: false,
+    failDeletes: 0, // the next N delete commands throw (simulated B2 outage)
+    failDeleteWhen: null, // optional (keys) => bool: only matching deletes fail
     reset() {
       objects.clear();
       s3.uploadDelayMs = 0;
       s3.failUploadsAfterBytes = null;
       s3.failCopy = false;
+      s3.failDeletes = 0;
+      s3.failDeleteWhen = null;
     },
     async send(cmd) {
       const name = cmd.constructor.name;
       const input = cmd.input;
+      const deleteKeys =
+        name === 'DeleteObjectsCommand'
+          ? input.Delete.Objects.map((o) => o.Key)
+          : [input.Key];
+      if (
+        name.startsWith('DeleteObject') &&
+        s3.failDeletes > 0 &&
+        (!s3.failDeleteWhen || s3.failDeleteWhen(deleteKeys))
+      ) {
+        s3.failDeletes -= 1;
+        throw new Error('B2 delete failed (injected)');
+      }
       switch (name) {
+        case 'ListObjectsV2Command': {
+          const keys = [...objects.keys()].filter((k) => k.startsWith(input.Prefix || ''));
+          return { Contents: keys.map((Key) => ({ Key })), IsTruncated: false };
+        }
         case 'DeleteObjectCommand':
           objects.delete(input.Key);
           return {};

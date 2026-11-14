@@ -138,9 +138,30 @@ export const verifyLoginOTP = async (req, res, next) => {
 
 export const loginWithGoogle = async (req, res, next) => {
   try {
-    const { idToken } = req.body;
+    const idToken = req.body?.idToken;
 
-    const { sub, name, email, picture } = await verifyIdToken(idToken);
+    // The identity comes only from the verified token. Anything else in the
+    // body (e.g. an `email_verified` flag) is ignored.
+    let payload;
+    try {
+      payload = await verifyIdToken(idToken);
+    } catch (err) {
+      if (err?.name === 'GoogleAuthError') {
+        const status = err.code === 'NOT_CONFIGURED' ? 503 : 401;
+        return res.status(status).json({ error: err.message, code: err.code });
+      }
+      throw err;
+    }
+    // Defence in depth: never link or create an account from an address
+    // Google has not verified, whatever the verifier returned.
+    if (payload?.email_verified !== true || typeof payload.email !== 'string') {
+      return res.status(401).json({
+        error: 'Your Google email address is not verified.',
+        code: 'EMAIL_NOT_VERIFIED',
+      });
+    }
+    const { name, picture } = payload;
+    const email = normalizeEmail(payload.email);
 
     const user = await User.findOne({ email }).select('-__v');
 

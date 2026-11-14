@@ -3,6 +3,8 @@ import Share from '../models/shareModel.js';
 import File from '../models/fileModel.js';
 import User from '../models/userModel.js';
 import { resolvePicture } from '../utils/avatar.js';
+import { normalizeEmail } from '../utils/otpCrypto.js';
+import { withActiveOwners } from '../utils/fileAccess.js';
 
 const VALID_PERMISSIONS = ['viewer', 'editor'];
 
@@ -164,11 +166,14 @@ export const deleteShare = async (req, res, next) => {
 export const getSharedWithMe = async (req, res, next) => {
   try {
     const shares = await Share.find({ sharedWithUserId: req.user._id })
-      .populate('resourceId', 'name extension size updatedAt')
+      .populate('resourceId', 'name extension size updatedAt userId')
       .populate('ownerId', 'name email')
       .lean();
 
-    const result = shares
+    // Hide files whose owner account is soft-deleted (M7).
+    const visible = await withActiveOwners(shares, (s) => s.resourceId?.userId);
+
+    const result = visible
       // Defensive: if a File was ever deleted without its Share records
       // being cleaned up, don't surface or crash on the dangling entry.
       .filter((s) => s.resourceId)
@@ -192,33 +197,37 @@ export const getSharedWithMe = async (req, res, next) => {
 };
 
 
-function escapeRegex(str) {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
+// GET /users/search?q=<email> (audit M6)
+//
+// Exact, case-insensitive email lookup only. The old prefix search
+// (^<q>, from 3 characters) let any signed-in user list registered accounts
+// letter by letter ("a@", "ab", ...). Now a caller only learns whether one
+// complete address they already know is registered, which sharing needs, and
+// the route is rate limited per account (userSearchLimiter) so addresses
+// can't be tested in bulk. Emails are stored lowercase (userModel), so a plain
+// equality match is exact and uses the unique index.
+const EMAIL_PATTERN = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[A-Za-z]{2,}$/;
+const MAX_EMAIL_LENGTH = 254;
 
 export const searchUsers = async (req, res, next) => {
-  const q = (req.query.q || '').trim();
+  const q = typeof req.query.q === 'string' ? normalizeEmail(req.query.q) : '';
 
-  if (q.length < 3) {
+  if (q.length > MAX_EMAIL_LENGTH || !EMAIL_PATTERN.test(q)) {
     return res.status(200).json([]);
   }
 
   try {
-    const users = await User.find({
-      email: { $regex: '^' + escapeRegex(q), $options: 'i' },
+    const user = await User.findOne({
+      email: q,
       isDeleted: false,
       _id: { $ne: req.user._id },
     })
       .select('_id name email picture')
-      .limit(8)
       .lean();
 
-    await Promise.all(
-      users.map(async (u) => {
-        u.picture = await resolvePicture(u.picture);
-      }),
-    );
-    return res.status(200).json(users);
+    if (!user) return res.status(200).json([]);
+    user.picture = await resolvePicture(user.picture);
+    return res.status(200).json([user]);
   } catch (err) {
     next(err);
   }

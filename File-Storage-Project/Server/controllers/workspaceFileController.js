@@ -24,6 +24,7 @@ import {
   reserveStorage,
 } from '../services/storageQuotaService.js';
 import { getFileAccess } from '../utils/fileAccess.js';
+import { runInTransaction } from '../utils/transaction.js';
 import {
   MAX_FOLDERS,
   MAX_FOLDER_DEPTH,
@@ -236,9 +237,18 @@ export const deleteFolder = async (req, res, next) => {
     }
 
     await deleteObjects(wsId, files);
-    await WorkspaceFile.deleteMany({ _id: { $in: files.map((f) => f._id) } });
-    await releaseQuota(wsId, files.reduce((n, f) => n + f.size, 0));
-    await WorkspaceFolder.deleteMany({ _id: { $in: ids }, workspaceId: wsId });
+    // Database steps in one transaction (M8). The quota released is computed
+    // from the files this transaction actually finds and deletes, so a
+    // concurrent or retried delete can't give the same bytes back twice.
+    await runInTransaction(async () => {
+      const present = await WorkspaceFile.find({ _id: { $in: files.map((f) => f._id) } })
+        .select('_id size')
+        .lean();
+      await WorkspaceFile.deleteMany({ _id: { $in: present.map((f) => f._id) } });
+      const bytes = present.reduce((n, f) => n + f.size, 0);
+      if (bytes > 0) await Workspace.updateOne({ _id: wsId }, { $inc: { size: -bytes } });
+      await WorkspaceFolder.deleteMany({ _id: { $in: ids }, workspaceId: wsId });
+    });
     await logActivity(wsId, req.user._id, 'folder_deleted', {
       targetName: folder.name,
       detail: files.length ? `${files.length} file(s) removed` : '',
@@ -640,8 +650,13 @@ export const deleteWorkspaceFile = async (req, res, next) => {
         Key: workspaceObjectKey(access.workspace._id, file),
       }),
     );
-    const del = await WorkspaceFile.deleteOne({ _id: file._id });
-    if (del.deletedCount) await releaseQuota(access.workspace._id, file.size);
+    // Delete and quota release commit together (M8).
+    await runInTransaction(async () => {
+      const del = await WorkspaceFile.deleteOne({ _id: file._id });
+      if (del.deletedCount && file.size > 0) {
+        await Workspace.updateOne({ _id: access.workspace._id }, { $inc: { size: -file.size } });
+      }
+    });
     await logActivity(access.workspace._id, req.user._id, 'file_deleted', { targetName: file.name });
     return res.status(200).json({ message: 'File deleted' });
   } catch (err) {

@@ -40,9 +40,12 @@ export function createFakeRedis() {
     },
     async set(key, value, opts = {}) {
       calls.push(['set', key]);
+      const nx = opts.NX || opts.condition === 'NX';
+      if (nx && alive(key)) return null;
+      const ex = opts.EX ?? (opts.expiration?.type === 'EX' ? opts.expiration.value : null);
       store.set(key, {
         value: String(value),
-        expiresAt: opts.EX ? now + opts.EX * 1000 : null,
+        expiresAt: ex ? now + ex * 1000 : null,
       });
       return 'OK';
     },
@@ -72,6 +75,20 @@ export function createFakeRedis() {
       if (!e) return 0;
       e.expiresAt = now + seconds * 1000;
       return 1;
+    },
+    async pExpire(key, ms) {
+      calls.push(['pExpire', key]);
+      const e = alive(key);
+      if (!e) return 0;
+      e.expiresAt = now + ms;
+      return 1;
+    },
+    // -2 = no such key, -1 = key without expiry (as in Redis).
+    async pTTL(key) {
+      const e = alive(key);
+      if (!e) return -2;
+      if (e.expiresAt === null) return -1;
+      return e.expiresAt - now;
     },
     json: {
       async set(key, _path, obj) {

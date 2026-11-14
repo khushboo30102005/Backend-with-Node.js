@@ -1,10 +1,8 @@
-import { deleteInsightsForUser } from '../ai/insightService.js';
 import mongoose, { Schema, Types } from 'mongoose';
 import * as z from 'zod';
 import bcrypt from 'bcrypt';
 import User from '../models/userModel.js';
 import Directory from '../models/directoryModel.js';
-import File from '../models/fileModel.js';
 import { sendOtpEmail } from '../services/sendOtpService.js';
 import {
   consumeEmailOtp,
@@ -39,15 +37,15 @@ import {
 } from '../config/cookie.js';
 import { expireIfDue } from '../services/subscriptionService.js';
 import DOMPurify from 'dompurify';
+import { canAssignRole, isValidRole, outranks } from '../utils/roles.js';
+import {
+  isPurgeInProgress,
+  PurgeError,
+  purgeUser,
+} from '../services/userPurgeService.js';
 
 const window = new JSDOM('').window;
 const purify = DOMPurify(window);
-const ROLE_RANKS = {
-  User: 0,
-  Manager: 1,
-  Admin: 2,
-  Owner: 3,
-};
 
 export const register = async (req, res, next) => {
   const { success, data, error } = registerSchema.safeParse(req.body);
@@ -351,15 +349,10 @@ export const logoutById = async (req, res, next) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    const actorRole = req.user.role;
-    const targetRole = targetUser.role;
-
-    const blocked =
-      (actorRole === 'Manager' &&
-        (targetRole === 'Admin' || targetRole === 'Owner')) ||
-      (actorRole === 'Admin' && targetRole === 'Owner');
-
-    if (blocked) {
+    // Your own sessions are always yours to end; anyone else must rank
+    // strictly below you (M2: equal ranks cannot act on each other).
+    const isSelf = String(req.user._id) === String(userId);
+    if (!isSelf && !outranks(req.user.role, targetUser.role)) {
       return res.status(403).json({ error: 'You cannot logout this user.' });
     }
 
@@ -383,7 +376,7 @@ export const deleteUser = async (req, res, next) => {
     if (!targetUser) {
       return res.status(404).json({ error: 'User not found' });
     }
-    if (ROLE_RANKS[req.user.role] < ROLE_RANKS[targetUser.role]) {
+    if (!outranks(req.user.role, targetUser.role)) {
       return res.status(403).json({ error: 'You cannot delete this user.' });
     }
     await User.findByIdAndUpdate(userId, { isDeleted: true });
@@ -394,6 +387,9 @@ export const deleteUser = async (req, res, next) => {
   }
 };
 
+// DELETE /users/:userId/hard — Owner only (enforced by the route). The account
+// must already be soft-deleted; see services/userPurgeService.js for what is
+// removed and what is retained. Retrying after a failure completes the purge.
 export const permanentlyDeleteUser = async (req, res, next) => {
   const { userId } = req.params;
   if (!mongoose.Types.ObjectId.isValid(userId)) {
@@ -403,22 +399,30 @@ export const permanentlyDeleteUser = async (req, res, next) => {
     return res.status(403).json({ error: 'You can not delete yourself.' });
   }
   try {
-    const targetUser = await User.findById(userId).select('role picture');
+    const targetUser = await User.findById(userId).select('role isDeleted').lean();
     if (!targetUser) {
       return res.status(404).json({ error: 'User not found' });
     }
-    if (ROLE_RANKS[req.user.role] < ROLE_RANKS[targetUser.role]) {
+    if (!outranks(req.user.role, targetUser.role)) {
       return res.status(403).json({ error: 'You cannot delete this user.' });
     }
-    await deleteAllSessionsForUser(userId);
-    await deleteAvatar(targetUser.picture);
-    await deleteInsightsForUser(userId);
-    await File.deleteMany({ userId });
-    await Directory.deleteMany({ userId });
-    await User.findByIdAndDelete(userId);
+    if (!targetUser.isDeleted) {
+      return res.status(409).json({
+        error: 'Soft-delete the user before deleting them permanently.',
+        code: 'NOT_SOFT_DELETED',
+      });
+    }
+    await purgeUser(userId);
     res.status(204).end();
   } catch (err) {
-    next(err);
+    if (err instanceof PurgeError) {
+      return res.status(err.status).json({ error: err.message, code: err.code });
+    }
+    console.error(`[user-purge] incomplete for ${userId}:`, err);
+    return res.status(500).json({
+      error: 'Permanent deletion did not finish. Retry to complete it.',
+      code: 'PURGE_INCOMPLETE',
+    });
   }
 };
 
@@ -492,6 +496,16 @@ export const recoverUser = async (req, res, next) => {
     return res.status(400).json({ error: 'Invalid user ID' });
   }
   try {
+    // A purge that has started (even one that failed midway) has already
+    // removed data; recovering would produce a broken account. Finish the
+    // permanent deletion instead.
+    if (await isPurgeInProgress(userId)) {
+      return res.status(409).json({
+        error:
+          'Permanent deletion of this user has started. Retry the permanent delete to finish it.',
+        code: 'PURGE_IN_PROGRESS',
+      });
+    }
     await User.findByIdAndUpdate(userId, { isDeleted: false });
     res.status(204).end();
   } catch (err) {
@@ -510,7 +524,7 @@ export const changeUserRole = async (req, res, next) => {
     return res.status(403).json({ error: 'You cannot change your own role.' });
   }
 
-  if (!(newRole in ROLE_RANKS)) {
+  if (!isValidRole(newRole)) {
     return res.status(400).json({ error: 'Invalid role.' });
   }
 
@@ -520,20 +534,18 @@ export const changeUserRole = async (req, res, next) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    const actorRank = ROLE_RANKS[req.user.role];
-    const targetRank = ROLE_RANKS[targetUser.role];
-    const newRoleRank = ROLE_RANKS[newRole];
-
-    if (actorRank < targetRank) {
+    // M2: the target must rank strictly below the actor, and the new role
+    // must be one the actor is allowed to hand out.
+    if (!outranks(req.user.role, targetUser.role)) {
       return res
         .status(403)
         .json({ error: 'You cannot change the role of this user.' });
     }
 
-    if (newRoleRank > actorRank) {
+    if (!canAssignRole(req.user.role, newRole)) {
       return res
         .status(403)
-        .json({ error: 'You cannot assign a role higher than your own.' });
+        .json({ error: 'You cannot assign this role.' });
     }
 
     await User.findByIdAndUpdate(userId, { role: newRole });

@@ -10,8 +10,9 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import express from 'express';
 import mongoose from 'mongoose';
-import { createFakeModel } from './helpers/fakeMongo.js';
+import { createFakeModel, createFakeTransactions } from './helpers/fakeMongo.js';
 import { createFakeS3 } from './helpers/fakeS3.js';
+import { createFakeRedis } from './helpers/fakeRedis.js';
 
 const { ObjectId } = mongoose.Types;
 
@@ -47,6 +48,14 @@ mock.module(import.meta.resolve('../services/subscriptionService.js'), {
 });
 mock.module(import.meta.resolve('../ai/insightService.js'), {
   namedExports: { deleteInsightsForFiles: async () => {}, deleteInsightsForUser: async () => {} },
+});
+// Rate limiters count in Redis (M5): give them an in-memory fake.
+const redis = createFakeRedis();
+mock.module(import.meta.resolve('../config/redis.js'), { defaultExport: redis });
+// Transactions (M8): all-or-nothing over the fake models, see fakeMongo.js.
+const tx = createFakeTransactions([Directory, File, Share, Workspace, WorkspaceFile, WorkspaceActivity]);
+mock.module(import.meta.resolve('../utils/transaction.js'), {
+  namedExports: { runInTransaction: tx.runInTransaction, resetTransactionSupport: tx.resetTransactionSupport },
 });
 
 const { default: fileRoutes } = await import('../routes/fileRoutes.js');
@@ -85,6 +94,7 @@ after(() => server.close());
 beforeEach(() => {
   for (const m of [Directory, File, Share, Workspace, WorkspaceFile, WorkspaceActivity]) m.reset();
   s3.reset();
+  redis.flush();
   sessions.clear();
   limits.clear();
 });
@@ -638,4 +648,167 @@ test('a failed "Save to My Drive" copy releases its reservation', async () => {
   assert.equal(res.status, 500);
   assert.equal(sizeOf(u.rootId), 0);
   assertAccounting(u);
+});
+
+// ============================== M8: multi-step operations are all-or-nothing
+//
+// Each test injects a database failure part-way through an operation and
+// checks that nothing of it remains (rolled back), then that a retry works and
+// leaves the accounting exact.
+
+const isId = (id) => (filter) => String(filter?._id) === String(id);
+const treeState = (user) => ({
+  dirs: [...Directory.docs.values()]
+    .filter((d) => String(d.userId) === String(user._id))
+    .map((d) => ({ id: String(d._id), parent: String(d.parentDirId), path: d.path.map(String), size: d.size, trashed: Boolean(d.isTrashed) }))
+    .sort((a, b) => a.id.localeCompare(b.id)),
+  files: userFiles(user)
+    .map((f) => ({ id: String(f._id), parent: String(f.parentDirId), trashed: Boolean(f.isTrashed) }))
+    .sort((a, b) => a.id.localeCompare(b.id)),
+});
+
+test('M8: a folder move that fails half-way changes nothing; the retry moves it intact', async () => {
+  const u = makeUser(10_000);
+  const a = makeDir(u, u.rootId, 'Folder A');
+  const b = makeDir(u, a, 'Folder B');
+  const c = makeDir(u, u.rootId, 'Folder C');
+  assert.equal((await upload(u, { dirId: b, data: bytes(300) })).status, 201);
+  const before = treeState(u);
+
+  // The folder itself is re-parented, then rewriting the descendants fails.
+  Directory.failNext('bulkWrite');
+  const res = await request(u, { method: 'PATCH', path: `/directory/${a}/move`, json: { newParentId: String(c) } });
+  assert.equal(res.status, 500);
+  assert.deepEqual(treeState(u), before, 'nothing of the failed move may remain');
+  assertAccounting(u);
+
+  const retry = await request(u, { method: 'PATCH', path: `/directory/${a}/move`, json: { newParentId: String(c) } });
+  assert.equal(retry.status, 200);
+  assert.deepEqual(Directory.get(b).path.map(String), [u.rootId, c, a, b].map(String));
+  assert.equal(sizeOf(c), 300);
+  assertAccounting(u);
+});
+
+test('M8: a file move whose size update fails leaves the file and every size where they were', async () => {
+  const u = makeUser(10_000);
+  const x = makeDir(u, u.rootId, 'Folder X');
+  const y = makeDir(u, u.rootId, 'Folder Y');
+  assert.equal((await upload(u, { dirId: x, data: bytes(250) })).status, 201);
+  const [file] = userFiles(u);
+  const before = treeState(u);
+
+  // Charging the destination folder (the last step) fails.
+  Directory.failNext('findOneAndUpdate', undefined, isId(y));
+  const res = await request(u, { method: 'PATCH', path: `/file/${file._id}/move`, json: { newParentId: String(y) } });
+  assert.equal(res.status, 500);
+  assert.deepEqual(treeState(u), before);
+  assert.equal(sizeOf(x), 250);
+  assertAccounting(u);
+});
+
+test('M8: moving a folder to Trash and restoring it are all-or-nothing', async () => {
+  const u = makeUser(10_000);
+  const a = makeDir(u, u.rootId, 'Folder A');
+  makeDir(u, a, 'Folder B');
+  await upload(u, { dirId: a, data: bytes(100) });
+  const before = treeState(u);
+
+  File.failNext('updateMany'); // the folders are already flagged when this fails
+  assert.equal((await request(u, { method: 'DELETE', path: `/directory/${a}` })).status, 500);
+  assert.deepEqual(treeState(u), before, 'no half-trashed subtree');
+
+  assert.equal((await request(u, { method: 'DELETE', path: `/directory/${a}` })).status, 200);
+  const trashed = treeState(u);
+  assert.ok(trashed.dirs.filter((d) => d.id !== String(u.rootId)).every((d) => d.trashed));
+  assert.ok(trashed.files.every((f) => f.trashed));
+
+  File.failNext('updateMany');
+  assert.equal((await request(u, { method: 'PATCH', path: `/directory/${a}/restore` })).status, 500);
+  assert.deepEqual(treeState(u), trashed, 'a failed restore restores nothing');
+  assertAccounting(u);
+});
+
+test('M8: a failed permanent folder delete keeps it in Trash and frees nothing; the retry frees it once', async () => {
+  const u = makeUser(10_000);
+  const a = makeDir(u, u.rootId, 'Folder A');
+  const b = makeDir(u, a, 'Folder B');
+  await upload(u, { dirId: b, data: bytes(400) });
+  await upload(u, { data: bytes(100) });
+  const [deep] = userFiles(u).filter((f) => String(f.parentDirId) === String(b));
+  Share.insert({ resourceId: deep._id, resourceType: 'file', ownerId: u._id, sharedWithUserId: new ObjectId(), permission: 'viewer' });
+  await request(u, { method: 'DELETE', path: `/directory/${a}` });
+
+  // Fails after the directory document itself was already deleted.
+  Share.failNext('deleteMany');
+  const res = await request(u, { method: 'DELETE', path: `/directory/${a}/permanent` });
+  assert.equal(res.status, 500);
+  assert.ok(Directory.get(a)?.isTrashed, 'the folder is still in Trash, so it can be retried');
+  assert.ok(Directory.get(b), 'its subfolder is still there');
+  assert.ok(File.get(deep._id), 'its files are still there');
+  assert.equal(Share.docs.size, 1, 'its shares are still there');
+  assert.equal(sizeOf(u.rootId), 500, 'no storage was given back yet');
+
+  const retry = await request(u, { method: 'DELETE', path: `/directory/${a}/permanent` });
+  assert.equal(retry.status, 200);
+  assert.equal(Directory.get(a), null);
+  assert.equal(Directory.get(b), null);
+  assert.equal(File.get(deep._id), null);
+  assert.equal(Share.docs.size, 0);
+  assert.equal(sizeOf(u.rootId), 100, 'the folder is freed exactly once');
+  assertAccounting(u);
+});
+
+test('M8: a failed permanent file delete keeps the file and its storage; the retry frees it once', async () => {
+  const u = makeUser(10_000);
+  const a = makeDir(u, u.rootId, 'Folder A');
+  await upload(u, { dirId: a, data: bytes(300), filename: 'gone.bin' });
+  const [file] = userFiles(u);
+  await request(u, { method: 'DELETE', path: `/file/${file._id}` });
+
+  // The document is deleted, then giving the storage back fails.
+  Directory.failNext('findOneAndUpdate', undefined, isId(a));
+  assert.equal((await request(u, { method: 'DELETE', path: `/file/${file._id}/permanent` })).status, 500);
+  assert.ok(File.get(file._id)?.isTrashed, 'the file is still in Trash');
+  assert.equal(sizeOf(u.rootId), 300);
+
+  assert.equal((await request(u, { method: 'DELETE', path: `/file/${file._id}/permanent` })).status, 200);
+  assert.equal(File.get(file._id), null);
+  assert.deepEqual([sizeOf(u.rootId), sizeOf(a)], [0, 0]);
+  assertAccounting(u);
+});
+
+test('M8: an upload whose commit fails half-way leaves no file record, object or reserved storage', async () => {
+  const u = makeUser(10_000);
+  const a = makeDir(u, u.rootId, 'Folder A');
+  const committedBefore = tx.stats.committed;
+
+  // The file record is created and the reservation claimed, then charging
+  // the folder fails. Before M8 the record survived the cleanup.
+  Directory.failNext('findOneAndUpdate', undefined, isId(a));
+  const res = await upload(u, { dirId: a, data: bytes(500) });
+  assert.equal(res.status, 500);
+  assert.deepEqual(userFiles(u), [], 'no file record without its bytes');
+  assert.equal(sizeOf(u.rootId), 0, 'reservation released');
+  assertAccounting(u);
+  assert.equal(tx.stats.committed, committedBefore, 'the commit never completed');
+
+  assert.equal((await upload(u, { dirId: a, data: bytes(500) })).status, 201);
+  assert.equal(tx.stats.committed, committedBefore + 1, 'the upload commit ran in a transaction');
+  assertAccounting(u);
+});
+
+test('M8: deleting a workspace file releases its quota together with the record', async () => {
+  const u = makeUser(10_000);
+  const { ws, wf } = makeWorkspaceFile(u, 400);
+
+  Workspace.failNext('updateOne');
+  const res = await request(u, { method: 'DELETE', path: `/workspace/${ws._id}/files/${wf._id}` });
+  assert.equal(res.status, 500);
+  assert.ok(WorkspaceFile.get(wf._id), 'record kept while its quota could not be released');
+  assert.equal(Workspace.get(ws._id).size, 400);
+
+  // Retrying is safe: B2 deletes of a missing key succeed.
+  assert.equal((await request(u, { method: 'DELETE', path: `/workspace/${ws._id}/files/${wf._id}` })).status, 200);
+  assert.equal(WorkspaceFile.get(wf._id), null);
+  assert.equal(Workspace.get(ws._id).size, 0, 'released exactly once');
 });

@@ -30,8 +30,8 @@ function RootRoute() {
 
   if (status === 'checking') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#fafbff]">
-        <FaSpinner className="animate-spin text-indigo-600" size={28} />
+      <div className="min-h-screen flex items-center justify-center bg-[#070b17]">
+        <FaSpinner className="animate-spin text-[#6a85ff]" size={28} />
       </div>
     );
   }

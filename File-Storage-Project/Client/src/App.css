@@ -29,17 +29,18 @@ body {
   animation: gradientMove 5s ease infinite;
 }
 
-/* Navbar links */
+/* Landing navbar links (dark header) */
 .nav-link {
   position: relative;
   font-size: 0.875rem;
   font-weight: 500;
-  color: #64748b;
+  color: #94a3b8;
   transition: color 200ms ease;
 }
 
-.nav-link:hover {
-  color: #0f172a;
+.nav-link:hover,
+.nav-link:focus-visible {
+  color: #ffffff;
 }
 
 .nav-link::after {
@@ -50,12 +51,111 @@ body {
   width: 0;
   height: 2px;
   border-radius: 999px;
-  background: #4f46e5;
+  background: linear-gradient(90deg, #38bdf8, #4f6df5);
   transition: width 200ms ease;
 }
 
-.nav-link:hover::after {
+.nav-link:hover::after,
+.nav-link:focus-visible::after {
   width: 100%;
+}
+
+/* ---------- Landing page (always dark; palette = the app's dark theme) ---------- */
+.landing {
+  color-scheme: dark;
+}
+.landing ::selection {
+  background: rgba(79, 109, 245, 0.45);
+  color: #fff;
+}
+
+/* Hero backdrop: soft gradients + faint grid (no blur filters, cheap to paint) */
+.landing-hero-bg {
+  background:
+    radial-gradient(60% 55% at 78% 22%, rgba(79, 109, 245, 0.28), transparent 70%),
+    radial-gradient(45% 45% at 12% 8%, rgba(56, 189, 248, 0.16), transparent 70%),
+    radial-gradient(50% 40% at 50% 100%, rgba(124, 92, 240, 0.14), transparent 70%);
+}
+.landing-hero-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 48px 48px;
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, #000 20%, transparent 75%);
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, #000 20%, transparent 75%);
+}
+
+.landing-gradient-text {
+  background: linear-gradient(90deg, #7dd3fc, #6a85ff 45%, #b7a0ff, #7dd3fc);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: gradientMove 8s ease infinite;
+}
+
+.landing-glow {
+  background: radial-gradient(closest-side, rgba(79, 109, 245, 0.35), transparent);
+}
+.landing-glow-violet {
+  background: radial-gradient(closest-side, rgba(124, 92, 240, 0.3), transparent);
+}
+
+/* Alternate section band */
+.landing-band {
+  background: linear-gradient(180deg, transparent, rgba(13, 21, 39, 0.7) 12%, rgba(13, 21, 39, 0.7) 88%, transparent);
+}
+
+/* Cards */
+.landing-card {
+  background: linear-gradient(180deg, rgba(17, 26, 46, 0.9), rgba(13, 21, 39, 0.9));
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  transition: border-color 200ms ease, box-shadow 200ms ease;
+}
+.landing-card:hover {
+  border-color: rgba(125, 162, 255, 0.22);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 20px 50px -30px rgba(79, 109, 245, 0.6);
+}
+.landing-card-premium {
+  background:
+    radial-gradient(90% 60% at 100% 0%, rgba(79, 109, 245, 0.25), transparent 70%),
+    linear-gradient(180deg, #131f3b, #0d1527);
+  border: 1px solid rgba(106, 133, 255, 0.45);
+  box-shadow: 0 30px 80px -40px rgba(79, 109, 245, 0.8);
+}
+
+.landing-security {
+  background:
+    radial-gradient(70% 50% at 50% 0%, rgba(79, 109, 245, 0.18), transparent 70%),
+    linear-gradient(180deg, #0d1527, #0a1020);
+}
+
+.landing-cta {
+  background:
+    radial-gradient(80% 90% at 0% 0%, rgba(56, 189, 248, 0.3), transparent 60%),
+    radial-gradient(80% 90% at 100% 100%, rgba(124, 92, 240, 0.35), transparent 60%),
+    linear-gradient(135deg, #1a2f6b, #0f2556 55%, #0a1b42);
+}
+
+/* Gentle float for the hero's floating cards */
+@keyframes landingFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+.landing-float {
+  animation: landingFloat 5s ease-in-out infinite;
+}
+
+@keyframes landingCaret {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+.landing-caret {
+  animation: landingCaret 1.1s steps(1) infinite;
 }
 
 /* Respect users who prefer reduced motion */

@@ -131,7 +131,7 @@ function StorageSettings() {
       </SettingsSection>
 
       <p className="text-xs text-text-muted">
-        Need more space? Plans and upgrades aren't available yet — there's no payment system in StorageApp.
+        Need more space? Plans and upgrades aren't available yet — there's no payment system in SFECAPP.
       </p>
 
       {viewerFile && (

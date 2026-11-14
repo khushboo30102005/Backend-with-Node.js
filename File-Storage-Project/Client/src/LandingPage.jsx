@@ -10,6 +10,7 @@ import HowItWorks from './components/landing/HowItWorks';
 import SecuritySection from './components/landing/SecuritySection';
 import PlansSection from './components/landing/PlansSection';
 import { Benefits, FinalCta, LandingFooter } from './components/landing/ClosingSections';
+import { BRAND_NAME, BRAND_FULL_NAME } from './brand';
 
 // Public entry page for guests (RootRoute renders it at "/"). Always uses the
 // dark brand palette, independent of the in-app theme setting.
@@ -41,14 +42,15 @@ function Hero() {
             {...fadeUp(0.08)}
             className="mx-auto mt-6 max-w-2xl text-[2.6rem] font-bold leading-[1.05] tracking-tight text-white sm:text-6xl lg:mx-0 lg:text-[4.1rem]"
           >
-            Cloud storage that keeps you{' '}
-            <span className="landing-gradient-text">in control.</span>
+            Manage smarter.{' '}
+            <span className="landing-gradient-text">Collaborate temporarily.</span>
           </motion.h1>
 
           <motion.p
             {...fadeUp(0.16)}
             className="mx-auto mt-6 max-w-xl text-base leading-7 text-slate-400 sm:text-lg sm:leading-8 lg:mx-0"
           >
+            <span className="font-semibold text-slate-200">{BRAND_NAME}</span> — the {BRAND_FULL_NAME}.
             Store and organize your files, share them with exactly the right people, and open temporary
             workspaces that clean up after themselves — all protected by two-step sign-in and checks on
             the server for every request.

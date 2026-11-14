@@ -1,7 +1,7 @@
 {
   "name": "file-storage-project",
   "version": "1.0.0",
-  "description": "",
+  "description": "SFECAPP (Smart File & Ephemeral Collaboration System) API server",
   "main": "app.js",
   "type": "module",
   "scripts": {

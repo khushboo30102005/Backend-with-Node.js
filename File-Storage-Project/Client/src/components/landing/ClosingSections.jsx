@@ -3,6 +3,7 @@ import { FaArrowRight, FaBalanceScale, FaEye, FaLayerGroup, FaUserLock } from 'r
 import Brand from '../Brand';
 import { NAV_LINKS } from './LandingNav';
 import { IconBadge, Reveal, Section, SectionHeader } from './primitives';
+import { BRAND_TAGLINE } from '../../brand';
 
 const BENEFITS = [
   {
@@ -30,7 +31,7 @@ const BENEFITS = [
 export function Benefits() {
   return (
     <Section id="benefits">
-      <SectionHeader eyebrow="Why StorageApp" title="Designed around control and clarity" />
+      <SectionHeader eyebrow="Why SFECAPP" title="Designed around control and clarity" />
       <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
         {BENEFITS.map(({ icon, title, text }, i) => (
           <Reveal key={title} delay={i * 0.07}>
@@ -82,7 +83,8 @@ export function LandingFooter() {
       <div className="mx-auto flex max-w-7xl flex-col gap-8 px-4 py-10 sm:px-6 md:flex-row md:items-start md:justify-between">
         <div className="max-w-xs">
           <Brand />
-          <p className="mt-3 text-sm leading-6 text-slate-500">
+          <p className="mt-3 text-sm font-medium text-slate-300">{BRAND_TAGLINE}</p>
+          <p className="mt-2 text-sm leading-6 text-slate-500">
             Secure cloud storage with sharing, temporary workspaces and optional AI insights.
           </p>
         </div>
@@ -105,7 +107,7 @@ export function LandingFooter() {
       </div>
       <div className="border-t border-white/[0.06]">
         <p className="mx-auto max-w-7xl px-4 py-5 text-xs text-slate-600 sm:px-6">
-          © {new Date().getFullYear()} StorageApp
+          © {new Date().getFullYear()} SFECAPP — Smart File &amp; Ephemeral Collaboration System
         </p>
       </div>
     </footer>

@@ -73,7 +73,7 @@ function HeroPreview() {
           <span className="h-2.5 w-2.5 rounded-full bg-amber-400/70" />
           <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/70" />
           <span className="ml-3 truncate rounded-md bg-white/[0.04] px-3 py-1 text-[10px] text-slate-500">
-            storageapp / mydrive
+            sfecapp / mydrive
           </span>
         </div>
 
@@ -85,7 +85,7 @@ function HeroPreview() {
                 <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-gradient-to-br from-sky-400 to-indigo-500">
                   <FaCloud className="text-white" size={11} />
                 </span>
-                <span className="text-[11px] font-bold text-white">StorageApp</span>
+                <span className="text-[11px] font-bold text-white">SFECAPP</span>
               </div>
               <div className="mb-3 flex items-center justify-center gap-1.5 rounded-lg bg-[#4f6df5] py-1.5 text-[10px] font-semibold text-white">
                 <FaPlus size={8} /> New

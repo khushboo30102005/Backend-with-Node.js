@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import { OTP_TTL_SECONDS } from './otpService.js';
+import { BRAND_NAME, BRAND_FULL_NAME, BRAND_TAGLINE } from '../config/brand.js';
 
 // Emails an already-generated OTP. Storage/hashing lives in otpService.js;
 // the plaintext code exists only in memory and in the email itself.
@@ -83,10 +84,11 @@ export async function sendOtpEmail(email, otp) {
   const html = `
       <div style="font-family: sans-serif">
       <h1>Hello</h1>
-      <h2>Your StorageApp verification code is: ${otp}.</h2>
+      <h2>Your ${BRAND_NAME} verification code is: ${otp}.</h2>
       <p>This code will expire in ${OTP_TTL_SECONDS / 60} minutes.</p>
       <p>If you didn't request this code, you can safely ignore this email.</p>
-      <p>Thanks, The StorageApp Team.</p>
+      <p>Thanks, The ${BRAND_NAME} Team.</p>
+      <p style="color: #64748b; font-size: 12px">${BRAND_NAME} — ${BRAND_FULL_NAME}<br />${BRAND_TAGLINE}</p>
     </div>
   `;
 
@@ -111,9 +113,9 @@ export async function sendOtpEmail(email, otp) {
     });
 
     const sending = transporter.sendMail({
-      from: `"Storage App" <${process.env.SMTP_USER}>`,
+      from: `"${BRAND_NAME}" <${process.env.SMTP_USER}>`,
       to: email,
-      subject: 'StorageApp Verification Code',
+      subject: `${BRAND_NAME} Verification Code`,
       html,
       // nodemailer >= 10.5 closes the SMTP connection when this aborts.
       signal: controller.signal,

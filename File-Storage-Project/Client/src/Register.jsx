@@ -4,6 +4,8 @@ import { GoogleLogin } from '@react-oauth/google';
 import { loginWithGoogle, sendOtp, verifyOtp } from './apis/authApi';
 import { registerUser, fetchUser } from './apis/userApi';
 import AuthBackground from './components/AuthBackground';
+import Brand from './components/Brand';
+import { BRAND_TAGLINE } from './brand';
 import CookieBlockedModal from './components/CookieBlockedModal';
 import CookieBanner from './components/CookieBanner';
 import { useCookieCheck } from './hooks/useCookieCheck';
@@ -129,6 +131,12 @@ const Register = () => {
   return (
    <AuthBackground>
      <div className="max-w-[400px] mx-auto my-[60px] p-8 bg-surface/85 backdrop-blur-xl rounded-2xl shadow-[0_1px_3px_rgba(0,0,0,0.04),0_12px_32px_rgba(0,0,0,0.08)] border border-border font-sans">
+      <div className="flex flex-col items-center mb-6">
+        <Link to="/" aria-label="SFECAPP home" className="rounded-xl focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/30">
+          <Brand onDark={false} />
+        </Link>
+        <p className="mt-2 text-xs font-medium text-text-muted">{BRAND_TAGLINE}</p>
+      </div>
       <h2 className="text-center mb-6 text-2xl font-bold tracking-tight text-text">
         Register
       </h2>

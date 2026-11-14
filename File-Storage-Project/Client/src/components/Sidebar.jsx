@@ -23,7 +23,7 @@ function Sidebar({ collapsed, onToggle }) {
       >
         <Link
           to="/mydrive"
-          aria-label="StorageApp home"
+          aria-label="SFECAPP home"
           className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
         >
           <Brand compact={collapsed} />

@@ -94,7 +94,7 @@ function TopBar({ onOpenMenu }) {
           </button>
           <Link
             to="/mydrive"
-            aria-label="StorageApp home"
+            aria-label="SFECAPP home"
             className="md:hidden min-w-0 rounded-lg focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/30"
           >
             <Brand onDark={false} />

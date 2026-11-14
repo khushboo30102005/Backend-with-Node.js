@@ -12,6 +12,7 @@ import {
   getSubscriptionSummary,
   revokePremiumForRefund,
 } from '../services/subscriptionService.js';
+import { BRAND_NAME } from '../config/brand.js';
 
 const orderIdSchema = z.string().regex(/^order_[A-Za-z0-9]{6,40}$/);
 const paymentIdSchema = z.string().regex(/^pay_[A-Za-z0-9]{6,40}$/);
@@ -127,7 +128,7 @@ export const createOrder = async (req, res, next) => {
       amount: premium.pricePaise,
       currency: CURRENCY,
       keyId: getKeyId(), // public key id only
-      name: 'StorageApp',
+      name: BRAND_NAME,
       description: `${premium.name} — ${premium.durationDays} days`,
       prefill: { name: user.name, email: user.email },
     });

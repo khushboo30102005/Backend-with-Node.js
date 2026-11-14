@@ -1,8 +1,25 @@
-# React + Vite
+# SFECAPP — Client
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Frontend for **SFECAPP (Smart File & Ephemeral Collaboration System)**:
+*Manage Smarter. Collaborate Temporarily.*
 
-Currently, two official plugins are available:
+Built with React, Vite and Tailwind CSS. See the [project README](../README.md) for the full overview.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Scripts
+
+| Command | Purpose |
+|---|---|
+| `npm run dev` | Start the Vite dev server |
+| `npm run build` | Production build into `dist/` |
+| `npm run preview` | Preview the production build |
+| `npm run lint` | Run ESLint |
+
+## Environment
+
+- `VITE_BACKEND_BASE_URL`: API base URL
+- `VITE_GOOGLE_CLIENT_ID`: Google OAuth client id
+
+## Branding
+
+Brand name, full name and tagline are defined in `src/brand.js`. The favicon is
+`public/favicon.svg`, and `public/application.png` remains as a PNG fallback.

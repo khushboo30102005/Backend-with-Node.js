@@ -1,4 +1,5 @@
 import { FaCloud } from 'react-icons/fa';
+import { BRAND_NAME, BRAND_FULL_NAME } from '../brand';
 
 // onDark = on the navy sidebar/drawer; otherwise on the page background (mobile header)
 function Brand({ className = '', onDark = true, compact = false }) {
@@ -15,11 +16,12 @@ function Brand({ className = '', onDark = true, compact = false }) {
       </span>
       {!compact && (
         <span
+          title={BRAND_FULL_NAME}
           className={`text-[17px] font-bold tracking-tight ${
             onDark ? 'text-white' : 'text-text'
           }`}
         >
-          StorageApp
+          {BRAND_NAME}
         </span>
       )}
     </div>

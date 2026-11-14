@@ -15,6 +15,7 @@
 import os from 'node:os';
 import readline from 'node:readline';
 import { generateSetupToken } from '../utils/ownerSetupToken.js';
+import { BRAND_NAME } from '../config/brand.js';
 
 const args = new Set(process.argv.slice(2));
 
@@ -120,7 +121,7 @@ try {
     );
   }
 
-  console.log('\n=== StorageApp: initial Owner setup ===\n');
+  console.log(`\n=== ${BRAND_NAME}: initial Owner setup ===\n`);
   const setupToken = (await ask('Setup token: ', { hidden: true })).trim();
   const email = await ask('Owner email: ');
 

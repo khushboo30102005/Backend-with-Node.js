@@ -11,7 +11,7 @@ console.log('Database Connected');
 const command = 'collMod';
 
 // collMod fails on collections that don't exist yet (fresh database), so create them first
-for (const name of ['users', 'directories', 'files', 'otps', 'shares', 'workspaces', 'workspacefiles', 'workspacevisits', 'workspacefolders', 'workspaceactivities', 'subscriptions', 'payments', 'webhookevents']) {
+for (const name of ['users', 'directories', 'files', 'otps', 'shares', 'workspaces', 'workspacefiles', 'workspacevisits', 'workspacefolders', 'workspaceactivities', 'subscriptions', 'payments', 'webhookevents', 'systemstates', 'auditlogs']) {
   const exists = await db.listCollections({ name }).hasNext();
   if (!exists) {
     await db.createCollection(name);
@@ -594,6 +594,58 @@ try {
   await db
     .collection('webhookevents')
     .createIndex({ createdAt: 1 }, { expireAfterSeconds: 60 * 60 * 24 * 30 });
+
+  // =========================
+  // System state (one-time flags, e.g. the initial Owner setup marker)
+  // =========================
+  await db.command({
+    [command]: 'systemstates',
+    validator: {
+      $jsonSchema: {
+        bsonType: 'object',
+        required: ['_id', 'completedAt'],
+        properties: {
+          _id: { bsonType: 'string', enum: ['owner-bootstrap'] },
+          completedAt: { bsonType: 'date' },
+          ownerId: { bsonType: ['null', 'objectId'] },
+        },
+        additionalProperties: false,
+      },
+    },
+    validationAction: 'error',
+    validationLevel: 'strict',
+  });
+
+  // =========================
+  // Audit log (application-wide security events)
+  // =========================
+  await db.command({
+    [command]: 'auditlogs',
+    validator: {
+      $jsonSchema: {
+        bsonType: 'object',
+        required: ['_id', 'type', 'outcome'],
+        properties: {
+          _id: { bsonType: 'objectId' },
+          __v: { bsonType: 'int' },
+          type: { bsonType: 'string', maxLength: 60 },
+          outcome: { bsonType: 'string', enum: ['success', 'denied'] },
+          actorId: { bsonType: ['null', 'objectId'] },
+          targetUserId: { bsonType: ['null', 'objectId'] },
+          targetEmail: { bsonType: 'string', maxLength: 320 },
+          detail: { bsonType: 'string', maxLength: 255 },
+          source: { bsonType: 'string', maxLength: 40 },
+          host: { bsonType: 'string', maxLength: 255 },
+          osUser: { bsonType: 'string', maxLength: 255 },
+          createdAt: { bsonType: 'date' },
+        },
+        additionalProperties: false,
+      },
+    },
+    validationAction: 'error',
+    validationLevel: 'strict',
+  });
+  await db.collection('auditlogs').createIndex({ type: 1, createdAt: -1 });
 
   console.log('MongoDB validation rules applied successfully.');
 } catch (error) {

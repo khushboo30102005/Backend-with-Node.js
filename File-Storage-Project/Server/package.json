@@ -10,7 +10,9 @@
     "dev": "node --watch --env-file=.env app.js",
     "debug": "node --inspect --env-file=.env app.js",
     "setup": "node --env-file=.env config/setup.js",
-    "setup:ai": "node --env-file=.env config/setupAi.js"
+    "setup:ai": "node --env-file=.env config/setupAi.js",
+    "owner:token": "node scripts/initOwner.js --generate-token",
+    "owner:init": "node --env-file=.env scripts/initOwner.js"
   },
   "keywords": [],
   "author": "",

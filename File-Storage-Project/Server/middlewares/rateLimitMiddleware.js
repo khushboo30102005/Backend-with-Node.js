@@ -44,12 +44,15 @@ const userKey = (req) => `user:${req.user._id}`;
 
 const MIN15 = 15 * 60 * 1000;
 
-export const apiLimiter = createRateLimiter({
-  name: 'api',
-  windowMs: MIN15,
+export const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
   limit: 500,
-  keyGenerator: sessionOrIpKey,
-  message: 'Too many requests. Please try again later.',
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  handler: (req, res, next, options) => {
+    console.log('[apiLimiter] blocked', req.ip, req.method, req.originalUrl);
+    res.status(429).json(options.message);
+  },
 });
 
 export const otpSendLimiter = createRateLimiter({

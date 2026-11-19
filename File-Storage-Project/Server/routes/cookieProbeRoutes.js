@@ -7,7 +7,7 @@ import { sessionCookieOptions } from '../config/cookie.js';
 // accept the session cookie too. Step 1 sets it, step 2 reports whether the
 // browser sent it back.
 //
-// Mounted in app.js BEFORE the global API limiter, like /health: it touches no
+// Mounted in app.js BEFORE the global API limiter: it touches no
 // database, Redis or user data and only echoes a fixed cookie, so it gains
 // nothing from throttling, while counting it let an exhausted shared bucket
 // break the sign-in page with a 429 before the user had done anything.

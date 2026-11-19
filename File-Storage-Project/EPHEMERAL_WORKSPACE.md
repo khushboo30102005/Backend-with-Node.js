@@ -138,8 +138,7 @@ with `code: "WORKSPACE_EXPIRED"`.
    and visible to admins, who can retry from the Admin tab.
 
 On Render's free tier the process can sleep. Access is still cut off on time (it
-is checked per request); physical deletion happens on the next wake-up, which
-the `/health` pinger keeps short.
+is checked per request); physical deletion happens on the next wake-up.
 
 ## Limits and environment variables
 

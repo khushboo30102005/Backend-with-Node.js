@@ -28,13 +28,6 @@ await connectDB();
 const app = express();
 const port = process.env.PORT || 4000;
 
-// Keep-alive target for an uptime pinger (Render's free tier sleeps after ~15
-// idle minutes). Registered before CORS, rate limiting and auth, and touches
-// no database, so frequent pings are cheap and never hit a limiter.
-app.get('/health', (req, res) => {
-  res.set('Cache-Control', 'no-store').json({ status: 'ok' });
-});
-
 // Razorpay webhook. Must come BEFORE express.json(): the signature is computed
 // over the exact raw bytes, so the body has to stay an unparsed Buffer here.
 // It is server-to-server (no cookies/CORS) and authenticated by its signature.

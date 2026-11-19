@@ -56,9 +56,7 @@ app.use(express.json());
 // Render's edge). The hop count decides which X-Forwarded-For entry becomes
 // req.ip for the per-IP rate limiters; see config/proxy.js before changing it.
 app.set('trust proxy', trustProxyHops());
-app.get('/debug-ip', (req, res) =>
-  res.json({ ip: req.ip, ips: req.ips, xff: req.headers['x-forwarded-for'] }),
-);
+
 app.use(helmet());
 
 // Stateless cookie probe for the sign-in pages: before the global limiter so

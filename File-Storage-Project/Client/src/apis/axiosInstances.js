@@ -1,5 +1,4 @@
 import axios from 'axios';
-import { installColdStartRetry } from './serverWake';
 
 const BASE_URL = import.meta.env.VITE_BACKEND_BASE_URL;
 
@@ -18,8 +17,6 @@ const rejectHtmlResponses = (response) => {
   const type = response.headers?.['content-type'] || '';
   if (type.includes('text/html') && response.config?.responseType !== 'text') {
     const err = new Error('API returned a web page instead of JSON');
-    err.code = 'ERR_HTML_RESPONSE';
-    err.config = response.config;
     err.response = { ...response, status: 502 };
     return Promise.reject(err);
   }
@@ -98,8 +95,3 @@ axiosWithCreds.interceptors.response.use(
     return Promise.reject(error);
   },
 );
-
-// Registered last so it sees errors after the handlers above: when the server
-// is asleep (Render free tier), wait for it to start and resend the request.
-installColdStartRetry(axiosWithCreds);
-installColdStartRetry(axiosWithoutCreds);
